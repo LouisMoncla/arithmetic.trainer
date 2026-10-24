@@ -61,6 +61,9 @@ test('session: deep link, arrow keys, and A from the end screen', async ({ page 
 
   // Play one round today, then jump to today's analysis with A.
   await page.keyboard.press('p');
+  // The play screen renders on hashchange; keys sent before that still go to the session screen.
+  await expect(page).toHaveURL(/#play$/);
+  await expect(page.getByTestId('home-start-button')).toBeVisible();
   await page.keyboard.press('1');
   await startSelected(page);
   await answerCurrent(page);
