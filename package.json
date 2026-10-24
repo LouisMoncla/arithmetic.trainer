@@ -1,0 +1,14 @@
+{
+  "name": "arithmetic-trainer",
+  "private": true,
+  "license": "MIT",
+  "description": "Local mental-math trainer. The app itself has no dependencies; these are for tests only.",
+  "scripts": {
+    "test": "node --test",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@supabase/supabase-js": "2.117.3"
+  }
+}

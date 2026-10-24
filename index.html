@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <title>Arithmetic Trainer</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip" href="#main" id="skip-link">Skip to content</a>
+
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="#play" translate="no">Arithmetic Trainer</a>
+      <nav aria-label="Main">
+        <a href="#play" title="Play (P)">Play</a>
+        <a href="#drill" title="Drill (D)">Drill</a>
+        <a href="#review" title="Review (R)">Review</a>
+        <a href="#session" title="Session (E)">Session</a>
+        <a href="#progress" title="Progress (G)">Progress</a>
+        <a href="#log" title="Log (L)">Log</a>
+        <a href="#settings" title="Settings (S)">Settings</a>
+      </nav>
+      <div class="tools">
+        <a id="sync-status" class="sync-status" href="#settings" hidden></a>
+        <button id="theme-toggle" class="icon" type="button" title="Light or dark (T)" aria-label="Switch between light and dark">◐</button>
+        <button id="help-btn" class="icon" type="button" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">?</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Shown only if saving to this browser fails. -->
+  <div id="app-alert" class="app-alert" role="alert" hidden></div>
+  <!-- Polite announcements for screen readers (copied, saved, nothing to replay…). -->
+  <div id="live" class="sr-only" aria-live="polite"></div>
+
+  <main id="main" tabindex="-1"></main>
+
+  <footer class="foot">Press <kbd>?</kbd> for keyboard shortcuts and <kbd>T</kbd> to switch light and dark. <a href="privacy.html">Privacy</a></footer>
+
+  <!-- The play screen. Only question, input, timer and score. -->
+  <div id="game" hidden translate="no"></div>
+
+  <div id="help" hidden role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="help-box">
+      <div class="page-head"><h2 id="help-title">Keyboard shortcuts</h2><div class="actions"><button type="button" id="help-close">Close <kbd>Esc</kbd></button></div></div>
+      <table>
+        <tr><th scope="col">Keys</th><th scope="col">What they do</th></tr>
+        <tr><td class="num">P D R E G L S</td><td>Go to Play, Drill, Review, Session, Progress, Log, Settings</td></tr>
+        <tr><td class="num">?</td><td>Show this list (Esc closes it)</td></tr>
+        <tr><td class="num">T</td><td>Switch light and dark</td></tr>
+        <tr><td class="num">1–7  ↑ ↓</td><td>Play: choose a mode</td></tr>
+        <tr><td class="num">Enter  Space</td><td>Play: start the chosen mode</td></tr>
+        <tr><td class="num">Esc</td><td>During a round: stop it without saving</td></tr>
+        <tr><td class="num">Enter  Tab</td><td>Interview: answer, skip</td></tr>
+        <tr><td class="num">Enter  D  A  H</td><td>After a round: play again, drill the slow questions, see today’s analysis, go home</td></tr>
+        <tr><td class="num">M</td><td>Drill and Review: replay your mistakes</td></tr>
+        <tr><td class="num">W</td><td>Review: play weighted tables</td></tr>
+        <tr><td class="num">V</td><td>Review: switch heatmap view (combined, ×, ÷)</td></tr>
+        <tr><td class="num">← →</td><td>Session: previous or next session. On a focused chart: move along it.</td></tr>
+        <tr><td class="num">Tab</td><td>Move between buttons and fields</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Classic scripts in a fixed order (no ES modules: they fail on file://). -->
+  <script src="js/generator.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/progression.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

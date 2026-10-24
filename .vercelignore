@@ -1,0 +1,11 @@
+# Only the app is deployed: index.html, privacy.html, css/, js/.
+# Without package.json Vercel has nothing to install, so Playwright never gets downloaded there.
+node_modules/
+tests/
+docs/
+supabase/
+test-results/
+playwright.config.js
+package.json
+package-lock.json
+README.md

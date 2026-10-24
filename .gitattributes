@@ -1,0 +1,3 @@
+# Store text files with LF so Windows and macOS/Linux clones agree.
+* text=auto eol=lf
+*.png binary

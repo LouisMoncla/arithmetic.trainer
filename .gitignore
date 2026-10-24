@@ -1,0 +1,18 @@
+# Dependencies (reinstall with npm ci)
+node_modules/
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Personal data exports: your training history, never commit
+arithmetic-trainer-*.json
+
+# OS and editor files
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
