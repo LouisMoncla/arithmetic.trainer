@@ -465,37 +465,109 @@
     return '<div class="end-head"><div class="score" data-testid="end-score">' + score + '</div><p class="sub"><b>' + esc(title) + '</b>' + esc(sub) + '</p></div>';
   }
 
+  function ordinal(n) {
+    var t = n % 100, s = t >= 11 && t <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' })[n % 10] || 'th';
+    return n + s;
+  }
+
+  // Seconds per question across the round, with the round median as a reference line.
+  function timeLine(series, med, name) {
+    var xs = series.map(function (_, i) { return i + 1; });
+    return C.legend([{ kind: 'line', label: 'Seconds per question' }, { kind: 'dot', label: 'Round median ' + sec(med) }]) + C.line({
+      xs: xs, h: 160, xName: 'Question ', label: name + ' seconds per question',
+      series: [{ ys: series.map(function (x) { return x.s; }), kind: 'line', name: 'time' }],
+      hlines: [{ y: med / 1000, kind: 'dot', name: 'round median' }], fmt: function (v) { return v.toFixed(1) + 's'; }, zero: true
+    }) + C.table(['Question', 'Seconds'], series.map(function (x, i) { return [i + 1 + '. ' + x.q.shown, x.s.toFixed(1)]; }));
+  }
+
   function showEnd(round, again) {
     var rounds = data.rounds, today = todayKey(), mode = round.mode;
     var nToday = rounds.filter(function (r) { return S.dayKey(r.startedAt) === today; }).length;
-    var avg = S.recentAverage(rounds, mode, 7, round.id);
-    var qs = round.questions, wrong = qs.reduce(function (a, q) { return a + (q.wrongAttempts || 0); }, 0);
-    var answered = qs.filter(function (q) { return !q.unanswered; });
-    var med = S.median(answered.map(function (q) { return q.timeMs; }));
-    var slow = S.slowest(round, 5), fr = S.freezes(round);
-    var slowQs = slow.filter(function (q) { return q.op !== 'iv'; });
+    var rep = S.roundReport(rounds, round), rk = rep.rank, med = rep.median;
+    var slowQs = rep.slowest.slice(0, 5).filter(function (q) { return q.op !== 'iv'; });
     var h = ['<div class="end">'];
     h.push('<h1 class="sr-only">Round finished</h1>');
     h.push(endHead(round.score, label(mode), 'Round ' + nToday + ' today'));
     h.push(endButtons([['again', 'Play again', 'Enter']].concat(slowQs.length ? [['d', 'Drill these slow questions', 'D']] : [])
       .concat([['a', 'See today’s analysis', 'A'], ['h', 'Home', 'H']])));
+
+    // Summary: what you read at a glance.
+    var avgNote = rep.avg7 === null ? 'First session in this mode' : 'Average ' + f1(rep.avg7);
+    if (rep.threshold) avgNote += ', threshold ' + rep.threshold;
+    var rankNote = rk.of === 1 ? 'First round in this mode' : rk.best ? (rk.tied ? 'Ties your best' : 'Personal best') :
+      rk.bestToday ? 'Best today' : rk.place / rk.of <= 0.5 ? 'Top ' + Math.max(1, Math.round(rk.place / rk.of * 100)) + '%' : '';
     h.push(stats([
-      { label: 'Compared with your 7-session average', value: avg === null ? '–' : signed(round.score - avg), note: avg === null ? 'First session in this mode' : 'Average ' + f1(avg), key: 'vs-average' },
-      { label: 'Wrong attempts', value: String(wrong), note: answered.length ? Math.round(wrong / answered.length * 100) + '% of answers' : '', key: 'wrong' },
-      { label: 'Median time', value: med ? sec(med) : '–', note: 'Per question', key: 'median' }
+      { label: 'Compared with your 7-session average', value: rep.avg7 === null ? '–' : signed(round.score - rep.avg7), note: avgNote, key: 'vs-average' },
+      { label: 'Median time', value: med ? sec(med) : '–', note: rep.usualMedian ? 'Usually ' + sec(rep.usualMedian) : 'Per question', key: 'median' },
+      { label: 'First-try accuracy', value: pct(rep.firstTry), note: plural(rep.wrongAttempts, 'wrong attempt'), key: 'accuracy' },
+      { label: 'Rank in this mode', value: rk.of === 1 ? '–' : rk.best ? 'Best' : ordinal(rk.place), note: rk.of > 1 && !rk.best ? 'Of ' + rk.of + (rankNote ? ', ' + rankNote.toLowerCase() : '') : rankNote, key: 'rank' }
     ]));
+    h.push('<ul class="takeaways" data-testid="end-takeaways" aria-label="Takeaways">' + rep.takeaways.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
     var ss = S.sessionsForMode(rounds, mode).filter(function (s) { return s.day === today; });
     if (ss.length && S.fatigue(ss[0].scores)) h.push('<div class="notices"><p class="notice strong">Your scores are dropping. Stop here or take a 10-minute break.</p></div>');
-    if (fr.length) {
-      h.push(section('Freezes', '<p class="sec-intro">Questions that took more than 3 times your median.</p>' + fr.map(function (f) {
+    if (rep.answered) h.push('<p class="small mid end-more">Details below: pace, operations, freezes and every question.</p>');
+
+    // Details, for when you scroll.
+    if (rep.answered >= 2) {
+      var p = rep.pace, t = p.duration / 3, labels = [0, 1, 2].map(function (i) { return Math.round(t * i) + '–' + Math.round(t * (i + 1)) + ' s'; });
+      var pc = ['<p class="sec-intro">How long each answer took, in the order you saw them.</p>', timeLine(rep.series, med, label(mode))];
+      pc.push('<p class="chart-cap">Answers per third of the clock</p>' + C.bars({
+        values: p.thirds.map(function (x) { return x.answers; }), labels: labels, h: 110, w: 420, label: 'Answers per third of the clock',
+        tips: p.thirds.map(function (x, i) { return { t: labels[i] + ' of the clock', rows: [{ v: String(x.answers), l: 'answers' }, { v: x.median ? sec(x.median) : '–', l: 'median time' }] }; })
+      }));
+      pc.push(facts(p.thirds.map(function (x, i) { return ['Median time, ' + labels[i], x.median ? sec(x.median) : '–']; })));
+      if (p.change !== null) pc.push('<p>' + (Math.abs(p.change) < 0.05 ? 'Your pace stays steady from start to finish.' :
+        'You are <b>' + Math.round(Math.abs(p.change) * 100) + '% ' + (p.change > 0 ? 'slower' : 'faster') + '</b> in the last third than in the first.') + '</p>');
+      h.push(section('Through the round', pc.join(''), null, 'end-pace'));
+    }
+    if (rep.ops.length > 1 || rep.ops.some(function (o) { return o.usualMedian; })) {
+      h.push(section('Per operation', '<p class="sec-intro">This round against your other ' + esc(label(rep.mode)) + ' rounds.</p>' +
+        '<div class="tbl-scroll"><table><tr><th scope="col">Operation</th><th scope="col" class="n">Questions</th><th scope="col" class="n">Median</th><th scope="col" class="n">Usually</th>' +
+        '<th scope="col" class="n">Change</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Time share</th></tr>' +
+        rep.ops.map(function (o) {
+          return '<tr><td>' + OP_SYM[o.op] + ' ' + OP_NAME[o.op].toLowerCase() + '</td><td class="n">' + o.n + '</td><td class="n">' + sec(o.median) + '</td><td class="n">' +
+            (o.usualMedian ? sec(o.usualMedian) : '–') + '</td><td class="n">' + (o.usualMedian ? '<b>' + dsec(o.median - o.usualMedian) + '</b>' : '–') +
+            '</td><td class="n">' + o.wrong + '</td><td class="n">' + pct(o.share) + '</td></tr>';
+        }).join('') + '</table></div>'));
+    }
+    if (rep.answered >= 2) {
+      var bl = ['Under 1 s', '1–2 s', '2–3 s', '3–4 s', '4 s or more'];
+      h.push(section('Time spread', '<p class="chart-cap">Answers by time taken</p>' + C.bars({
+        values: rep.buckets, labels: bl, h: 110, w: 420, label: 'Answers by time taken',
+        tips: rep.buckets.map(function (v, i) { return { t: bl[i], rows: [{ v: String(v), l: 'answers' }, { v: pct(v / rep.answered), l: 'of the round' }] }; })
+      }) + facts([
+        ['Mean', sec(rep.mean)], ['Median', sec(med)], ['Middle half', sec(rep.q1) + ' to ' + sec(rep.q3)],
+        ['Answers per minute', f1(rep.perMinute)]
+      ])));
+    }
+    if (rep.freezes.length) {
+      h.push(section('Freezes', '<p class="sec-intro">Questions that took more than 3 times your median.</p>' + rep.freezes.map(function (f) {
         return '<p class="freeze"><b>' + esc(f.q.shown) + '</b> took <b class="num">' + sec(f.q.timeMs) + '</b>. ' + esc(f.advice) + '</p>';
       }).join('')));
     }
-    if (slow.length) {
-      h.push(section('Slowest questions', '<table class="compact"><tr><th scope="col">Question</th><th scope="col" class="n">Time</th><th scope="col">Note</th></tr>' + slow.map(function (q) {
+    if (rep.slowest.length) {
+      h.push(section('Slowest questions', '<table class="compact"><tr><th scope="col">Question</th><th scope="col" class="n">Time</th><th scope="col">Note</th></tr>' + rep.slowest.map(function (q) {
         return '<tr><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="mid">' +
           (q.unanswered ? 'Not answered' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
       }).join('') + '</table>'));
+    }
+    if (rep.slower.length || rep.faster.length) {
+      var list = function (xs) {
+        if (!xs.length) return '<p class="small">None this round.</p>';
+        return '<ol class="weak">' + xs.map(function (x) {
+          return '<li><span class="f">' + esc(x.label) + '</span><span class="m">' + sec(x.before) + ' → ' + sec(x.today) + '</span></li>';
+        }).join('') + '</ol>';
+      };
+      h.push(section('Facts this round', '<p class="sec-intro">Your usual median time, then this round. A fact needs 3 earlier attempts to show here.</p>' +
+        '<h3 class="sub-h">Slower than usual</h3>' + list(rep.slower) + '<h3 class="sub-h">Faster than usual</h3>' + list(rep.faster)));
+    }
+    if (round.questions.length) {
+      var frozen = rep.freezes.map(function (f) { return f.q; });
+      h.push(section('Every question', '<div class="tbl-scroll"><table class="compact" data-testid="end-all-questions"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col" class="n">Time</th>' +
+        '<th scope="col" class="n">Wrong</th><th scope="col">Note</th></tr>' + round.questions.map(function (q, i) {
+          return '<tr><td class="n">' + (i + 1) + '</td><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="n">' +
+            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.unanswered ? 'Not answered' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
+        }).join('') + '</table></div>'));
     }
     h.push('</div>');
     main.innerHTML = h.join('');
@@ -537,6 +609,18 @@
       h.push(section('Wrong answers', '<table><tr><th scope="col">Question</th><th scope="col">Your answer</th><th scope="col">Right answer</th></tr>' + wrongs.map(function (q) {
         return '<tr><td class="num">' + esc(q.shown) + '</td><td class="num mid">' + esc(q.given) + '</td><td class="num">' + esc(q.answerText) + '</td></tr>';
       }).join('') + '</table>'));
+    }
+    if (qs.length >= 2) {
+      var med = S.median(qs.map(function (q) { return q.timeMs; }));
+      h.push(section('Through the round', '<p class="sec-intro">How long each question took, in the order you saw them.</p>' +
+        timeLine(qs.map(function (q) { return { q: q, s: q.timeMs / 1000 }; }), med, 'Interview'), null, 'end-pace'));
+    }
+    if (qs.length) {
+      h.push(section('Every question', '<div class="tbl-scroll"><table class="compact" data-testid="end-all-questions"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col">Your answer</th>' +
+        '<th scope="col">Right answer</th><th scope="col" class="n">Time</th><th scope="col">Result</th></tr>' + qs.map(function (q, i) {
+          return '<tr><td class="n">' + (i + 1) + '</td><td class="num">' + esc(q.shown) + '</td><td class="num mid">' + (q.skipped ? '' : esc(q.given)) + '</td><td class="num">' +
+            esc(q.answerText) + '</td><td class="n">' + sec(q.timeMs) + '</td><td' + (q.correct ? '' : ' class="mid"') + '>' + (q.skipped ? 'Skipped' : q.correct ? 'Right' : 'Wrong') + '</td></tr>';
+        }).join('') + '</table></div>'));
     }
     h.push('</div>');
     main.innerHTML = h.join('');

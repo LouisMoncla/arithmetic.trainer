@@ -40,7 +40,8 @@ privacy.html      what is stored when signed in
 css/style.css     all styles (tokens on :root, dark mode via prefers-color-scheme + [data-theme])
 js/generator.js   questions per mode, fact keys, families, advice text, interview questions; mulberry32 PRNG
 js/stats.js       sessions (= calendar days), averages, trends, fatigue, weak-fact engine,
-                  tables heatmap cells + weighted-tables weights, sessionReport (one day analysed)
+                  tables heatmap cells + weighted-tables weights, sessionReport (one day analysed),
+                  roundReport (one round analysed, for the end screen)
 js/progression.js steps P2→P3→P4, recommendation, the "Copy report for Claude" text report
 js/storage.js     localStorage load/save (key arithmeticTrainer.v1), migrate, export/import, merge
 js/config.js      Supabase URL + anon key (empty = no accounts)
@@ -137,6 +138,8 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
 7. "Copy summary" became a full report for Claude.
 8. Git prep: .gitignore/.gitattributes, removed personal seed data, fixtures for tests, MIT license.
 9. Published on Vercel; added optional Supabase accounts with sync, privacy page, CSP headers.
+10. Post-round analysis on the end screen (`Stats.roundReport`): a summary (4 tiles + up to 3 takeaways),
+    then details below (time per question, thirds, per op vs usual, time spread, freezes, facts, every question).
 
 ## Working conventions
 

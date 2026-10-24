@@ -211,6 +211,11 @@ tr.cv { content-visibility: auto; contain-intrinsic-size: auto 37px; }  /* long 
 .end-head .sub b { color: var(--fg); display: block; font-size: var(--t-m); }
 .end-actions { margin: 28px 0 32px; }
 .freeze { margin: 10px 0; padding-left: 12px; border-left: 2px solid var(--fg); }
+.takeaways { list-style: none; margin: 24px 0 0; padding: 0 0 0 12px; border-left: 1px solid var(--fg); }
+.takeaways li { margin: 6px 0; max-width: 64ch; }
+.end-more { margin: 20px 0 0; }
+.end td.num, .end td.n { white-space: nowrap; }
+.tbl-scroll { overflow-x: auto; }
 
 /* ---------- weak list ---------- */
 .weak { list-style: none; padding: 0; margin: 0; counter-reset: w; }

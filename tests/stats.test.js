@@ -229,3 +229,59 @@ test('sessionReport: zetamac.com-only day has scores but no pace or mistakes', (
   assert.deepStrictEqual([rep.pace.length, rep.mistakes.length, rep.ops.length], [0, 0, 0]);
   assert.strictEqual(rep.median, null);
 });
+
+// A 60 s P2 round: `n` fast multiplications, then the given extra questions.
+function p2Round(day, score, extra, n = 10, h = 12) {
+  const qs = [];
+  for (let i = 0; i < n; i++) qs.push(q('mul', 3, 4 + i, 1000));
+  return round('P2', day, score, qs.concat(extra || []), h, { settings: { duration: 60 } });
+}
+
+test('roundReport: summary numbers, buckets, pace and rank', () => {
+  const earlier = [p2Round('2026-10-01', 15), p2Round('2026-10-01', 18, [], 10, 13)];
+  const r = p2Round('2026-10-02', 20, [q('mul', 7, 8, 2500, 1), q('div', 7, 91, 15000), q('mul', 6, 9, 15000), { ...q('mul', 9, 9, 5000), unanswered: true }]);
+  const rep = S.roundReport([...earlier, r], r);
+  assert.strictEqual(rep.answered, 13);
+  assert.strictEqual(rep.wrongAttempts, 1);
+  assert.strictEqual(rep.firstTry, 12 / 13);
+  assert.strictEqual(rep.buckets.reduce((a, b) => a + b, 0), 13);
+  assert.deepStrictEqual(rep.buckets, [0, 10, 1, 0, 2]);
+  assert.strictEqual(rep.series.length, 13);
+  assert.strictEqual(rep.series.filter(x => x.frozen).length, 2);
+  assert.deepStrictEqual(rep.pace.thirds.map(t => t.answers), [11, 1, 1]);
+  assert.ok(rep.pace.change > 1);
+  assert.deepStrictEqual(rep.rank, { place: 1, of: 3, best: true, tied: false, bestToday: false });
+  assert.strictEqual(rep.avg7, 16.5);
+  assert.strictEqual(rep.vsThreshold, 2);
+  assert.strictEqual(rep.usualMedian, 1000);
+  assert.match(rep.takeaways[0], /personal best.*2 above/);
+  assert.match(rep.takeaways[1], /2 above the step threshold of 18/);
+  assert.ok(rep.takeaways.length <= 3);
+});
+
+test('roundReport: the op that cost the most time and facts slower than usual', () => {
+  const div = n => Array.from({ length: n }, () => q('div', 7, 8, 1000));
+  const earlier = [p2Round('2026-10-01', 22, div(5)), p2Round('2026-10-01', 23, div(5), 10, 13)];
+  const r = p2Round('2026-10-01', 21, Array.from({ length: 5 }, () => q('div', 7, 8, 2500)), 10, 14);
+  const rep = S.roundReport([...earlier, r], r);
+  const d = rep.ops.find(o => o.op === 'div');
+  assert.strictEqual(d.n, 5);
+  assert.strictEqual(d.usualMedian, 1000);
+  assert.strictEqual(d.cost, 7500);
+  assert.strictEqual(rep.rank.place, 3);
+  assert.ok(rep.takeaways.some(t => /^Division cost you about 8 s more than usual: 2\.5 s median against 1\.0 s\.$/.test(t)));
+  assert.ok(rep.slower.some(f => f.key === '7x8'));
+  assert.deepStrictEqual(rep.faster, []);
+});
+
+test('roundReport: a first round and a round with no answers do not throw', () => {
+  const first = p2Round('2026-10-01', 10);
+  assert.match(S.roundReport([first], first).takeaways[0], /first round in this mode/);
+  const empty = round('P3', '2026-10-01', 0, [{ ...q('add', 2, 3, 60000), unanswered: true }], 12, { settings: { duration: 60 } });
+  const rep = S.roundReport([empty], empty);
+  assert.strictEqual(rep.answered, 0);
+  assert.strictEqual(rep.median, null);
+  assert.strictEqual(rep.firstTry, null);
+  assert.strictEqual(rep.pace, null);
+  assert.deepStrictEqual(rep.ops, []);
+});

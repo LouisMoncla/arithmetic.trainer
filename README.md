@@ -66,9 +66,13 @@ Rounds you enter from zetamac.com (Log screen) count too. Override the step in S
 ## Screens
 
 - **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–7` or `↑ ↓`); then your step, its rule and the 3-box streak; then all modes.
-- **End of round**: score, vs your 7-session average, 5 slowest questions, wrong attempts, freeze
-  alerts (anything over 3× your median, with a chunking hint). Buttons and keys: `Enter` play again, `D` drill those slow
-  questions, `A` today’s analysis, `H` home.
+- **End of round**: a summary first: score, vs your 7-session average (and the step threshold),
+  median time vs usual, first-try accuracy, rank among all your rounds in that mode, and up to 3
+  takeaways (personal best, the operation that cost you most, freezes, a slowdown, wrong attempts).
+  Scroll for the details: seconds per question through the round, answers and median time per third
+  of the clock, each operation vs your usual, time spread, freezes (over 3× your median, with a
+  chunking hint), slowest questions, facts slower or faster than usual, and every question. Buttons
+  and keys: `Enter` play again, `D` drill those slow questions, `A` today’s analysis, `H` home.
 - **Drill**: weak-fact list and drill; `M` replays mistakes (wrong or > 4 s, last 3 sessions).
 - **Review**: tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
 - **Session** (`E`): one day analysed. Scores round by round against your threshold and 7-session average, pace inside rounds (answers and median time per third of the clock), mistakes and freezes with how to think them, each operation today vs usual, and the facts that got faster or slower. `←` `→` move between sessions; `A` on any end screen jumps here.

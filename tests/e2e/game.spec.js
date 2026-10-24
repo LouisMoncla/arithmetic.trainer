@@ -57,6 +57,23 @@ test.describe('Zetamac round', () => {
     expect((await rounds(page)).at(-1).id).toBe(last.id);
   });
 
+  test('the end screen has a summary first, then the detailed analysis', async ({ page }) => {
+    for (let i = 0; i < 3; i++) { await tick(page, 1200); await answerCurrent(page); }
+    await expect(page.getByTestId('game-score')).toHaveText('Score: 3');
+    await tick(page, 61000);
+
+    await expect(page.getByTestId('end-score')).toHaveText('3');
+    await expect(page.getByTestId('stat-accuracy')).toContainText('100%');
+    await expect(page.getByTestId('stat-rank')).toContainText('First round in this mode');
+    await expect(page.getByTestId('end-takeaways').getByRole('listitem').first()).toContainText('first round in this mode');
+    await expect(page.getByRole('heading', { name: 'Through the round' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Time spread' })).toBeVisible();
+    // Every question, including the one left unanswered when time ran out.
+    const all = page.getByTestId('end-all-questions');
+    await expect(all.getByRole('row')).toHaveCount(1 + 4);
+    await expect(all.getByRole('row').last()).toContainText('Not answered');
+  });
+
   test('Esc stops the round and saves nothing', async ({ page }) => {
     const before = (await rounds(page)).length;
     await answerCurrent(page);

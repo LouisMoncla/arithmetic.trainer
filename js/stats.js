@@ -171,6 +171,144 @@
       .map(function (q) { return { q: q, advice: G.advice(q) }; });
   }
 
+  /*
+   * Rounds with per-question data split into thirds of the clock, by when each answer landed.
+   * { rounds, duration, perRound: [median ms], thirds: [{ answers (per round), median }], change }
+   * change = median in the last third ÷ median in the first − 1.
+   */
+  function paceThirds(rs) {
+    var thirds = [[], [], []], counts = [0, 0, 0], perRound = [];
+    rs.forEach(function (r) {
+      var third = ((r.settings && r.settings.duration) || 60) * 1000 / 3, t = 0, mine = [];
+      r.questions.forEach(function (q) {
+        t += q.timeMs;
+        if (q.unanswered) return;
+        var i = Math.min(2, Math.floor(t / third));
+        counts[i]++; thirds[i].push(q.timeMs); mine.push(q.timeMs);
+      });
+      perRound.push(median(mine));
+    });
+    var out = {
+      rounds: rs.length, duration: (rs[0].settings && rs[0].settings.duration) || 60, perRound: perRound,
+      thirds: thirds.map(function (ts, i) { return { answers: counts[i] / rs.length, median: median(ts) }; })
+    };
+    var m1 = out.thirds[0].median, m3 = out.thirds[2].median;
+    out.change = m1 && m3 ? m3 / m1 - 1 : null;
+    return out;
+  }
+
+  // Linear-interpolated quantile of an unsorted list.
+  function quantile(a, p) {
+    if (!a.length) return null;
+    var s = a.slice().sort(function (x, y) { return x - y; }), i = (s.length - 1) * p, lo = Math.floor(i);
+    return lo + 1 < s.length ? s[lo] + (s[lo + 1] - s[lo]) * (i - lo) : s[lo];
+  }
+
+  var BUCKETS = [1000, 2000, 3000, 4000];
+  var OP_WORD = { add: 'Addition', sub: 'Subtraction', mul: 'Multiplication', div: 'Division' };
+  function s1(ms) { return (ms / 1000).toFixed(1) + ' s'; }
+
+  /*
+   * Everything the end screen shows for one Zetamac-style round, against the player's other rounds.
+   * "Usual" = the other rounds of the same mode (ops, median); facts compare with every other round.
+   * takeaways: up to 3 plain sentences, most important first.
+   */
+  function roundReport(rounds, round) {
+    var mode = effMode(round), qs = round.questions || [];
+    var others = rounds.filter(function (r) { return r.id !== round.id; });
+    var sameMode = others.filter(function (r) { return effMode(r) === mode; });
+    var answered = qs.filter(function (q) { return !q.unanswered; });
+    var times = answered.map(function (q) { return q.timeMs; });
+    var usualQs = answeredQs(sameMode.filter(function (r) { return r.mode !== 'INTERVIEW'; }));
+    var med = median(times), threshold = STEP_THRESHOLDS[mode] || null;
+    var duration = (round.settings && round.settings.duration) || sum(times) / 1000 || 60;
+    var wrongAttempts = answered.reduce(function (a, q) { return a + (q.wrongAttempts || 0); }, 0);
+
+    var rep = {
+      mode: mode, score: round.score, avg7: recentAverage(rounds, mode, 7, round.id),
+      threshold: threshold, vsThreshold: threshold ? round.score - threshold : null,
+      answered: answered.length, wrongAttempts: wrongAttempts,
+      firstTry: answered.length ? answered.filter(function (q) { return !q.wrongAttempts; }).length / answered.length : null,
+      perMinute: answered.length / (duration / 60),
+      median: med, mean: mean(times), usualMedian: median(usualQs.map(function (q) { return q.timeMs; })),
+      q1: quantile(times, 0.25), q3: quantile(times, 0.75),
+      pace: answered.length ? paceThirds([round]) : null,
+      freezes: freezes(round).filter(function (f) { return !f.q.unanswered; }), slowest: slowest(round, 8),
+      buckets: [0, 0, 0, 0, 0], ops: [], slower: [], faster: [], takeaways: []
+    };
+    rep.consistency = rep.q1 !== null ? rep.q3 - rep.q1 : null;
+
+    // Rank among every round of this mode, zetamac.com entries included.
+    var higher = sameMode.filter(function (r) { return r.score > round.score; }).length;
+    rep.rank = {
+      place: higher + 1, of: sameMode.length + 1, best: higher === 0 && sameMode.length > 0,
+      tied: sameMode.some(function (r) { return r.score === round.score; })
+    };
+    var today = sameMode.filter(function (r) { return dayKey(r.startedAt) === dayKey(round.startedAt); });
+    rep.rank.bestToday = today.length > 0 && today.every(function (r) { return r.score < round.score; });
+
+    var frozen = rep.freezes.map(function (f) { return f.q; });
+    rep.series = answered.map(function (q) { return { q: q, s: q.timeMs / 1000, frozen: frozen.indexOf(q) >= 0 }; });
+    times.forEach(function (t) {
+      var i = 0; while (i < BUCKETS.length && t >= BUCKETS[i]) i++;
+      rep.buckets[i]++;
+    });
+
+    // Per operation, against this mode's usual.
+    var total = sum(times);
+    ['add', 'sub', 'mul', 'div'].forEach(function (op) {
+      var t = answered.filter(function (q) { return q.op === op; });
+      if (!t.length) return;
+      var ts = t.map(function (q) { return q.timeMs; });
+      var u = median(usualQs.filter(function (q) { return q.op === op; }).map(function (q) { return q.timeMs; }));
+      rep.ops.push({
+        op: op, n: t.length, median: median(ts), usualMedian: u, share: total ? sum(ts) / total : 0,
+        wrong: t.reduce(function (a, q) { return a + (q.wrongAttempts || 0); }, 0),
+        cost: u ? sum(ts) - u * t.length : null
+      });
+    });
+
+    // Facts met this round against every other round: ≥ 3 earlier attempts, beyond ±15%.
+    var fk = {};
+    function addTo(list, slot) {
+      list.forEach(function (q) {
+        if (q.op === 'iv') return;
+        G.factKeys(q).forEach(function (k) { (fk[k] = fk[k] || { t: [], b: [] })[slot].push(q.timeMs); });
+      });
+    }
+    addTo(answered, 't'); addTo(answeredQs(others), 'b');
+    var moved = Object.keys(fk).filter(function (k) { return fk[k].t.length && fk[k].b.length >= 3; }).map(function (k) {
+      var mt = median(fk[k].t), mb = median(fk[k].b);
+      return { key: k, label: G.keyLabel(k), today: mt, before: mb, ratio: mt / mb, n: fk[k].t.length };
+    });
+    rep.slower = moved.filter(function (x) { return x.ratio > 1.15; }).sort(function (a, b) { return b.ratio - a.ratio; }).slice(0, 5);
+    rep.faster = moved.filter(function (x) { return x.ratio < 0.85; }).sort(function (a, b) { return a.ratio - b.ratio; }).slice(0, 5);
+
+    // Takeaways, most important first.
+    var tk = rep.takeaways;
+    if (!sameMode.length) tk.push('Your first round in this mode. It sets the baseline the next ones are compared with.');
+    else if (rep.rank.best) {
+      var prevBest = Math.max.apply(null, sameMode.map(function (r) { return r.score; }));
+      tk.push(rep.rank.tied ? 'This ties your best score in this mode.' : 'A new personal best in this mode, ' + (round.score - prevBest) + ' above your previous best.');
+    } else if (rep.rank.bestToday) tk.push('Your best round today.');
+    if (threshold) {
+      var gap = round.score - threshold;
+      tk.push(gap > 0 ? gap + ' above the step threshold of ' + threshold + '.' : gap === 0 ? 'Exactly on the step threshold of ' + threshold + '.' : -gap + ' short of the step threshold of ' + threshold + '.');
+    }
+    var worst = rep.ops.filter(function (o) { return o.cost !== null && o.cost >= 2000 && o.median > o.usualMedian * 1.15; })
+      .sort(function (a, b) { return b.cost - a.cost; })[0];
+    if (worst) tk.push(OP_WORD[worst.op] + ' cost you about ' + Math.round(worst.cost / 1000) + ' s more than usual: ' + s1(worst.median) + ' median against ' + s1(worst.usualMedian) + '.');
+    if (rep.freezes.length >= 2) {
+      var lost = sum(rep.freezes.map(function (f) { return f.q.timeMs - med; }));
+      tk.push(rep.freezes.length + ' freezes cost you about ' + Math.round(lost / 1000) + ' s. Each one is listed below with how to think it.');
+    }
+    if (rep.pace && rep.pace.change !== null && rep.pace.change >= 0.2) tk.push('You were ' + Math.round(rep.pace.change * 100) + '% slower in the last third than in the first.');
+    if (answered.length >= 5 && wrongAttempts / answered.length >= 0.1) tk.push(wrongAttempts + ' wrong attempts, about 1 for every ' + Math.max(1, Math.round(answered.length / wrongAttempts)) + ' answers. Each one costs a retype, so check before you type.');
+    if (!tk.length) tk.push('A steady round: nothing stands out against your usual.');
+    rep.takeaways = tk.slice(0, 3);
+    return rep;
+  }
+
   // ---------- weak-fact engine ----------
 
   function category(op) { return op === 'mul' || op === 'div' ? 'muldiv' : op; }
@@ -463,24 +601,8 @@
       // Pace inside rounds (Zetamac-style rounds with per-question data).
       var withQs = rs.filter(function (r) { return r.questions && r.questions.length && r.mode !== 'INTERVIEW'; });
       if (!withQs.length) return;
-      var thirds = [[], [], []], counts = [0, 0, 0], perRound = [];
-      withQs.forEach(function (r) {
-        var third = ((r.settings && r.settings.duration) || 60) * 1000 / 3, t = 0, mine = [];
-        r.questions.forEach(function (q) {
-          t += q.timeMs;
-          if (q.unanswered) return;
-          var i = Math.min(2, Math.floor(t / third));
-          counts[i]++; thirds[i].push(q.timeMs); mine.push(q.timeMs);
-        });
-        perRound.push(median(mine));
-      });
-      var dur = (withQs[0].settings && withQs[0].settings.duration) || 60;
-      var pace = {
-        mode: m, rounds: withQs.length, duration: dur, perRound: perRound,
-        thirds: thirds.map(function (ts, i) { return { answers: counts[i] / withQs.length, median: median(ts) }; })
-      };
-      var m1 = pace.thirds[0].median, m3 = pace.thirds[2].median;
-      pace.change = m1 && m3 ? m3 / m1 - 1 : null;
+      var pace = paceThirds(withQs);
+      pace.mode = m;
       rep.pace.push(pace);
     });
 
@@ -531,7 +653,7 @@
     dayKey: dayKey, effMode: effMode, sessionDays: sessionDays, sessionNumber: sessionNumber,
     summarize: summarize, sessionsForMode: sessionsForMode, recentAverage: recentAverage, trend: trend,
     roundIndexAverages: roundIndexAverages, fatigue: fatigue, estimate120: estimate120, timeByOp: timeByOp,
-    slowest: slowest, freezes: freezes, factStats: factStats, drillTargets: drillTargets,
+    slowest: slowest, freezes: freezes, paceThirds: paceThirds, roundReport: roundReport, factStats: factStats, drillTargets: drillTargets,
     weakLines: weakLines, drillPool: drillPool, tableCells: tableCells, tableWeights: tableWeights, mistakes: mistakes, wrongRateByOp: wrongRateByOp, sessionReport: sessionReport
   };
   AT.Stats = api;
