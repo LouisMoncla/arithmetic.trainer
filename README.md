@@ -2,7 +2,7 @@
 
 A Zetamac-style mental-math trainer for quant interviews. Black and white, keyboard first.
 
-**▶ Practise now: https://YOUR-PROJECT.vercel.app** <!-- replace after the first Vercel deploy -->
+**▶ Practise now: [arithmetictrainer.vercel.app](https://arithmetictrainer.vercel.app/)**
 
 ## Open it
 
@@ -116,7 +116,7 @@ The site is static: Vercel serves the repo as is. `vercel.json` sets security he
 1. **Vercel:** Add New → Project → import the GitHub repo. Framework preset *Other*, no build
    command, output directory `.` (already set by `vercel.json`). Every push to `main` deploys;
    every pull request gets its own preview URL.
-2. **Put the link where people find it:** replace the URL at the top of this README, and set it in
+2. **Put the link where people find it:** the URL at the top of this README; set it in
    the GitHub repo's *About → Website* box.
 
 Accounts are optional. Without step 3–5 the site works exactly the same, without the Account section.
@@ -125,7 +125,7 @@ Accounts are optional. Without step 3–5 the site works exactly the same, witho
    It creates the `rounds` and `profiles` tables, row-level security (each account sees only its
    own rows), and the `delete_my_account` function.
 4. **Auth settings:** Authentication → Sign In / Providers → Email enabled. Authentication → URL
-   Configuration → *Site URL* = your Vercel URL; *Redirect URLs* = `https://YOUR-PROJECT.vercel.app/**`
+   Configuration → *Site URL* = your Vercel URL; *Redirect URLs* = `https://arithmetictrainer.vercel.app/**`
    and `https://*-YOUR-TEAM.vercel.app/**` (previews).
 5. **Connect the app:** Project Settings → API → copy the project URL and the anon (publishable)
    key into [`js/config.js`](js/config.js), commit, push. Both values are public by design.
