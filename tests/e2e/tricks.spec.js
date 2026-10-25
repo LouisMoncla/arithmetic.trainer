@@ -90,6 +90,7 @@ test('a fraction answer: numerator first, then the denominator, no Enter', async
   const before = await score.textContent();
   await expect(den).toBeVisible();
   await expect(num).toBeFocused();
+  await expect(page.getByTestId('game-fraction-hint')).toHaveText('In lowest terms');
 
   // A wrong numerator of full length counts once and keeps you on the numerator.
   const wrong = String(fr[0] === 1 ? 2 : fr[0] - 1).padStart(String(fr[0]).length, '1');
@@ -105,6 +106,43 @@ test('a fraction answer: numerator first, then the denominator, no Enter', async
   // The boxes reset for the next question: two again only if it is a fraction too.
   const next = (await q.textContent()).trim();
   if (solveFraction(next)) { await expect(num).toHaveValue(''); await expect(num).toBeFocused(); }
-  else { await expect(answerBox(page)).toHaveValue(''); await expect(answerBox(page)).toBeFocused(); await expect(den).toBeHidden(); }
+  else {
+    await expect(answerBox(page)).toHaveValue(''); await expect(answerBox(page)).toBeFocused(); await expect(den).toBeHidden();
+    await expect(page.getByTestId('game-fraction-hint')).toBeHidden();
+  }
+  await page.keyboard.press('Escape');
+});
+
+test('Tab skips a trick question: no point, saved as skipped, listed on the end screen', async ({ page }) => {
+  await openApp(page);
+  await page.keyboard.press('8');
+  await startSelected(page);
+  const q = page.getByTestId('game-question');
+  const first = (await q.textContent()).trim();
+  await tick(page, 2000);
+  await page.keyboard.press('Tab');
+  await expect(q).not.toHaveText(first);
+  await expect(page.getByTestId('game-score')).toHaveText('Score: 0');
+  await expect(answerBox(page)).toBeFocused();
+  await answerCurrent(page);
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('1');
+
+  const saved = (await rounds(page))[0];
+  expect(saved.questions[0]).toMatchObject({ shown: first, skipped: true, unanswered: true });
+  expect(saved.questions[0].timeMs).toBeGreaterThanOrEqual(2000);
+  await expect(page.getByTestId('end-all-questions')).toContainText('Skipped');
+  await expect(page.getByText('1 skipped')).toBeVisible();
+});
+
+test('Tab does not skip in the Zetamac modes', async ({ page }) => {
+  await openApp(page);
+  await startSelected(page);                       // Tables
+  const q = page.getByTestId('game-question');
+  const first = (await q.textContent()).trim();
+  await page.keyboard.press('Tab');
+  await expect(q).toHaveText(first);
+  await tick(page, 50);                            // the box takes focus back on the next timer
+  await expect(answerBox(page)).toBeFocused();
   await page.keyboard.press('Escape');
 });

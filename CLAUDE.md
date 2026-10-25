@@ -82,6 +82,8 @@ Script order matters: generator → stats → progression → storage → config
   Facts are keyed by family for tables (7×8 and 8×7, and their divisions) and by band for P2 (`8x30s`).
 - **Weighted tables:** 121 × cells + 121 ÷ cells, weight = clamp((median/ref)² × (1+wrong), 0.25, 6);
   unseen cells get the max weight. Review has a 12×12 heatmap with Combined / × / ÷ views.
+- **Weak via a stall:** an attempt > 3× my op median (all rounds) and > 1.5 s in the last 2 days makes a fact weak
+  (was a fixed 4 s; `froze` on the fact says it is the only reason). Replay mistakes (`Stats.mistakes`) uses the same stall rule. Fact labels name the pair (`3×8 = 24`); `familyText` is for advice.
 - **Freeze:** answer > 3× the round median and > 1.5 s. Fatigue: last 3 rounds all ≥ 15% below first 3.
 - **Report for Claude** (Log → "Copy report for Claude", `Progression.summary`): self-explanatory
   sectioned text (rules, every session, steps/trends, per-op speed, facts, grid, latest session, fatigue).
@@ -155,6 +157,8 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     `G.makeTrick(type, a, b)` rebuilds one (replays, drills); `G.trickAdvice` works the shortcut on the question.
     Outside the steps; kept out of the weak-fact drill, mistakes replay and per-op times (`ZETAMAC_OP` in stats.js),
     like interview questions. Fractions take decimal answers (the input allows a point only for those).
+    Trick modes only: Tab skips; stored as `unanswered: true, skipped: true` (out of every timing stat, a miss in factStats).
+    Fraction answers show "In lowest terms" under the boxes (the one extra line on the game screen, on purpose).
 
 ## Working conventions
 

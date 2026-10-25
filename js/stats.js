@@ -11,7 +11,6 @@
   var G = typeof module !== 'undefined' ? require('./generator.js') : AT.Generator;
 
   var DAY = 86400000;
-  var SLOW_MS = 4000;
   // Zetamac operations. Interview ("iv") and trick ("tr") questions are left out of speed comparisons.
   var ZETAMAC_OP = { add: 1, sub: 1, mul: 1, div: 1 };
 
@@ -169,7 +168,7 @@
     var qs = round.questions || [];
     var med = median(qs.filter(function (q) { return !q.unanswered; }).map(function (q) { return q.timeMs; }));
     if (!med) return [];
-    return qs.filter(function (q) { return q.timeMs > 3 * med && q.timeMs > 1500; })
+    return qs.filter(function (q) { return !q.skipped && q.timeMs > 3 * med && q.timeMs > 1500; })
       .map(function (q) { return { q: q, advice: G.advice(q) }; });
   }
 
@@ -230,6 +229,7 @@
       mode: mode, score: round.score, avg7: recentAverage(rounds, mode, 7, round.id),
       threshold: threshold, vsThreshold: threshold ? round.score - threshold : null,
       answered: answered.length, wrongAttempts: wrongAttempts,
+      skipped: qs.filter(function (q) { return q.skipped; }).length,
       firstTry: answered.length ? answered.filter(function (q) { return !q.wrongAttempts; }).length / answered.length : null,
       perMinute: answered.length / (duration / 60),
       median: med, mean: mean(times), usualMedian: median(usualQs.map(function (q) { return q.timeMs; })),
@@ -322,7 +322,8 @@
    * Attempts older than 21 days have weight 0.5.
    *
    * Status is a small state machine walked session by session:
-   *   ok → weak        when, after a session, (≥3 attempts and slowness ≥ 1.5) or that session had an attempt > 4 s
+   *   ok → weak        when, after a session, (≥3 attempts and slowness ≥ 1.5) or that session had a stall
+   *                    (an attempt > 3× my op median and > 1.5 s, like a round freeze but against my usual pace)
    *   weak → improving after a "good" session (every attempt ≤ my op median)
    *   improving → mastered after 3 good sessions since it was last bad; a bad session sends it back to weak
    *   mastered → weak  if it trips the weak rule again
@@ -337,8 +338,8 @@
       var t0 = Date.parse(r.startedAt), day = dayKey(r.startedAt);
       var w = nowMs - t0 > 21 * DAY ? 0.5 : 1;
       r.questions.forEach(function (q) {
-        if (q.unanswered) return;
-        attempts.push({ q: q, day: day, w: w, at: r.startedAt, time: q.timeMs, wrong: q.wrongAttempts > 0 || q.correct === false });
+        if (q.unanswered && !q.skipped) return;   // a skipped trick counts as a miss; time running out does not
+        attempts.push({ q: q, day: day, w: w, at: r.startedAt, time: q.timeMs, wrong: q.wrongAttempts > 0 || q.correct === false || !!q.skipped });
       });
     });
     attempts.sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
@@ -349,6 +350,7 @@
     var opMed = {};
     for (var op in byOp) opMed[op] = weightedMedian(byOp[op].v, byOp[op].w);
     attempts.forEach(function (a) { a.ratio = a.time / opMed[a.q.op]; });
+    function stalled(a) { return a.ratio > 3 && a.time > 1500; }
 
     var map = {};
     attempts.forEach(function (a) {
@@ -366,7 +368,7 @@
     return Object.keys(map).map(function (k) {
       var e = map[k], list = e.list;
       var sw = slownessOf(list);
-      var untimed = e.cat === 'iv' || e.cat === 'tr';   // interview and tricks: no 4 s rule, they are slower by nature
+      var untimed = e.cat === 'iv' || e.cat === 'tr';   // interview and tricks: no stall rule, they are slower by nature
 
       // Walk sessions in order.
       var sessDays = [], bySess = {};
@@ -377,13 +379,14 @@
         prefix = prefix.concat(s);
         var isGood = s.every(function (a) { return a.ratio <= 1; });
         var tripped = (prefix.length >= 3 && slownessOf(prefix).slowness >= 1.5) ||
-          (!untimed && s.some(function (a) { return a.time > SLOW_MS; }));
+          (!untimed && s.some(stalled));
         if (state === 'weak' || state === 'improving') {
           if (isGood) { good++; state = good >= 3 ? 'mastered' : 'improving'; } else { good = 0; state = 'weak'; }
         } else if (tripped && !isGood) { state = 'weak'; good = 0; }
       });
-      var recentSlow = !untimed && list.some(function (a) { return last2.indexOf(a.day) >= 0 && a.time > SLOW_MS; });
-      var weakNow = (list.length >= 3 && sw.slowness >= 1.5) || recentSlow;
+      var recentSlow = !untimed && list.some(function (a) { return last2.indexOf(a.day) >= 0 && stalled(a); });
+      var slowNow = list.length >= 3 && sw.slowness >= 1.5;
+      var weakNow = slowNow || recentSlow;
       if (state === 'ok' && weakNow) state = 'weak';
 
       var times = list.map(function (a) { return a.time; });
@@ -397,6 +400,7 @@
         medianTime: weightedMedian(times, list.map(function (a) { return a.w; })),
         last5: times.slice(-5), wrongRate: sw.wrongRate, slowness: sw.slowness,
         lastSeen: list[list.length - 1].at, status: state, trend: trendDir,
+        froze: state === 'weak' && !slowNow && recentSlow,   // weak only because of a recent stall: say so
         sample: list[list.length - 1].q
       };
     });
@@ -518,15 +522,19 @@
     return items.map(function (it) { return { q: it.q, cell: it.cell, weight: it.weight, share: it.weight / total * 100 }; });
   }
 
-  // Exact questions answered wrong or slowly (> 4 s) in the last 3 sessions.
+  // Exact questions answered wrong or stalled on in the last 3 sessions. A stall is the same as in
+  // factStats: > 3× my median for that op (over every round) and > 1.5 s.
   function mistakes(rounds) {
     var days = sessionDays(rounds.filter(function (r) { return r.questions && r.questions.length; })).slice(-3);
-    var out = [], seen = {};
+    var out = [], seen = {}, byOp = {}, opMed = {};
+    answeredQs(rounds).forEach(function (q) { if (ZETAMAC_OP[q.op]) (byOp[q.op] = byOp[q.op] || []).push(q.timeMs); });
+    for (var op in byOp) opMed[op] = median(byOp[op]);
     rounds.forEach(function (r) {
       if (days.indexOf(dayKey(r.startedAt)) < 0) return;
       (r.questions || []).forEach(function (q) {
         if (!ZETAMAC_OP[q.op]) return;
-        if ((q.wrongAttempts > 0 || q.timeMs > SLOW_MS) && !seen[q.shown]) { seen[q.shown] = 1; out.push(q); }
+        var stalled = q.timeMs > 3 * opMed[q.op] && q.timeMs > 1500;
+        if ((q.wrongAttempts > 0 || stalled) && !seen[q.shown]) { seen[q.shown] = 1; out.push(q); }
       });
     });
     return out;
@@ -615,7 +623,7 @@
       (r.questions || []).forEach(function (q) {
         var e = mm[q.shown] = mm[q.shown] || { q: q, seen: 0, wrong: 0, freezes: 0, slowest: 0 };
         e.seen++;
-        e.wrong += q.op === 'iv' ? (hadWrong(q) ? 1 : 0) : (q.wrongAttempts || 0);
+        e.wrong += q.op === 'iv' ? (hadWrong(q) ? 1 : 0) : (q.wrongAttempts || 0) + (q.skipped ? 1 : 0);
         if (frozen.indexOf(q) >= 0) e.freezes++;
         e.slowest = Math.max(e.slowest, q.timeMs);
       });

@@ -182,10 +182,8 @@
   // Human-readable label for a fact key.
   function keyLabel(key) {
     var m;
-    if ((m = /^(\d+)x(\d+)$/.exec(key))) {
-      var s = +m[1], l = +m[2];
-      return l <= 12 ? familyText(s * l) : s + '×' + l + ' = ' + s * l;
-    }
+    // The pair itself: 2x12, 3x8 and 4x6 are separate facts, so they need separate labels.
+    if ((m = /^(\d+)x(\d+)$/.exec(key))) return m[1] + '×' + m[2] + ' = ' + m[1] * m[2];
     if ((m = /^(\d+)x(\d+)s$/.exec(key))) return m[1] + ' × ' + m[2] + 's';
     var names = {
       'add-carry': '+ with carry', 'add-nocarry': '+ no carry',

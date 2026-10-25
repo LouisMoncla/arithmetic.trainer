@@ -210,6 +210,9 @@ test('trick fact keys and labels', () => {
   const q = G.makeTrick('sq5', 65);
   assert.deepStrictEqual(G.factKeys(q), ['tr-sq5']);
   assert.strictEqual(G.keyLabel('tr-sq5'), 'Squares ending in 5');
+  // Table pairs are separate facts, so each gets its own label (not the whole family of the product).
+  assert.deepStrictEqual(['2x12', '3x8', '4x6'].map(G.keyLabel), ['2×12 = 24', '3×8 = 24', '4×6 = 24']);
+  assert.strictEqual(G.keyLabel('7x91'), '7×91 = 637');
   assert.strictEqual(G.fromKey('tr-near100', G.mulberry32(1)).type, 'near100');
   assert.strictEqual(G.advice(G.makeTrick('sq5', 65)), 'Ends in 5: 6 × 7 = 42, then 25 → 4225.');
   assert.strictEqual(G.advice(G.makeTrick('near100', 97, 96)), 'Near 100: 97 − 4 = 93 hundreds, plus 3 × 4 = 12 → 9312.');

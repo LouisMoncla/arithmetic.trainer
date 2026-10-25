@@ -3,6 +3,7 @@
  * Two loops:
  *   startZetamac:  answers auto-accept the moment the typed value is correct. A fraction answer
  *                  (q.frac) shows two boxes: the numerator first, then the denominator, each auto-accepted.
+ *                  Trick modes: Tab skips a question (stored unanswered + skipped, no point).
  *   startInterview: Enter submits, Tab skips, negative marking.
  * During a game only the question, input, timer and score are shown.
  */
@@ -25,7 +26,8 @@
       'autocapitalize="off" spellcheck="false" aria-label="Answer">' +
       '<span id="g-bar" class="g-bar num" aria-hidden="true" hidden>/</span>' +
       '<input id="g-den" class="g-in num" name="denominator" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" ' +
-      'autocapitalize="off" spellcheck="false" aria-label="Denominator" hidden></div></div>';
+      'autocapitalize="off" spellcheck="false" aria-label="Denominator" hidden></div>' +
+      '<p id="g-hint" class="g-hint" data-testid="game-fraction-hint" hidden>In lowest terms</p></div>';
     qEl = document.getElementById('g-q'); ansEl = document.getElementById('g-ans'); inEl = document.getElementById('g-in');
     barEl = document.getElementById('g-bar'); denEl = document.getElementById('g-den'); curEl = inEl;
     timerEl = document.getElementById('g-timer'); scoreEl = document.getElementById('g-score');
@@ -84,6 +86,8 @@
       // stopPropagation: the Enter that ends the round must not reach the end screen.
       if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submitInterview(); }
       else if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); answerInterview(null); }
+    } else if (st.kind === 'zetamac' && st.running && st.skip && e.key === 'Tab') {
+      e.preventDefault(); e.stopPropagation(); skipZetamac();
     }
   }
 
@@ -116,7 +120,7 @@
     inEl.value = ''; denEl.value = '';
     var fr = !!st.q.frac;
     ansEl.classList.toggle('frac', fr);
-    barEl.hidden = denEl.hidden = !fr;
+    barEl.hidden = denEl.hidden = document.getElementById('g-hint').hidden = !fr;
     inEl.readOnly = false;
     inEl.setAttribute('aria-label', fr ? 'Numerator' : 'Answer');
     st.part = fr ? 'num' : null;
@@ -157,6 +161,12 @@
     nextQuestion();
   }
 
+  // No point, and it counts as a miss for that trick in Review.
+  function skipZetamac() {
+    st.questions.push(record(st.q, { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong, unanswered: true, skipped: true }));
+    nextQuestion();
+  }
+
   function onZetamacInput() {
     if (!st.running) { inEl.value = ''; return; }
     var fr = st.q.frac, ans = fr ? String(fr[0]) : st.q.answerText || String(st.q.answer);
@@ -180,6 +190,7 @@
     // opts: { mode, settings, generator, duration, countdown, onEnd(round), onAbort() }
     start('zetamac', opts);
     var types = opts.settings.types || [];
+    st.skip = types.length > 0;   // trick modes only; plain Zetamac has no skip, like zetamac.com
     inEl.setAttribute('inputmode', types.indexOf('frac') >= 0 ? 'decimal' : 'numeric');
     inEl.oninput = onZetamacInput;
     denEl.oninput = onDenInput;

@@ -29,9 +29,9 @@
     { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts mixed with Foundations, 60 seconds' },
     { id: 'INTERVIEW', label: 'Interview sim', desc: '80 questions in 8 minutes, answer with Enter' },
     { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations, ranges and length' },
-    { id: 'SQUARES', label: 'Squares', desc: '11² to 30² by heart, and squares near 50, near 100 or ending in 5, 60 seconds' },
-    { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions to decimals and back, adding and subtracting fractions, 60 seconds' },
-    { id: 'TRICKS', label: 'Mixed tricks', desc: 'Squares, × 11, × 25, products near 100, difference of squares, 60 seconds' }
+    { id: 'SQUARES', label: 'Squares', desc: '11² to 30² by heart, and squares near 50, near 100 or ending in 5, 60 seconds, Tab skips' },
+    { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions to decimals and back, adding and subtracting fractions in lowest terms, 60 seconds, Tab skips' },
+    { id: 'TRICKS', label: 'Mixed tricks', desc: 'Squares, × 11, × 25, products near 100, difference of squares, 60 seconds, Tab skips' }
   ];
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
@@ -536,7 +536,7 @@
     h.push(stats([
       { label: 'Compared with your last 7 days played', value: rep.avg7 === null ? '–' : signed(round.score - rep.avg7), note: avgNote, key: 'vs-average' },
       { label: 'Median time', value: med ? sec(med) : '–', note: rep.usualMedian ? 'Usually ' + sec(rep.usualMedian) : 'Per question', key: 'median' },
-      { label: 'First-try accuracy', value: pct(rep.firstTry), note: plural(rep.wrongAttempts, 'wrong attempt'), key: 'accuracy' },
+      { label: 'First-try accuracy', value: pct(rep.firstTry), note: plural(rep.wrongAttempts, 'wrong attempt') + (rep.skipped ? ', ' + rep.skipped + ' skipped' : ''), key: 'accuracy' },
       { label: 'Rank in this mode', value: rk.of === 1 ? '–' : rk.best ? 'Best' : ordinal(rk.place), note: rk.of > 1 && !rk.best ? 'Of ' + rk.of + (rankNote ? ', ' + rankNote.toLowerCase() : '') : rankNote, key: 'rank' }
     ]));
     h.push('<ul class="takeaways" data-testid="end-takeaways" aria-label="Takeaways">' + rep.takeaways.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>');
@@ -585,7 +585,7 @@
     if (rep.slowest.length) {
       h.push(section('Slowest questions', '<table class="compact"><tr><th scope="col">Question</th><th scope="col" class="n">Time</th><th scope="col">Note</th></tr>' + rep.slowest.map(function (q) {
         return '<tr><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="mid">' +
-          (q.unanswered ? 'Not answered' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
+          (q.skipped ? 'Skipped' : q.unanswered ? 'Not answered' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
       }).join('') + '</table>'));
     }
     if (rep.slower.length || rep.faster.length) {
@@ -603,7 +603,7 @@
       h.push(section('Every question', '<div class="tbl-scroll"><table class="compact" data-testid="end-all-questions"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col" class="n">Time</th>' +
         '<th scope="col" class="n">Wrong</th><th scope="col">Note</th></tr>' + round.questions.map(function (q, i) {
           return '<tr><td class="n">' + (i + 1) + '</td><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="n">' +
-            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.unanswered ? 'Not answered' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
+            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.skipped ? 'Skipped' : q.unanswered ? 'Not answered' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
         }).join('') + '</table></div>'));
     }
     h.push('</div>');
@@ -684,7 +684,7 @@
     }
     h.push(section('Your weak facts', body));
     h.push(section('Mistakes', '<p class="mid">' + (nMistakes
-      ? 'You have ' + plural(nMistakes, 'question') + ' answered wrong or slower than 4 seconds in your last 3 days. Replay mistakes plays a round with only those.'
+      ? 'You have ' + plural(nMistakes, 'question') + ' answered wrong or froze on (over 3 times your usual time) in your last 3 days. Replay mistakes plays a round with only those.'
       : 'No wrong or slow answers in your last 3 days, so there is nothing to replay.') + '</p>'));
     main.innerHTML = h.join('');
     $('#go').addEventListener('click', playWeakDrill);
@@ -862,7 +862,7 @@
     rows.forEach(function (f) {
       t.push('<tr class="cv"><td class="num">' + esc(G.keyLabel(f.key)) + '</td><td class="n">' + f.attempts + '</td><td class="n">' + sec(f.medianTime) +
         '</td><td class="n">' + Math.round(f.wrongRate * 100) + '%</td><td class="n">' + f.slowness.toFixed(2) + '</td><td>' +
-        (f.status === 'weak' ? '<b>weak</b>' : f.status) + '</td><td>' + (TREND[f.trend] || '') + '</td></tr>');
+        (f.status === 'weak' ? '<b>weak</b>' + (f.froze ? ' <span class="mid">after a freeze</span>' : '') : f.status) + '</td><td>' + (TREND[f.trend] || '') + '</td></tr>');
     });
     t.push('</table>');
     h.push(section('All facts', tools + t.join('')));
