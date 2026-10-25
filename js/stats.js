@@ -57,7 +57,12 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
   // External (zetamac.com) rounds count as the mode they were linked to.
-  function effMode(r) { return r.mode === 'EXTERNAL' ? r.linkedMode : r.mode; }
+  // The mode a round counts as. A Learn round counts per trick ("LEARN-x11"), so ranks and "usual" compare like with like.
+  function effMode(r) {
+    if (r.mode === 'EXTERNAL') return r.linkedMode;
+    if (r.mode === 'LEARN') return 'LEARN-' + ((r.settings && r.settings.types) || [])[0];
+    return r.mode;
+  }
 
   function sessionDays(rounds) {
     var seen = {}, days = [];

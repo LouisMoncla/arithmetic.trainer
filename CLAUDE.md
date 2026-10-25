@@ -39,6 +39,7 @@ index.html        shell: top bar, #main, #game overlay, #help dialog, script ord
 privacy.html      what is stored when signed in
 css/style.css     all styles (tokens on :root, dark mode via prefers-color-scheme + [data-theme])
 js/generator.js   questions per mode, fact keys, families, advice text, interview questions; mulberry32 PRNG
+js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/stats.js       sessions (= calendar days), averages, trends, fatigue, weak-fact engine,
                   tables heatmap cells + weighted-tables weights, sessionReport (one day analysed),
                   roundReport (one round analysed, for the end screen)
@@ -57,7 +58,7 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → stats → progression → storage → config → sync → charts → game → ui → app.
+Script order matters: generator → lessons → stats → progression → storage → config → sync → charts → game → ui → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
@@ -67,7 +68,8 @@ Script order matters: generator → stats → progression → storage → config
              questions: [{ op /*add sub mul div iv tr*/, a, b, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
 ```
 
-- `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, or EXTERNAL
+- `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
+  (one trick from the Learn tab, `settings.types = [type]`; `S.effMode` gives `LEARN-<type>`, `P.modeLabel` names it), or EXTERNAL
   (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as).
 - A **session = one local calendar day**. Session numbers count days with any round.
 - Rounds are immutable once saved and identified by `id`. Merge/sync rely on this.
@@ -159,6 +161,10 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     like interview questions. Fractions take decimal answers (the input allows a point only for those).
     Trick modes only: Tab skips; stored as `unanswered: true, skipped: true` (out of every timing stat, a miss in factStats).
     Fraction answers show "In lowest terms" under the boxes (the one extra line on the game screen, on purpose).
+14. Learn tab (key N, `#learn`, `#learn/<type>`): a lesson per trick from `js/lessons.js`, worked examples from
+    `G.trickQuestion` + `G.trickAdvice`. Practice = `Game.startPractice` (kind `practice`: no clock, `count` questions,
+    a wrong full-length answer or Tab shows `#g-method`; questions get `method: true`); ui.js never saves it.
+    Timed round = mode LEARN. `logModes()` in ui.js adds played LEARN-<type> modes to Log, Progress and fatigue notes.
 
 ## Working conventions
 

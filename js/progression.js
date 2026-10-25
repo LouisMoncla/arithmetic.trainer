@@ -27,6 +27,13 @@
     SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks'
   };
 
+  // Name of a mode as S.effMode gives it, Learn rounds included ("LEARN-x11" → "Learn: × 11").
+  function modeLabel(m) {
+    var t = /^LEARN-(\w+)$/.exec(m || '');
+    if (t) return 'Learn: ' + (G.trickNames()[t[1]] || t[1]);
+    return MODE_LABELS[m] || m;
+  }
+
   function qualifying(rounds, mode) {
     return S.sessionsForMode(rounds, mode).filter(function (s) { return s.scores.length >= MIN_ROUNDS; });
   }
@@ -117,7 +124,7 @@
       ' (' + days[0] + ' to ' + days[days.length - 1] + '). Questions answered: ' + qs + '.');
     var rec = recommend(rs, ctx.info, ctx.today);
     L.push('Today is day ' + S.sessionNumber(rs, ctx.today) + '. Recommended: ' +
-      (rec.warmup ? 'warm up with Tables, then ' : '') + MODE_LABELS[rec.mode] + '.');
+      (rec.warmup ? 'warm up with Tables, then ' : '') + modeLabel(rec.mode) + '.');
   }
 
   function rSteps(ctx, L) {
@@ -146,7 +153,7 @@
       var ss = S.sessionsForMode(ctx.rounds, m);
       if (!ss.length) return;
       any = true;
-      L.push(MODE_LABELS[m] + ' (' + ss.length + (ss.length === 1 ? ' day' : ' days') + '):');
+      L.push(modeLabel(m) + ' (' + ss.length + (ss.length === 1 ? ' day' : ' days') + '):');
       ss.slice(-30).forEach(function (s) {
         var st = s.stats;
         L.push('  S' + s.number + ' ' + s.day + '  avg ' + f1(st.avg) + '  best ' + st.best + '  worst ' + st.worst + '  sd ' + f1(st.sd) +
@@ -163,7 +170,7 @@
       var b = S.roundIndexAverages(ctx.rounds, m).slice(0, 12);
       if (b.length < 2) return;
       any = true;
-      L.push('  ' + MODE_LABELS[m] + ': ' + b.map(function (x, i) { return 'R' + (i + 1) + ' ' + f1(x.avg) + ' (n' + x.n + ')'; }).join(', '));
+      L.push('  ' + modeLabel(m) + ': ' + b.map(function (x, i) { return 'R' + (i + 1) + ' ' + f1(x.avg) + ' (n' + x.n + ')'; }).join(', '));
     });
     if (!any) L.push('none yet');
   }
@@ -235,11 +242,11 @@
     L.push('Day ' + rep.number + ' (' + rep.day + '): ' + rep.rounds + ' rounds, ' + rep.questions + ' questions. Median answer ' +
       sec(rep.median) + ' s (usual ' + sec(rep.usualMedian) + '). Wrong ' + pct(rep.wrong) + ' (usual ' + pct(rep.usualWrong) + ').');
     rep.scores.forEach(function (s) {
-      L.push('  ' + MODE_LABELS[s.mode] + ': [' + s.scores.join(',') + '] avg ' + f1(s.stats.avg) + ', previous 7 days avg ' + f1(s.prevAvg) +
+      L.push('  ' + modeLabel(s.mode) + ': [' + s.scores.join(',') + '] avg ' + f1(s.stats.avg) + ', previous 7 days avg ' + f1(s.prevAvg) +
         (s.threshold ? ', threshold ' + s.threshold : '') + (s.fatigue ? ', fatigue detected' : '') + '.');
     });
     rep.pace.forEach(function (p) {
-      L.push('  Pace ' + MODE_LABELS[p.mode] + ' by thirds of the clock: ' + p.thirds.map(function (t, i) {
+      L.push('  Pace ' + modeLabel(p.mode) + ' by thirds of the clock: ' + p.thirds.map(function (t, i) {
         return (i + 1) + ': ' + f1(t.answers) + ' answers, median ' + sec(t.median) + ' s';
       }).join('; ') + (p.change !== null ? ' (last vs first third ' + (p.change >= 0 ? '+' : '') + Math.round(p.change * 100) + '%)' : '') + '.');
     });
@@ -271,14 +278,14 @@
       S.sessionsForMode(rounds, m).forEach(function (s) {
         if (days.indexOf(s.day) < 0) return;
         var f = S.fatigue(s.scores);
-        if (f) notes.push('Day ' + s.number + ', ' + MODE_LABELS[m] + ': last 3 rounds ' + f.last.join(', ') + ' vs first-3 avg ' + f1(f.base));
+        if (f) notes.push('Day ' + s.number + ', ' + modeLabel(m) + ': last 3 rounds ' + f.last.join(', ') + ' vs first-3 avg ' + f1(f.base));
       });
     });
     return notes;
   }
 
   var api = {
-    STEPS: STEPS, MODE_LABELS: MODE_LABELS, qualifying: qualifying, stepProgress: stepProgress,
+    STEPS: STEPS, MODE_LABELS: MODE_LABELS, modeLabel: modeLabel, qualifying: qualifying, stepProgress: stepProgress,
     current: current, recommend: recommend, boxes: boxes, summary: summary, fatigueNotes: fatigueNotes, f1: f1
   };
   AT.Progression = api;
