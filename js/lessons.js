@@ -88,7 +88,17 @@
     }
   };
 
-  var Lessons = { GROUPS: GROUPS, LESSONS: LESSONS };
+  // Its own page (#learn/fractions): both directions, a grid of every pair, weighted practice.
+  var HEART = {
+    id: 'fractions', name: 'Fractions by heart', types: ['fd', 'df'],
+    short: '3/7 = 0.429…, and back',
+    rule: 'Know every fraction with a denominator up to 12, plus 1/16, 3/16, 1/20 and 1/25, as a decimal and back. ' +
+      'Repeating decimals go to 3 places: 2/3 is 0.667, and 0.666 counts too. A decimal shown with … repeats.',
+    why: 'Patterns do most of the work: ninths repeat the numerator (4/9 = 0.444…), elevenths repeat 9 × the numerator ' +
+      '(3/11 = 0.2727…), sevenths cycle the digits 142857 (3/7 = 0.428571…), and the rest are multiples of 1/d (5/12 = 5 × 0.0833…).'
+  };
+
+  var Lessons = { GROUPS: GROUPS, LESSONS: LESSONS, HEART: HEART };
   AT.Lessons = Lessons;
   if (typeof module !== 'undefined' && module.exports) module.exports = Lessons;
 })();

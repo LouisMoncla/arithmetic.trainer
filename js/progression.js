@@ -30,7 +30,7 @@
   // Name of a mode as S.effMode gives it, Learn rounds included ("LEARN-x11" → "Learn: × 11").
   function modeLabel(m) {
     var t = /^LEARN-(\w+)$/.exec(m || '');
-    if (t) return 'Learn: ' + (G.trickNames()[t[1]] || t[1]);
+    if (t) return 'Learn: ' + (t[1] === 'fractions' ? 'fractions by heart' : G.trickNames()[t[1]] || t[1]);
     return MODE_LABELS[m] || m;
   }
 

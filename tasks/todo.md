@@ -31,9 +31,9 @@ tricks taught = the 14 that exist now.
 
 ## Build steps
 
-Part 1 (lessons, practice, timed rounds): done, committed. Part 2 (fractions by heart): in progress.
+Part 1 (lessons, practice, timed rounds) and part 2 (fractions by heart): done, committed.
 
-- [ ] `js/generator.js`: trick types `fd` and `df` over the 49-pair set; `makeTrick`/`trickQuestion`/`trickAdvice`
+- [x] `js/generator.js`: trick types `fd` and `df` over the 49-pair set; `makeTrick`/`trickQuestion`/`trickAdvice`
       for them; repeating decimals answered to 3 places (rounded **or** truncated both accepted: 2/3 → 0.667 or 0.666).
       Fact keys: `tr-fd` / `tr-df` plus one key per pair (`fd-3/7`) so the grid and the weighting have data.
 - [x] `js/lessons.js` (new, after generator.js in the script order): the lesson texts (rule, why, group)
@@ -41,17 +41,17 @@ Part 1 (lessons, practice, timed rounds): done, committed. Part 2 (fractions by 
 - [x] `js/game.js`: a `practice` kind (no timer, fixed count, shows the method after a miss or Tab,
       `onEnd` with per-question results, nothing saved). The game screen rule (question, box, timer, score)
       stays as it is for rounds; practice is a learning screen and shows the method line.
-- [ ] `js/game.js`: accept an alternative answer text (`q.answerAlt`) for repeating decimals.
-- [ ] `js/stats.js`: per-pair fraction stats for the grid and weights (reuse the weighted-tables code path).
+- [x] `js/game.js`: accept an alternative answer text (`q.answerAlt`) for repeating decimals.
+- [x] `js/stats.js`: per-pair fraction stats for the grid and weights (reuse the weighted-tables code path).
 - [x] `js/ui.js`: `renderLearn` (index + lesson + fractions pages), routes `#learn`, `#learn/<type>`,
       `#learn/fractions`; key N; single-trick timed rounds saved as mode `LEARN` with `settings.types = [type]`;
       `effMode` treats `LEARN` + type as its own mode so ranks and "usual" compare like with like.
 - [x] `index.html`: nav link, script tag, help lines (N, the lesson keys, Tab in practice).
 - [x] `css/style.css`: method line on the practice screen, fractions grid (reuse heatmap styles).
-- [ ] Tests: generator (49 pairs, 3-place uniqueness so "0.xxx…" names one fraction, both answer forms),
+- [x] Tests: generator (49 pairs, 3-place uniqueness so "0.xxx…" names one fraction, both answer forms),
       lessons data (every trick has a lesson), stats (per-pair keys), E2E (open a lesson with N, practise with a miss
       → method shown, timed round saved as LEARN, fractions grid renders).
-- [ ] README (modes, keys), CLAUDE.md (layout, data model: mode LEARN, new types, keys).
+- [x] README (modes, keys), CLAUDE.md (layout, data model: mode LEARN, new types, keys).
 
 ## Risks / things to know
 
@@ -67,3 +67,14 @@ Part 1 (lessons, practice, timed rounds): done, committed. Part 2 (fractions by 
 3. Repeating decimals to **3 places**, rounded or truncated.
 4. Practice length: **10 questions**.
 5. Practice is **not saved**.
+
+## Review (2026-10-25)
+
+- Built as planned. Defaults kept: key N, Enter practise / F timed round, 3 decimal places (rounded or cut off),
+  10 practice questions, practice not saved.
+- Additions found while building: `P.modeLabel` (mode names were looked up raw and would have printed "undefined"
+  for Learn rounds), `logModes()` so Learn rounds appear in Log and Progress, and `settings.lesson` so the
+  two-type fractions lesson counts as one mode.
+- Tests: 63 unit, 38 E2E, all passing. New: tests/learn.test.js, tests/e2e/learn.spec.js, fractions cases in
+  generator and stats tests.
+- Not done: Learn rounds stay out of the "Copy report for Claude" history sections (REPORT_MODES); their facts are in it.

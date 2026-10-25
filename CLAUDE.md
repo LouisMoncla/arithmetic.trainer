@@ -165,6 +165,11 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     `G.trickQuestion` + `G.trickAdvice`. Practice = `Game.startPractice` (kind `practice`: no clock, `count` questions,
     a wrong full-length answer or Tab shows `#g-method`; questions get `method: true`); ui.js never saves it.
     Timed round = mode LEARN. `logModes()` in ui.js adds played LEARN-<type> modes to Log, Progress and fatigue notes.
+    Fractions by heart (`#learn/fractions`, `AT.Lessons.HEART`): trick types `fd` (3/7 → decimal) and `df` (0.429… → 3/7)
+    over `G.HEART` (49 pairs). `G.heartDecimal`: exact if it terminates, else 3 places rounded, with the cut-off form
+    accepted as `q.answerAlt` (not saved). Fact keys add `fr-n/d` per pair (both directions share it);
+    `S.fractionCells` weights pairs like weighted tables, `S.fractionPool` feeds `makeMixedGenerator`.
+    Its rounds store `settings: { types: ['fd', 'df'], lesson: 'fractions' }`, so `S.effMode` gives LEARN-fractions.
 
 ## Working conventions
 

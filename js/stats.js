@@ -57,10 +57,10 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
   // External (zetamac.com) rounds count as the mode they were linked to.
-  // The mode a round counts as. A Learn round counts per trick ("LEARN-x11"), so ranks and "usual" compare like with like.
+  // The mode a round counts as. A Learn round counts per lesson ("LEARN-x11", "LEARN-fractions"), so ranks and "usual" compare like with like.
   function effMode(r) {
     if (r.mode === 'EXTERNAL') return r.linkedMode;
-    if (r.mode === 'LEARN') return 'LEARN-' + ((r.settings && r.settings.types) || [])[0];
+    if (r.mode === 'LEARN') return 'LEARN-' + (r.settings.lesson || (r.settings.types || [])[0]);   // lesson: 'fractions' (fd + df)
     return r.mode;
   }
 
@@ -503,6 +503,41 @@
    * Returns [{ q: {op, a, b}, weight, share, cell }], share = % chance per question, cell = 'mul:7x8' | 'div:7/8'.
    */
   var W_MIN = 0.25, W_MAX = 6;
+
+  /*
+   * Fractions by heart: one cell per pair of G.HEART, from its "fr-n/d" fact (both directions share it).
+   * Weighted like the tables: clamp((median / ref)² × (1 + wrong), 0.25, 6), ref = median over the pairs seen;
+   * unseen pairs take the highest weight so they come up until seen. `slow` marks a pair to work on.
+   */
+  function fractionCells(rounds) {
+    var byKey = {};
+    factStats(rounds).forEach(function (f) { if (/^fr-/.test(f.key)) byKey[f.key] = f; });
+    var cells = G.HEART.map(function (p) {
+      var k = 'fr-' + p[0] + '/' + p[1];
+      return { n: p[0], d: p[1], key: k, f: byKey[k] || null };
+    });
+    var seen = cells.filter(function (c) { return c.f; });
+    var ref = median(seen.map(function (c) { return c.f.medianTime; }));
+    seen.forEach(function (c) {
+      var r = c.f.medianTime / ref;
+      c.weight = Math.min(W_MAX, Math.max(W_MIN, r * r * (1 + c.f.wrongRate)));
+      c.slow = c.weight >= 2 || c.f.status === 'weak';
+    });
+    var seenMax = Math.max.apply(null, seen.map(function (c) { return c.weight; }).concat([0]));
+    cells.forEach(function (c) { if (!c.f) { c.weight = seenMax > 0 ? seenMax : W_MAX; c.slow = false; } });
+    return cells;
+  }
+
+  // Both directions of every pair, at the pair's weight, for G.makeMixedGenerator.
+  function fractionPool(cells) {
+    var pool = [];
+    cells.forEach(function (c) {
+      pool.push({ q: { op: 'tr', type: 'fd', a: c.n, b: c.d }, weight: c.weight });
+      pool.push({ q: { op: 'tr', type: 'df', a: c.n, b: c.d }, weight: c.weight });
+    });
+    return pool;
+  }
+
   function tableWeights(cells) {
     var items = [], a, b;
     for (a = 2; a <= 12; a++) for (b = 2; b <= 12; b++) {
@@ -668,6 +703,7 @@
     dayKey: dayKey, effMode: effMode, sessionDays: sessionDays, sessionNumber: sessionNumber,
     summarize: summarize, sessionsForMode: sessionsForMode, recentAverage: recentAverage, trend: trend,
     roundIndexAverages: roundIndexAverages, fatigue: fatigue, estimate120: estimate120, timeByOp: timeByOp,
+    fractionCells: fractionCells, fractionPool: fractionPool,
     slowest: slowest, freezes: freezes, paceThirds: paceThirds, roundReport: roundReport, factStats: factStats, drillTargets: drillTargets,
     weakLines: weakLines, drillPool: drillPool, tableCells: tableCells, tableWeights: tableWeights, mistakes: mistakes, wrongRateByOp: wrongRateByOp, sessionReport: sessionReport
   };

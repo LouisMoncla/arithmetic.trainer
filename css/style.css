@@ -218,6 +218,15 @@ label { white-space: nowrap; }
 .panel { padding: 8px 10px 16px 56px; border-top: 1px solid var(--fg); }
 .mode.lesson { grid-template-columns: 12em 1fr auto; text-decoration: none; }   /* Learn: a link per lesson */
 .lesson-rule { font-size: var(--t-m); line-height: 1.5; max-width: 40em; }
+/* Fractions by heart: one cell per pair; grey = not seen, inverted = slow (emphasis by inversion, no colour). */
+.fgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.fgrid th { font: var(--t-xs) var(--mono); color: var(--mid); font-weight: 400; padding: 4px 8px; text-align: center; }
+.fgrid td { border: 1px solid var(--line); padding: 4px 6px; min-width: 60px; text-align: center; font: 14px var(--mono); }
+.fgrid td:empty { border-color: transparent; }
+.fgrid .fr { display: block; font-size: var(--t-xs); color: var(--mid); }
+.fgrid td.un { color: var(--mid); }
+.fgrid td.slow { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.fgrid td.slow .fr { color: var(--bg); }
 
 /* ---------- tables ---------- */
 table { border-collapse: collapse; width: 100%; }

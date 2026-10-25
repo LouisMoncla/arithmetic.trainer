@@ -198,7 +198,7 @@
     var fr = st.q.frac, ans = fr ? String(fr[0]) : st.q.answerText || String(st.q.answer);
     var typed = cleanInput(inEl, !fr && ans.indexOf('.') >= 0);
     if (!typed) return;
-    if (typed !== ans) { countWrong(typed, ans); return; }
+    if (typed !== ans && typed !== st.q.answerAlt) { countWrong(typed, ans); return; }   // answerAlt: 2/3 as 0.666
     if (!fr) { accept(); return; }
     // Right numerator: it stays, and the denominator box takes over.
     inEl.readOnly = true; st.part = 'den';
@@ -214,7 +214,7 @@
 
   function zetamacInput(opts) {
     var types = opts.settings.types || [];
-    inEl.setAttribute('inputmode', types.indexOf('frac') >= 0 ? 'decimal' : 'numeric');
+    inEl.setAttribute('inputmode', types.indexOf('frac') >= 0 || types.indexOf('fd') >= 0 ? 'decimal' : 'numeric');
     inEl.oninput = onZetamacInput;
     denEl.oninput = onDenInput;
   }

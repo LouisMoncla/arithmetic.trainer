@@ -344,3 +344,21 @@ test('time running out is still not an attempt', () => {
   const r = round('TABLES', '2026-10-01', 1, [q('mul', 2, 3, 900), { ...q('mul', 7, 8, 9000), unanswered: true }]);
   assert.ok(!S.factStats([r], new Date(2026, 9, 1, 20).getTime()).some(f => f.key === '7x8'));
 });
+
+test('fractions by heart: unseen pairs weigh most, a slow pair weighs more than a fast one', () => {
+  const tq = (type, a, b, timeMs, wrongAttempts = 0) => ({ ...G.makeTrick(type, a, b), timeMs, wrongAttempts });
+  const qs = [];
+  for (const [n, d] of [[1, 2], [1, 4], [3, 4], [1, 5]]) qs.push(tq('fd', n, d, 1000), tq('df', n, d, 1100));
+  qs.push(tq('fd', 3, 7, 4000), tq('df', 3, 7, 3500, 1));
+  const cells = S.fractionCells([round('LEARN', '2026-10-01', 10, qs, 12, { settings: { types: ['fd', 'df'], lesson: 'fractions' } })]);
+  assert.strictEqual(cells.length, 49);
+  const at = (n, d) => cells.find((c) => c.n === n && c.d === d);
+  assert.ok(at(3, 7).weight > at(1, 2).weight);
+  assert.ok(at(3, 7).slow && !at(1, 2).slow);
+  assert.strictEqual(at(5, 9).f, null);
+  assert.strictEqual(at(5, 9).weight, Math.max(...cells.filter((c) => c.f).map((c) => c.weight)));
+  const pool = S.fractionPool(cells);
+  assert.strictEqual(pool.length, 98);
+  assert.deepStrictEqual(pool.slice(0, 2).map((p) => p.q.type), ['fd', 'df']);
+  assert.strictEqual(S.effMode({ mode: 'LEARN', settings: { types: ['fd', 'df'], lesson: 'fractions' } }), 'LEARN-fractions');
+});

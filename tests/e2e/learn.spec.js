@@ -7,8 +7,8 @@ test('N opens Learn: every trick has a lesson, grouped, and a lesson has its rul
   await page.keyboard.press('n');
   await expect(page).toHaveURL(/#learn$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Learn');
-  for (const g of ['Squares', 'Products', 'Percentages', 'Fractions']) await expect(page.getByRole('heading', { name: g })).toBeVisible();
-  await expect(page.locator('a.lesson')).toHaveCount(14);
+  for (const g of ['Squares', 'Products', 'Percentages', 'Fractions']) await expect(page.getByRole('heading', { name: g, exact: true })).toBeVisible();
+  await expect(page.locator('a.lesson')).toHaveCount(15);                  // 14 tricks + fractions by heart
   await expect(page.getByTestId('learn-lesson-x11')).toContainText('Not started');
 
   // ↓ moves between lessons, Enter opens the focused one.
@@ -82,4 +82,76 @@ test('timed round: F plays 60 s of one trick, saved as LEARN and named after the
   await expect(page.locator('.facts')).toContainText('Timed rounds');
   await page.goto(page.url().replace(/#.*/, '#stats/log'));
   await expect(page.locator('#pane-log').getByRole('heading', { name: 'Learn: × 25' })).toBeVisible();   // listed in the Log
+});
+
+// Fractions by heart, solved independently of the app: "3/7" → a decimal (cut off to 3 places when it
+// repeats, the form the app accepts besides the rounded one), "0.429…" → [3, 7].
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+const terminates = (d) => { while (d % 2 === 0) d /= 2; while (d % 5 === 0) d /= 5; return d === 1; };
+function heartAnswer(shown) {
+  let m;
+  if ((m = /^(\d+)\/(\d+)$/.exec(shown))) {
+    const n = +m[1], d = +m[2];
+    return { decimal: terminates(d) ? String(Number((n / d).toFixed(6))) : (Math.floor(n * 1000 / d) / 1000).toFixed(3) };
+  }
+  for (let d = 2; d <= 25; d++) for (let n = 1; n < d; n++) {
+    if (gcd(n, d) !== 1) continue;
+    const text = terminates(d) ? String(Number((n / d).toFixed(6))) : (n / d).toFixed(3) + '…';
+    if (text === shown) return { frac: [n, d] };
+  }
+  throw new Error('Cannot solve ' + shown);
+}
+async function answerHeart(page) {
+  const shown = (await page.getByTestId('game-question').textContent()).trim();
+  const a = heartAnswer(shown);
+  if (a.decimal) await answerBox(page).pressSequentially(a.decimal);
+  else {
+    await page.getByRole('textbox', { name: 'Numerator' }).pressSequentially(String(a.frac[0]));
+    await expect(page.getByRole('textbox', { name: 'Denominator' })).toBeFocused();
+    await page.keyboard.type(String(a.frac[1]));
+  }
+  return shown;
+}
+
+test('fractions by heart: the grid shows all 49 pairs, practice works both ways and accepts the cut-off decimal', async ({ page }) => {
+  await openApp(page, 'learn');
+  await expect(page.getByTestId('learn-lesson-fractions')).toContainText('Not started');
+  await page.getByTestId('learn-lesson-fractions').click();
+  await expect(page.getByTestId('learn-title')).toHaveText('Fractions by heart');
+  const grid = page.getByTestId('fraction-grid');
+  await expect(grid.locator('td:not(:empty)')).toHaveCount(49);
+  await expect(grid.locator('td.un')).toHaveCount(49);                     // nothing seen yet
+  await expect(grid).toContainText('0.429…');
+
+  await page.keyboard.press('Enter');
+  const kinds = new Set();
+  for (let i = 1; i <= 10; i++) {
+    await expect(page.getByTestId('game-timer')).toHaveText(i + ' / 10');
+    const shown = await answerHeart(page);
+    kinds.add(/\//.test(shown) ? 'fd' : 'df');
+  }
+  expect(kinds.size).toBe(2);                                              // both directions came up
+  await expect(page.getByTestId('end-score')).toHaveText('10');
+  expect(await rounds(page)).toHaveLength(0);
+});
+
+test('fractions by heart: a timed round is saved as LEARN fractions and fills the grid', async ({ page }) => {
+  await openApp(page, 'learn/fractions');
+  await page.keyboard.press('f');
+  await tick(page, 3100);
+  await answerHeart(page);
+  await answerHeart(page);
+  await answerHeart(page);
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('3');
+  await expect(page.locator('.end-head')).toContainText('Learn: fractions by heart');
+  const saved = (await rounds(page))[0];
+  expect(saved).toMatchObject({ mode: 'LEARN', settings: { types: ['fd', 'df'], lesson: 'fractions', duration: 60 } });
+  expect(saved.questions.slice(0, 3).every((q) => q.type === 'fd' || q.type === 'df')).toBe(true);
+
+  await tick(page, 500);
+  await page.keyboard.press('n');
+  await page.getByTestId('learn-lesson-fractions').click();
+  await expect(page.getByTestId('fraction-grid').locator('td.un')).not.toHaveCount(49);
+  await expect(page.locator('.facts')).toContainText('Timed rounds');
 });

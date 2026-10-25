@@ -6,7 +6,7 @@ const P = require('../js/progression.js');
 const L = require('../js/lessons.js');
 
 test('every trick has exactly one lesson, in exactly one group', () => {
-  const tricks = Object.keys(G.trickNames()).sort();
+  const tricks = Object.keys(G.trickNames()).filter((t) => !L.HEART.types.includes(t)).sort();   // fd, df: the fractions page
   const grouped = L.GROUPS.flatMap((g) => g.types);
   assert.deepStrictEqual(grouped.slice().sort(), tricks);
   assert.strictEqual(new Set(grouped).size, grouped.length);
