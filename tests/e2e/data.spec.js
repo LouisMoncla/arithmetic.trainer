@@ -7,7 +7,7 @@ test('zetamac.com scores are saved and listed in the Log', async ({ page }) => {
   await page.getByLabel('Mode').selectOption('P2');
   await page.getByLabel('Scores, separated by commas').fill('17, 19, 18');
   await page.getByRole('button', { name: 'Save rounds' }).click();
-  await expect(page.getByText('Saved 3 rounds to P2.')).toBeVisible();
+  await expect(page.getByText('Saved 3 rounds to Foundations.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete round with score 19' })).toBeVisible();
 });
 
@@ -24,7 +24,7 @@ test('a bad score list is refused with a way to fix it', async ({ page }) => {
 test('a first visit starts with no history', async ({ page }) => {
   await openApp(page, 'session');
   expect(await rounds(page)).toHaveLength(0);
-  await expect(page.getByText(/No rounds yet/)).toBeVisible();
+  await expect(page.getByTestId('stats-day')).toContainText('No rounds yet');
 });
 
 test('export, reset, then import restores everything', async ({ page }, testInfo) => {
@@ -47,7 +47,7 @@ test('export, reset, then import restores everything', async ({ page }, testInfo
   expect(await rounds(page)).toHaveLength(0);
 
   await page.getByLabel('Import').setInputFiles(file);
-  await expect(page.getByText('This file has 10 rounds in 2 sessions.')).toBeVisible();
+  await expect(page.getByText('This file has 10 rounds in 2 days.')).toBeVisible();
   await page.getByRole('button', { name: 'Replace my data' }).click();
   await expect(page.getByText('Replaced. You now have 10 rounds.')).toBeVisible();
   expect((await rounds(page)).map(r => r.id)).toEqual(saved.map(r => r.id));

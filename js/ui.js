@@ -1,10 +1,14 @@
 /*
  * ui.js — routing between screens and rendering.
- * Screens: play (home), drill, review, session, progress, log, settings; plus end screens after a round.
- * Each screen may set `screenKeys(e)`, which gets keys first and returns true when it handled one.
+ * Screens: play (home), review, drill, stats, settings; plus end screens after a round.
+ * Stats holds three collapsible sections (day = "Today", progress, log), each built when first opened.
+ * Users see "day" where the code says session: one session is one calendar day with any round.
+ * Each screen may set `screenKeys(e)`, which gets keys first and returns true when it handled one;
+ * on Stats, each open section's `paneKeys[name]` gets them in turn.
  *
- * Routes are hashes, with an optional argument that deep-links state:
- *   #session/2026-10-20   one session        #review/div   heatmap view (both | mul | div)
+ * Routes are hashes, with an optional section and argument that deep-link state:
+ *   #stats/day/2026-10-20   one day        #review/div   heatmap view (both | mul | div)
+ * Old hashes (#session/…, #progress, #log, #stats/session/…, #stats/review/…) redirect (MOVED).
  * Layout helpers (pageHead, section, stats, facts, keys, frow) give every screen the same structure.
  * Copy is sentence case, second person, plain words; no "a · b · c" strings (see docs/design-guidelines.md).
  * data-testid only where roles and labels are not enough (playwright-frontend conventions).
@@ -19,11 +23,11 @@
 
   var MODES = [
     { id: 'TABLES', label: 'Tables', desc: '× and ÷, 2–12 by 2–12, 60 seconds' },
-    { id: 'P2', label: 'P2', desc: '× and ÷, 2–12 by 2–100, 60 seconds' },
-    { id: 'P3', label: 'P3', desc: 'All four operations, 60 seconds' },
-    { id: 'NORMAL120', label: 'Normal 120 s', desc: 'All four operations, 120 seconds, the benchmark for step P4' },
-    { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts mixed with P2, 60 seconds' },
-    { id: 'INTERVIEW', label: 'Interview', desc: '80 questions in 8 minutes, answer with Enter' },
+    { id: 'P2', label: 'Foundations', desc: '× and ÷, 2–12 by 2–100, 60 seconds' },
+    { id: 'P3', label: 'Speed', desc: 'All four operations, 60 seconds' },
+    { id: 'NORMAL120', label: 'Interview-ready', desc: 'All four operations, 120 seconds, the interview benchmark' },
+    { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts mixed with Foundations, 60 seconds' },
+    { id: 'INTERVIEW', label: 'Interview sim', desc: '80 questions in 8 minutes, answer with Enter' },
     { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations, ranges and length' }
   ];
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7]];
@@ -79,7 +83,7 @@
   function facts(pairs) {
     // Numbers wear the monospace face (the brief); words like "First time" stay in the text face.
     return '<dl class="facts">' + pairs.filter(Boolean).map(function (p) {
-      var isNum = /^[−+-]?[\d.,]+( ?(s|%|sessions?))?$/.test(String(p[1]).trim());
+      var isNum = /^[−+-]?[\d.,]+( ?(s|%|days?))?$/.test(String(p[1]).trim());
       return '<div><dt>' + esc(p[0]) + '</dt><dd' + (isNum ? ' class="num"' : '') + '>' + p[1] + '</dd></div>';
     }).join('') + '</dl>';
   }
@@ -94,7 +98,19 @@
 
   // ---------- routing ----------
 
-  var SCREENS = { play: renderPlay, drill: renderDrill, review: renderReview, session: renderSession, progress: renderProgress, log: renderLog, settings: renderSettings };
+  var SCREENS = { play: renderPlay, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
+  // Stats sections, in page order.
+  var PANES = { day: renderDay, progress: renderProgress, log: renderLog };
+  var PANE_ORDER = ['day', 'progress', 'log'];
+  // Old links keep working: these hash prefixes moved (Session became Day, inside Stats).
+  var MOVED = { session: 'stats/day', progress: 'stats/progress', log: 'stats/log', 'stats/session': 'stats/day', 'stats/review': 'review' };
+
+  function canonical(hash) {
+    var parts = hash.split('/'), two = parts.slice(0, 2).join('/');
+    if (MOVED[two]) return [MOVED[two]].concat(parts.slice(2)).join('/');
+    if (MOVED[parts[0]]) return [MOVED[parts[0]]].concat(parts.slice(1)).join('/');
+    return hash;
+  }
 
   function go(name, arg) {
     var h = '#' + name + (arg ? '/' + arg : '');
@@ -107,17 +123,24 @@
     if (Game.active) return;
     screenKeys = null;
     var tip = document.querySelector('.chart-tip'); if (tip) tip.hidden = true;
-    var parts = location.hash.slice(1).split('/'), name = parts[0] || 'play', arg = parts[1] || null;
+    var hash = location.hash.slice(1), moved = canonical(hash);
+    if (moved !== hash) history.replaceState(null, '', '#' + moved);
+    var parts = moved.split('/'), name = parts[0] || 'play';
     if (!SCREENS[name]) name = 'play';
     Array.prototype.forEach.call(document.querySelectorAll('nav a'), function (a) {
       if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (name === 'play') ui.sel = null; // fresh default selection each visit
-    if (name === 'review') ui.heatView = ['both', 'mul', 'div'].indexOf(arg) >= 0 ? arg : 'both';
-    if (name === 'session') ui.sessionDay = /^\d{4}-\d{2}-\d{2}$/.test(arg || '') ? arg : null; // today / latest unless the hash names a day
+    if (name === 'review') ui.heatView = ['mul', 'div'].indexOf(parts[1]) >= 0 ? parts[1] : 'both';
+    var pane = name === 'stats' && PANES[parts[1]] ? parts[1] : null;
+    if (name === 'stats') {
+      ui.pane = pane;
+      ui.sessionDay = pane === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(parts[2] || '') ? parts[2] : null; // today / latest unless the hash names a day
+    }
     SCREENS[name]();
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
-    window.scrollTo(0, 0);
+    var target = name === 'stats' && pane && document.getElementById('pane-' + pane);
+    if (target && pane !== PANE_ORDER[0]) target.scrollIntoView(); else window.scrollTo(0, 0);
   }
 
   function setHelp(open) {
@@ -126,7 +149,8 @@
   }
 
   function onKey(e) {
-    if (Game.active || e.ctrlKey || e.metaKey || e.altKey) return;
+    // defaultPrevented: a control already used the key (arrows on a focused chart must not also switch days).
+    if (Game.active || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
     var t = e.target, tag = t.tagName, type = (t.type || '').toLowerCase();
     if (!document.getElementById('help').hidden) {
       if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); setHelp(false); }
@@ -137,9 +161,11 @@
     // Let Enter/Space activate a focused button, link or checkbox.
     if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SUMMARY')) return;
     if (screenKeys && screenKeys(e) === true) { e.preventDefault(); return; }
-    var map = { p: 'play', d: 'drill', r: 'review', e: 'session', g: 'progress', l: 'log', s: 'settings' };
+    // E G L were pages of their own; they now open their Stats section.
+    var map = { p: 'play', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (map[k]) { e.preventDefault(); go(map[k]); }
+    else if (panes[k]) { e.preventDefault(); go('stats', panes[k]); }
     else if (e.key === '?') { e.preventDefault(); setHelp(true); }
     else if (k === 't') { e.preventDefault(); toggleTheme(); }
   }
@@ -225,7 +251,7 @@
 
   function playMistakes() {
     var qs = S.mistakes(data.rounds);
-    if (!qs.length) { announce('Nothing to replay: no wrong or slow answers in your last 3 sessions.'); return; }
+    if (!qs.length) { announce('Nothing to replay: no wrong or slow answers in your last 3 days.'); return; }
     playPool(qs, 1, G.modeSettings('P2'), 'mistakes');
   }
 
@@ -249,10 +275,10 @@
 
   // The hero names whatever is selected, so the big button and Enter always do the same thing.
   function heroFor(m, rec, step) {
-    var why = m.id === 'TABLES' && rec.warmup ? 'Warm up first'
-      : m.id === rec.mode ? 'Today’s training, step ' + step.id
+    var why = m.id === 'TABLES' && rec.warmup ? 'Warm up first, then ' + label(rec.mode)
+      : m.id === rec.mode ? 'Today’s training, step ' + step.n + ' of ' + P.STEPS.length
       : 'Your choice';
-    var start = { DRILL: 'Open the drill', INTERVIEW: 'Start the interview', CUSTOM: 'Start custom round' }[m.id] || 'Start ' + m.label;
+    var start = { DRILL: 'Open the drill', INTERVIEW: 'Start Interview sim', CUSTOM: 'Start custom round' }[m.id] || 'Start ' + m.label;
     var note = {
       DRILL: 'You see your slowest facts first, then play 60 seconds where about 70% of questions come from them.',
       INTERVIEW: 'Integers, decimals, fractions, percentages and estimates. Type the answer and press Enter: 0.5, .5 and 1/2 all count. Tab skips. ' +
@@ -283,21 +309,23 @@
       ? 'Today: ' + label(step.mode) + ' average ' + f1(S.mean(stepToday)) + ' after ' + plural(stepToday.length, 'round') +
         (stepToday.length >= 3 ? '. Today counts.' : '. ' + (3 - stepToday.length) + ' more to make today count.')
       : 'Today: no ' + label(step.mode) + ' rounds yet. Play 3 or more for today to count.';
-    h.push('<section class="step" aria-label="Step progress" data-testid="home-step">' +
-      '<h2 class="step-id">Step ' + step.id + '</h2>' +
-      '<p class="step-rule">Average ' + step.threshold + ' or more in ' + label(step.mode) + ', 3 sessions in a row.' +
+    // One line (step, streak, count); the rule and today's count open under it.
+    h.push('<details class="step" aria-label="Step progress" data-testid="home-step"><summary>' +
+      '<h2 class="step-id">Step ' + step.n + ': ' + esc(step.name) + '</h2>' +
+      '<span class="streak" data-testid="home-streak" aria-label="' + cur.streak + ' of 3 days done">' + P.boxes(cur.streak) + '</span>' +
+      '<span class="step-count">' + (info.allDone ? 'All steps complete' : cur.streak + ' of 3 days done') + '</span></summary>' +
+      '<p class="step-rule">Average ' + step.threshold + ' or more in ' + label(step.mode) + ', 3 days in a row.' +
       (info.overridden ? ' <span class="mid">Set manually in Settings.</span>' : '') + '</p>' +
-      '<div class="streak" data-testid="home-streak" aria-label="' + cur.streak + ' of 3 sessions done">' + P.boxes(cur.streak) + '</div>' +
-      '<p class="step-now">' + (info.allDone ? 'All steps complete. Keep your 120-second average above 60. ' : cur.streak + ' of 3 done. ') + esc(now) + '</p>' +
-      '</section>');
+      '<p class="step-now">' + (info.allDone ? 'Keep your 120-second average above 60. ' : '') + esc(now) + '</p>' +
+      '</details>');
 
     // Notices: step completion (once), fatigue, backup reminder.
     var notes = [];
     info.all.forEach(function (p, i) {
       if (p.completed && st.announced.indexOf(p.step.id) < 0) {
         var next = P.STEPS[i + 1];
-        notes.push('<p class="notice strong">Step ' + p.step.id + ' complete in session ' + p.completedAt + '. ' +
-          (next ? 'Next: step ' + next.id + ', ' + esc(next.desc) + ', average ' + next.threshold + ' or more.' : 'That was the last step.') + '</p>');
+        notes.push('<p class="notice strong">Step ' + p.step.n + ', ' + esc(p.step.name) + ', complete on day ' + p.completedAt + '. ' +
+          (next ? 'Next: step ' + next.n + ', ' + esc(next.name) + ', ' + esc(next.desc) + ', average ' + next.threshold + ' or more.' : 'That was the last step.') + '</p>');
         st.announced.push(p.step.id);
         save();
       }
@@ -306,11 +334,12 @@
       var ss = S.sessionsForMode(rounds, m).filter(function (s) { return s.day === today; });
       if (ss.length && S.fatigue(ss[0].scores)) notes.push('<p class="notice strong">Your ' + label(m) + ' scores are dropping. Stop here or take a 10-minute break.</p>');
     });
-    var hasOwn = rounds.some(function (r) { return r.id.indexOf('seed-') !== 0; });   // old saves hold 8 seeded zetamac rounds
+    // Old saves hold 8 seeded zetamac rounds. Ask for a backup once there is something worth keeping.
+    var own = rounds.filter(function (r) { return r.id.indexOf('seed-') !== 0; }).length;
     if (st.lastExport && !signedIn()) {
       var days = Math.floor((Date.now() - Date.parse(st.lastExport)) / 86400000);
       if (days >= 7) notes.push('<p class="notice quiet">Your last backup is ' + days + ' days old. Export a new one in Settings.</p>');
-    } else if (hasOwn && !signedIn()) notes.push('<p class="notice quiet">You have no backup yet. Export one in Settings.</p>');
+    } else if (own >= 10 && !signedIn()) notes.push('<p class="notice quiet">You have ' + own + ' rounds and no backup yet. Export one in Settings.</p>');
     if (notes.length) h.push('<div class="notices">' + notes.join('') + '</div>');
 
     // All modes, in two groups; Custom's form opens under its row.
@@ -318,9 +347,9 @@
     MODE_GROUPS.forEach(function (g) {
       body.push('<h3 class="group">' + g[0] + '</h3><ol class="modes">');
       MODES.slice(g[1], g[2]).forEach(function (m, j) {
-        var i = g[1] + j, isRec = m.id === rec.mode, tag = '';
-        if (m.id === 'TABLES' && rec.warmup) tag = 'Warm up first';
-        if (isRec) tag = 'Recommended';
+        // One tag only: the warm-up while it is due, then the step's mode.
+        var i = g[1] + j, tag = '';
+        if (rec.warmup ? m.id === 'TABLES' : m.id === rec.mode) tag = rec.warmup ? 'Warm up first' : 'Recommended';
         body.push('<li><button type="button" class="mode' + (ui.sel === m.id ? ' sel' : '') + (tag ? ' rec' : '') + '" data-mode="' + m.id + '"' +
           ' aria-pressed="' + (ui.sel === m.id) + '">' +
           '<span class="k">' + (i + 1) + '</span><span class="nm">' + esc(m.label) + '</span><span class="ds">' + esc(m.desc) + '</span>' +
@@ -492,12 +521,12 @@
       .concat([['a', 'See today’s analysis', 'A'], ['h', 'Home', 'H']])));
 
     // Summary: what you read at a glance.
-    var avgNote = rep.avg7 === null ? 'First session in this mode' : 'Average ' + f1(rep.avg7);
+    var avgNote = rep.avg7 === null ? 'First day in this mode' : 'Average ' + f1(rep.avg7);
     if (rep.threshold) avgNote += ', threshold ' + rep.threshold;
     var rankNote = rk.of === 1 ? 'First round in this mode' : rk.best ? (rk.tied ? 'Ties your best' : 'Personal best') :
       rk.bestToday ? 'Best today' : rk.place / rk.of <= 0.5 ? 'Top ' + Math.max(1, Math.round(rk.place / rk.of * 100)) + '%' : '';
     h.push(stats([
-      { label: 'Compared with your 7-session average', value: rep.avg7 === null ? '–' : signed(round.score - rep.avg7), note: avgNote, key: 'vs-average' },
+      { label: 'Compared with your last 7 days played', value: rep.avg7 === null ? '–' : signed(round.score - rep.avg7), note: avgNote, key: 'vs-average' },
       { label: 'Median time', value: med ? sec(med) : '–', note: rep.usualMedian ? 'Usually ' + sec(rep.usualMedian) : 'Per question', key: 'median' },
       { label: 'First-try accuracy', value: pct(rep.firstTry), note: plural(rep.wrongAttempts, 'wrong attempt'), key: 'accuracy' },
       { label: 'Rank in this mode', value: rk.of === 1 ? '–' : rk.best ? 'Best' : ordinal(rk.place), note: rk.of > 1 && !rk.best ? 'Of ' + rk.of + (rankNote ? ', ' + rankNote.toLowerCase() : '') : rankNote, key: 'rank' }
@@ -574,7 +603,7 @@
     var actions = {
       again: again,
       d: function () { if (slowQs.length) playPool(slowQs, 0.7, round.settings.ops ? round.settings : G.modeSettings('P2'), 'slow'); },
-      a: function () { go('session', todayKey()); },
+      a: function () { go('stats', 'day/' + todayKey()); },
       h: function () { go('play'); }
     };
     bindEndButtons(actions);
@@ -586,8 +615,8 @@
   function showInterviewEnd(round) {
     var qs = round.questions.filter(function (q) { return !q.unanswered; });
     var answered = qs.filter(function (q) { return !q.skipped; }), right = answered.filter(function (q) { return q.correct; });
-    var h = ['<div class="end">', '<h1 class="sr-only">Interview finished</h1>'];
-    h.push(endHead(round.score, 'Interview', qs.length + ' of 80 questions reached'));
+    var h = ['<div class="end">', '<h1 class="sr-only">Interview sim finished</h1>'];
+    h.push(endHead(round.score, 'Interview sim', qs.length + ' of 80 questions reached'));
     h.push(endButtons([['again', 'Play again', 'Enter'], ['a', 'See today’s analysis', 'A'], ['h', 'Home', 'H']]));
     h.push(stats([
       { label: 'Accuracy', value: (answered.length ? Math.round(right.length / answered.length * 100) : 0) + '%', note: right.length + ' of ' + answered.length + ' answered', key: 'accuracy' },
@@ -613,7 +642,7 @@
     if (qs.length >= 2) {
       var med = S.median(qs.map(function (q) { return q.timeMs; }));
       h.push(section('Through the round', '<p class="sec-intro">How long each question took, in the order you saw them.</p>' +
-        timeLine(qs.map(function (q) { return { q: q, s: q.timeMs / 1000 }; }), med, 'Interview'), null, 'end-pace'));
+        timeLine(qs.map(function (q) { return { q: q, s: q.timeMs / 1000 }; }), med, 'Interview sim'), null, 'end-pace'));
     }
     if (qs.length) {
       h.push(section('Every question', '<div class="tbl-scroll"><table class="compact" data-testid="end-all-questions"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col">Your answer</th>' +
@@ -624,7 +653,7 @@
     }
     h.push('</div>');
     main.innerHTML = h.join('');
-    var actions = { again: playInterview, a: function () { go('session', todayKey()); }, h: function () { go('play'); } };
+    var actions = { again: playInterview, a: function () { go('stats', 'day/' + todayKey()); }, h: function () { go('play'); } };
     bindEndButtons(actions);
     endKeys(actions);
   }
@@ -634,7 +663,7 @@
   function renderDrill() {
     var targets = S.drillTargets(S.factStats(data.rounds)), lines = S.weakLines(targets, 10);
     var nMistakes = S.mistakes(data.rounds).length;
-    var h = [pageHead('Weak-fact drill', 'Read the list once, then play 60 seconds. About 70% of the questions come from these facts, the rest are normal P2.',
+    var h = [pageHead('Weak-fact drill', 'Read the list once, then play 60 seconds. About 70% of the questions come from these facts, the rest are normal Foundations questions.',
       '<button type="button" id="go" class="primary">Start the drill <kbd>Enter</kbd></button>' +
       '<button type="button" id="mis"' + (nMistakes ? '' : ' disabled') + '>Replay mistakes <kbd>M</kbd></button>')];
     var body;
@@ -643,12 +672,12 @@
         return '<li><span class="f">' + esc(l.label) + '</span><span class="m">' + sec(l.ms) + ', ' + l.status + '</span></li>';
       }).join('') + '</ol>';
     } else {
-      body = '<p class="mid">No weak facts yet. Play a few P2 or P3 rounds and they will show up here. Until then the drill plays normal P2.</p>';
+      body = '<p class="mid">No weak facts yet. Play a few Foundations or Speed rounds and they will show up here. Until then the drill plays normal Foundations.</p>';
     }
     h.push(section('Your weak facts', body));
     h.push(section('Mistakes', '<p class="mid">' + (nMistakes
-      ? 'You have ' + plural(nMistakes, 'question') + ' answered wrong or slower than 4 seconds in your last 3 sessions. Replay mistakes plays a round with only those.'
-      : 'No wrong or slow answers in your last 3 sessions, so there is nothing to replay.') + '</p>'));
+      ? 'You have ' + plural(nMistakes, 'question') + ' answered wrong or slower than 4 seconds in your last 3 days. Replay mistakes plays a round with only those.'
+      : 'No wrong or slow answers in your last 3 days, so there is nothing to replay.') + '</p>'));
     main.innerHTML = h.join('');
     $('#go').addEventListener('click', playWeakDrill);
     $('#mis').addEventListener('click', playMistakes);
@@ -657,6 +686,82 @@
       if (e.key === 'm' || e.key === 'M') { playMistakes(); return true; }
       return false;
     };
+  }
+
+  // ---------- Stats: Today, Progress and Log as sections you open ----------
+
+  var PANE_TITLES = { day: 'Today', progress: 'Progress', log: 'Log' };
+  var paneKeys = {};   // keys of each section, active while it is open
+
+  // Which sections are open is a per-browser convenience, so it lives outside the saved data.
+  var OPEN_KEY = 'arithmeticTrainer.statsOpen';
+  function openPanes() {
+    try {
+      var v = JSON.parse(localStorage.getItem(OPEN_KEY));
+      if (Array.isArray(v)) return v.filter(function (p) { return PANES[p]; });
+    } catch (e) { /* blocked or corrupt: use the default */ }
+    return ['day'];
+  }
+  function rememberOpen() {
+    var open = PANE_ORDER.filter(function (p) { var d = document.getElementById('pane-' + p); return d && d.open; });
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify(open)); } catch (e) { /* not remembered; nothing else depends on it */ }
+  }
+
+  // One line under each title, so the page reads without opening anything.
+  function paneLine(p) {
+    var rounds = data.rounds, days = S.sessionDays(rounds);
+    if (!days.length) return 'No rounds yet';
+    if (p === 'day') {
+      var today = todayKey(), day = days[days.length - 1], rep = S.sessionReport(rounds, day);
+      var one = rep.scores.length === 1 ? rep.scores[0] : null;
+      return (day === today ? 'Today: ' : 'Nothing yet today. Last played ' + fmtDay(day) + ': ') + plural(rep.rounds, 'round') +
+        (one ? ' of ' + label(one.mode) + ', average ' + f1(one.stats.avg) : ' in ' + plural(rep.scores.length, 'mode'));
+    }
+    if (p === 'progress') {
+      var info = P.current(rounds, data.settings.stepOverride), step = info.current.step, ss = S.sessionsForMode(rounds, step.mode);
+      if (info.allDone) return 'All steps complete';
+      return step.name + ': ' + (ss.length ? 'last day average ' + f1(ss[ss.length - 1].stats.avg) : 'no rounds yet') + ', target ' + step.threshold;
+    }
+    return plural(rounds.length, 'round') + ' over ' + plural(days.length, 'day');
+  }
+
+  function renderStats() {
+    var open = openPanes();
+    if (ui.pane && open.indexOf(ui.pane) < 0) open.push(ui.pane);   // a link to a section opens it
+    paneKeys = {};
+    var h = [pageHead('Stats', 'Open a section for its details. The ones you leave open stay open next time.')];
+    PANE_ORDER.forEach(function (p) {
+      h.push('<details class="pane" id="pane-' + p + '" data-testid="stats-' + p + '"' + (open.indexOf(p) >= 0 ? ' open' : '') + '>' +
+        '<summary><h2 class="pane-h">' + PANE_TITLES[p] + '</h2><span class="pane-line">' + esc(paneLine(p)) + '</span></summary>' +
+        '<div class="pane-body" id="pane-' + p + '-body"></div></details>');
+    });
+    h.push(keys([['E', 'today'], ['G', 'progress'], ['L', 'log']]));
+    main.innerHTML = h.join('');
+    // A section is built the first time it opens.
+    PANE_ORDER.forEach(function (p) {
+      var d = document.getElementById('pane-' + p);
+      if (d.open) PANES[p]();
+      d.addEventListener('toggle', function () {
+        if (d.open && !paneBox(p).hasChildNodes()) PANES[p]();
+        rememberOpen();
+      });
+    });
+    screenKeys = function (e) {
+      return PANE_ORDER.some(function (p) { return document.getElementById('pane-' + p).open && paneKeys[p] && paneKeys[p](e) === true; });
+    };
+  }
+
+  function paneBox(p) { return document.getElementById('pane-' + p + '-body'); }
+  // Fill a section. It sits under the page's h2 titles, so its own headings move down one level.
+  function fill(p, html) {
+    var box = paneBox(p);
+    box.innerHTML = html.replace(/<(\/?)h([2-5])\b/g, function (m, slash, n) { return '<' + slash + 'h' + (+n + 1); });
+    return box;
+  }
+  // A section's intro line and its buttons. `title` is HTML (Today names the day it shows).
+  function paneHead(sub, actions, title) {
+    return '<div class="page-head pane-head"><div>' + (title || '') + '<p class="sub">' + sub + '</p></div>' +
+      (actions ? '<div class="actions">' + actions + '</div>' : '') + '</div>';
   }
 
   // ---------- Review ----------
@@ -676,7 +781,7 @@
     var view = ui.heatView || 'both';
     var nMistakes = S.mistakes(data.rounds).length;
     var h = [pageHead('Review', 'Every fact you have practised and how fast you are on it.',
-      '<button type="button" id="mis"' + (nMistakes ? '' : ' disabled title="No wrong or slow answers in your last 3 sessions"') + '>Replay mistakes <kbd>M</kbd></button>')];
+      '<button type="button" id="mis"' + (nMistakes ? '' : ' disabled title="No wrong or slow answers in your last 3 days"') + '>Replay mistakes <kbd>M</kbd></button>')];
 
     // One grid cell for the current view: { e: stats or undefined, label, chance, status }.
     function cellAt(r, c) {
@@ -694,7 +799,8 @@
     for (a = 2; a <= 12; a++) for (b = 2; b <= 12; b++) { x = cellAt(a, b); if (x.e) meds.push(x.e.medianTime); }
     var lo = meds.length ? Math.min.apply(null, meds) : 0, hi = meds.length ? Math.max.apply(null, meds) : 1;
     if (hi - lo < 500) hi = lo + 500;
-    var g = [view === 'div' ? '<p class="small heat-cap">Rows: the number you divide by. Columns: the answer.</p>' : '',
+    var g = [meds.length ? '' : '<p class="sec-intro heat-cap">Play a Tables round: each fact you answer fills its cell.</p>',
+      view === 'div' ? '<p class="small heat-cap">Rows: the number you divide by. Columns: the answer.</p>' : '',
       '<div class="heat" id="heat" role="group" aria-label="Tables heatmap" data-testid="review-heatmap"><div class="hd" aria-hidden="true">' + (view === 'div' ? '÷' : '×') + '</div>'];
     for (b = 2; b <= 12; b++) g.push('<div class="hd" aria-hidden="true">' + b + '</div>');
     var first = true;
@@ -734,7 +840,7 @@
       return (vx < vy ? -1 : vx > vy ? 1 : 0) * dir;
     });
     var tools = '<div class="row"><label for="filter">Operation</label><select id="filter" name="filter">' +
-      [['all', 'All'], ['muldiv', '× and ÷'], ['add', '+'], ['sub', '−'], ['iv', 'Interview']].map(function (o) {
+      [['all', 'All'], ['muldiv', '× and ÷'], ['add', '+'], ['sub', '−'], ['iv', 'Interview sim']].map(function (o) {
         return '<option value="' + o[0] + '"' + (ui.filter === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join('') + '</select><span class="small">' + plural(rows.length, 'fact') + '. Select a column heading to sort.</span></div>';
     var cols = [['key', 'Fact', ''], ['attempts', 'Attempts', 'n'], ['medianTime', 'Median', 'n'], ['wrongRate', 'Wrong', 'n'],
@@ -779,8 +885,9 @@
     $('#mis').addEventListener('click', playMistakes);
     $('#wtables').addEventListener('click', playWeightedTables);
     // The view lives in the URL (#review/div) so it can be linked and survives a reload.
+    function viewHash(v) { setHash('review', v === 'both' ? null : v); }
     function setView(v) {
-      ui.heatView = v; setHash('review', v === 'both' ? null : v); renderReview();
+      ui.heatView = v; viewHash(v); renderReview();
       var bt = $('.hv[data-view="' + v + '"]'); if (bt) bt.focus();
     }
     $$('.hv').forEach(function (bt) { bt.addEventListener('click', function () { setView(bt.getAttribute('data-view')); }); });
@@ -790,7 +897,7 @@
       if (e.key === 'v' || e.key === 'V') {
         var ids = HEAT_VIEWS.map(function (v) { return v[0]; });
         var v = ids[(ids.indexOf(ui.heatView || 'both') + 1) % ids.length];
-        ui.heatView = v; setHash('review', v === 'both' ? null : v); renderReview();
+        ui.heatView = v; viewHash(v); renderReview();
         announce(HEAT_VIEWS[ids.indexOf(v)][1] + ' view');
         return true;
       }
@@ -798,24 +905,25 @@
     };
   }
 
-  // ---------- Session (one day analysed) ----------
+  // ---------- Today (one day analysed; the code calls a day of practice a session) ----------
 
   function pct(x) { return x === null || x === undefined ? '–' : Math.round(x * 100) + '%'; }
   function dsec(ms) { return ms === null || ms === undefined ? '–' : (ms >= 0 ? '+' : '−') + (Math.abs(ms) / 1000).toFixed(1) + ' s'; }
 
-  function renderSession() {
+  function renderDay() {
     var rounds = data.rounds, days = S.sessionDays(rounds), today = todayKey();
-    if (!days.length) { main.innerHTML = pageHead('Session', 'No rounds yet. Press P and play one; its analysis appears here.'); return; }
+    if (!days.length) { fill('day', '<p class="mid">Press P and play a round. Its analysis appears here.</p>'); return; }
     if (!ui.sessionDay || days.indexOf(ui.sessionDay) < 0) ui.sessionDay = days.indexOf(today) >= 0 ? today : days[days.length - 1];
     var day = ui.sessionDay, rep = S.sessionReport(rounds, day), h = [];
 
-    var pick = '<label class="sr-only" for="s-pick">Choose a session</label><select id="s-pick" name="session">' + days.slice().reverse().map(function (d) {
-      return '<option value="' + d + '"' + (d === day ? ' selected' : '') + '>Session ' + (days.indexOf(d) + 1) + ', ' + esc(fmtDay(d)) + '</option>';
+    var pick = '<label class="sr-only" for="s-pick">Choose a day</label><select id="s-pick" name="day">' + days.slice().reverse().map(function (d) {
+      return '<option value="' + d + '"' + (d === day ? ' selected' : '') + '>Day ' + (days.indexOf(d) + 1) + ', ' + esc(fmtDay(d)) + '</option>';
     }).join('') + '</select>';
-    var actions = '<button type="button" id="s-prev" aria-label="Previous session" title="Previous session (←)"' + (rep.prevDay ? '' : ' disabled') + '>←</button>' + pick +
-      '<button type="button" id="s-next" aria-label="Next session" title="Next session (→)"' + (rep.nextDay ? '' : ' disabled') + '>→</button>';
-    h.push(pageHead('Session ' + rep.number, esc(fmtDay(day)) + (day === today ? ', today' : '') + '. You played ' +
-      esc(rep.scores.map(function (s) { return label(s.mode); }).join(', ')) + '.', actions, 'session-title'));
+    var actions = '<button type="button" id="s-prev" aria-label="Previous day" title="Previous day (←)"' + (rep.prevDay ? '' : ' disabled') + '>←</button>' + pick +
+      '<button type="button" id="s-next" aria-label="Next day" title="Next day (→)"' + (rep.nextDay ? '' : ' disabled') + '>→</button>';
+    h.push(paneHead(esc(fmtDay(day)) + (day === today ? ', today' : '') + '. You played ' +
+      esc(rep.scores.map(function (s) { return label(s.mode); }).join(', ')) + '.', actions,
+      '<p class="pane-title" data-testid="day-title">Day ' + rep.number + ' of practice</p>'));
 
     h.push(stats([
       { label: 'Rounds', value: String(rep.rounds), note: plural(rep.scores.length, 'mode'), key: 'rounds' },
@@ -832,23 +940,23 @@
       if (n >= 2) {
         var lg = [{ kind: 'line', label: 'Score' }];
         if (s.threshold) lg.push({ kind: 'dash', label: 'Threshold ' + s.threshold });
-        if (s.prevAvg !== null) lg.push({ kind: 'dot', label: '7-session average ' + f1(s.prevAvg) });
+        if (s.prevAvg !== null) lg.push({ kind: 'dot', label: 'Last 7 days played ' + f1(s.prevAvg) });
         sc.push(C.legend(lg) + C.line({
           xs: xs, h: 150, label: label(s.mode) + ' scores by round', xName: 'Round ', endLabel: true,
           series: [{ ys: s.scores, kind: 'line', name: 'score' }],
-          hlines: [{ y: s.threshold, kind: 'dash', name: 'threshold' }, { y: s.prevAvg, kind: 'dot', name: '7-session average' }]
+          hlines: [{ y: s.threshold, kind: 'dash', name: 'threshold' }, { y: s.prevAvg, kind: 'dot', name: 'last 7 days played' }]
         }) + C.table(['Round', 'Score'], s.scores.map(function (v, i) { return [i + 1, v]; })));
       }
       sc.push(facts([
         ['Average', f1(s.stats.avg)], ['Best', s.stats.best], ['Worst', s.stats.worst], ['Spread (sd)', f1(s.stats.sd)],
         ['First round', s.stats.first],
-        ['Since last session', s.lastAvg !== null ? signed(s.stats.avg - s.lastAvg) : 'First time'],
-        s.prevAvg !== null ? ['7-session average', f1(s.prevAvg)] : null
+        ['Since your last day', s.lastAvg !== null ? signed(s.stats.avg - s.lastAvg) : 'First time'],
+        s.prevAvg !== null ? ['Last 7 days played', f1(s.prevAvg)] : null
       ]));
       if (s.fatigue) sc.push('<div class="notices"><p class="notice strong">Fatigue: your last 3 rounds were ' + s.fatigue.last.join(', ') + ', against ' + f1(s.fatigue.base) + ' for your first 3.</p></div>');
       if (s.external) sc.push('<p class="small">' + plural(s.external, 'round') + ' from zetamac.com: score only, no per-question data.</p>');
     });
-    h.push(section('Scores', sc.join(''), null, 'session-scores'));
+    h.push(section('Scores', sc.join(''), null, 'day-scores'));
 
     // Pace inside rounds.
     if (rep.pace.length) {
@@ -878,7 +986,7 @@
 
     // Mistakes and freezes.
     var mk;
-    if (!rep.mistakes.length) mk = '<p class="mid">' + (rep.questions ? 'No wrong answers and no freezes. A clean session.' : 'This session has no per-question data.') + '</p>';
+    if (!rep.mistakes.length) mk = '<p class="mid">' + (rep.questions ? 'No wrong answers and no freezes. A clean day.' : 'This day has no per-question data.') + '</p>';
     else {
       mk = '<p class="sec-intro">Questions you got wrong, or froze on (more than 3 times the round’s median).</p>' +
         '<table><tr><th scope="col">Question</th><th scope="col" class="n">Seen</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Freezes</th><th scope="col" class="n">Slowest</th><th scope="col">How to think it</th></tr>' +
@@ -892,7 +1000,7 @@
 
     // Per operation.
     if (rep.ops.length) {
-      h.push(section('Per operation', '<p class="sec-intro">Today against all your earlier sessions.</p>' +
+      h.push(section('Per operation', '<p class="sec-intro">Today against all your earlier days.</p>' +
         '<table><tr><th scope="col">Operation</th><th scope="col" class="n">Questions</th><th scope="col" class="n">Median</th><th scope="col" class="n">Usually</th>' +
         '<th scope="col" class="n">Change</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Usually</th></tr>' +
         rep.ops.map(function (o) {
@@ -913,16 +1021,15 @@
       h.push(section('Facts that moved', '<p class="sec-intro">Median time before, then today. A fact needs 2 attempts today and 3 before to show here.</p>' +
         '<div class="twocol"><div><h3 class="sub-h">Faster today</h3>' + list(rep.faster) + '</div><div><h3 class="sub-h">Slower today</h3>' + list(rep.slower) + '</div></div>'));
     }
-    h.push(keys([['←', 'previous session'], ['→', 'next session'], ['P', 'play']]));
-    main.innerHTML = h.join('');
-    C.bind(main);
+    h.push(keys([['←', 'previous day'], ['→', 'next day'], ['P', 'play']]));
+    C.bind(fill('day', h.join('')));
 
-    // The day lives in the URL (#session/2026-10-20).
-    function goDay(d) { if (d) { ui.sessionDay = d; setHash('session', d); renderSession(); } }
+    // The day lives in the URL (#stats/day/2026-10-20).
+    function goDay(d) { if (d) { ui.sessionDay = d; setHash('stats', 'day/' + d); renderDay(); } }
     $('#s-prev').addEventListener('click', function () { goDay(rep.prevDay); });
     $('#s-next').addEventListener('click', function () { goDay(rep.nextDay); });
     $('#s-pick').addEventListener('change', function () { goDay(this.value); $('#s-pick').focus(); });
-    screenKeys = function (e) {
+    paneKeys.day = function (e) {
       if (e.key === 'ArrowLeft') { goDay(rep.prevDay); return true; }
       if (e.key === 'ArrowRight') { goDay(rep.nextDay); return true; }
       return false;
@@ -933,14 +1040,14 @@
 
   function renderProgress() {
     var rounds = data.rounds;
-    var h = [pageHead('Progress', 'One point per session. Hover or focus a chart to read its values; arrow keys move along it.')];
+    var h = [paneHead('One point per day you played. Hover or focus a chart to read its values; arrow keys move along it.')];
     var info = P.current(rounds, data.settings.stepOverride), step = info.current.step;
     var stepSessions = S.sessionsForMode(rounds, step.mode), st = S.trend(stepSessions, step.threshold);
     var est = S.estimate120(rounds), lastStep = stepSessions[stepSessions.length - 1];
     h.push(stats([
-      { label: label(step.mode) + ', last session', value: lastStep ? f1(lastStep.stats.avg) : '–', note: 'Target ' + step.threshold + ' or more', key: 'step-last' },
-      { label: 'Trend', value: st.slope === null ? '–' : (st.slope >= 0 ? '+' : '−') + Math.abs(st.slope).toFixed(1), note: st.slope === null ? 'Needs 2 sessions' : 'Per session, over the last ' + Math.min(5, stepSessions.length), key: 'trend' },
-      { label: 'Estimated 120-second score', value: est ? f1(est.estimate) : '–', note: est ? (est.calibrated ? 'Calibrated on your data, ×' + est.factor.toFixed(2) : 'About 2 × your P3 average') : 'Play P3 to get an estimate', key: 'estimate' }
+      { label: label(step.mode) + ', last day', value: lastStep ? f1(lastStep.stats.avg) : '–', note: 'Target ' + step.threshold + ' or more', key: 'step-last' },
+      { label: 'Trend', value: st.slope === null ? '–' : (st.slope >= 0 ? '+' : '−') + Math.abs(st.slope).toFixed(1), note: st.slope === null ? 'Needs 2 days' : 'Per day, over the last ' + Math.min(5, stepSessions.length), key: 'trend' },
+      { label: 'Estimated 120-second score', value: est ? f1(est.estimate) : '–', note: est ? (est.calibrated ? 'Calibrated on your data, ×' + est.factor.toFixed(2) : 'About 2 × your Speed average') : 'Play Speed to get an estimate', key: 'estimate' }
     ]));
 
     var any = false;
@@ -950,25 +1057,25 @@
       any = true;
       var thr = THRESHOLDS[m] || null, t = S.trend(ss, thr), last = ss[ss.length - 1];
       var body = facts([
-        ['Trend', t.slope === null ? 'Needs 2 sessions' : (t.slope >= 0 ? '+' : '−') + Math.abs(t.slope).toFixed(1) + ' per session'],
-        thr ? ['To reach ' + thr, t.sessionsToThreshold === null ? '–' : t.sessionsToThreshold === 0 ? 'Reached' : 'About ' + plural(t.sessionsToThreshold, 'session')] : null,
-        ['Last session', f1(last.stats.avg)], ['Best round', last.stats.best]
+        ['Trend', t.slope === null ? 'Needs 2 days' : (t.slope >= 0 ? '+' : '−') + Math.abs(t.slope).toFixed(1) + ' per day'],
+        thr ? ['To reach ' + thr, t.sessionsToThreshold === null ? '–' : t.sessionsToThreshold === 0 ? 'Reached' : 'About ' + plural(t.sessionsToThreshold, 'day')] : null,
+        ['Last day', f1(last.stats.avg)], ['Best round', last.stats.best]
       ]);
-      var lg = [{ kind: 'line', label: 'Session average' }, { kind: 'dots', label: 'Best round' }];
+      var lg = [{ kind: 'line', label: 'Day average' }, { kind: 'dots', label: 'Best round' }];
       if (thr) lg.push({ kind: 'dash', label: 'Threshold ' + thr });
       body += C.legend(lg) + C.line({
-        xs: ss.map(function (s) { return s.number; }), xName: 'Session ', endLabel: true,
+        xs: ss.map(function (s) { return s.number; }), xName: 'Day ', endLabel: true,
         series: [{ ys: ss.map(function (s) { return s.stats.avg; }), kind: 'line', name: 'average' }, { ys: ss.map(function (s) { return s.stats.best; }), kind: 'dots', name: 'best' }],
-        hline: thr, label: label(m) + ' session averages', h: 160
-      }) + C.table(['Session', 'Average', 'Best', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; }));
+        hline: thr, label: label(m) + ' day averages', h: 160
+      }) + C.table(['Day', 'Average', 'Best', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; }));
       var ri = S.roundIndexAverages(rounds, m);
       if (ri.length >= 2) {
-        body += '<p class="chart-cap">Average score by round within a session, to see where fatigue starts</p>' + C.bars({
+        body += '<p class="chart-cap">Average score by round within a day, to see where fatigue starts</p>' + C.bars({
           values: ri.map(function (x) { return x.avg; }), h: 100, label: label(m) + ' average score by round index',
-          tips: ri.map(function (x, i) { return { t: 'Round ' + (i + 1) + ' of a session', rows: [{ v: f1(x.avg), l: 'average score' }, { v: String(x.n), l: x.n === 1 ? 'session' : 'sessions' }] }; })
+          tips: ri.map(function (x, i) { return { t: 'Round ' + (i + 1) + ' of a day', rows: [{ v: f1(x.avg), l: 'average score' }, { v: String(x.n), l: x.n === 1 ? 'day' : 'days' }] }; })
         });
       }
-      h.push(section(label(m), body, plural(ss.length, 'session')));
+      h.push(section(label(m), body, plural(ss.length, 'day')));
     });
     if (!any) h.push('<p class="mid">No rounds yet. Play one and your progress appears here.</p>');
 
@@ -979,7 +1086,7 @@
         var pts = tbo[op];
         sm.push('<div><h3 class="sub-h">' + OP_SYM[op] + ' ' + OP_NAME[op] + ' <span class="mid">' + (pts.length ? 'last ' + sec(pts[pts.length - 1].ms) : 'no data yet') + '</span></h3>' +
           (pts.length ? C.line({
-            xs: pts.map(function (p) { return p.number; }), xName: 'Session ', endLabel: true, label: OP_NAME[op] + ', average time per question',
+            xs: pts.map(function (p) { return p.number; }), xName: 'Day ', endLabel: true, label: OP_NAME[op] + ', average time per question',
             series: [{ ys: pts.map(function (p) { return p.ms / 1000; }), kind: 'line', name: 'average time' }],
             w: 400, h: 120, fmt: function (v) { return v.toFixed(1) + 's'; }
           }) : '') + '</div>');
@@ -989,17 +1096,16 @@
     }
     var notes = P.fatigueNotes(rounds, 1000);
     if (notes.length) h.push(section('Fatigue', notes.slice(-8).map(function (n) { return '<p class="mid">' + esc(n) + '</p>'; }).join('')));
-    main.innerHTML = h.join('');
-    C.bind(main);
+    C.bind(fill('progress', h.join('')));
   }
 
   // ---------- Log ----------
 
   function renderLog() {
     var rounds = data.rounds;
-    var h = [pageHead('Log', 'One row per session. Select a score to delete that round.',
+    var h = [paneHead('One row per day. Select a score to delete that round.',
       '<button type="button" id="copy">Copy report for Claude</button>')];
-    h.push('<p id="copy-st" class="small" aria-live="polite">The report explains your rules, sessions, weak facts and latest session. For the raw data, use Export JSON in Settings.</p><label class="sr-only" for="summary">Report for Claude</label><textarea id="summary" readonly hidden></textarea>');
+    h.push('<p id="copy-st" class="small" aria-live="polite">The report explains your rules, days, weak facts and latest day. For the raw data, use Export JSON in Settings.</p><label class="sr-only" for="summary">Report for Claude</label><textarea id="summary" readonly hidden></textarea>');
 
     h.push(section('Add rounds played on zetamac.com', '<form id="ext" class="inline-form">' +
       '<label class="field" for="ext-mode">Mode<select id="ext-mode" name="mode">' + ['TABLES', 'P2', 'P3', 'NORMAL120'].map(function (m) { return '<option value="' + m + '">' + label(m) + '</option>'; }).join('') + '</select></label>' +
@@ -1013,18 +1119,18 @@
       var ss = S.sessionsForMode(rounds, m);
       if (!ss.length) return;
       any = true;
-      var t = ['<table><tr><th scope="col">Session</th><th scope="col">Scores</th><th scope="col" class="n">Average</th><th scope="col" class="n">Best</th><th scope="col" class="n">Spread</th></tr>'];
+      var t = ['<table><tr><th scope="col">Day</th><th scope="col">Scores</th><th scope="col" class="n">Average</th><th scope="col" class="n">Best</th><th scope="col" class="n">Spread</th></tr>'];
       ss.slice().reverse().forEach(function (s) {
-        t.push('<tr><td>Session ' + s.number + ' <small>' + esc(fmtDay(s.day)) + '</small></td><td class="scores">' + s.rounds.map(function (r) {
+        t.push('<tr><td>Day ' + s.number + ' <small>' + esc(fmtDay(s.day)) + '</small></td><td class="scores">' + s.rounds.map(function (r) {
           return '<button type="button" class="del" data-id="' + esc(r.id) + '" aria-label="Delete round with score ' + r.score + '" title="Delete this round">' +
             r.score + (r.mode === 'EXTERNAL' ? '*' : '') + '</button>';
         }).join(', ') + '</td><td class="n"><b>' + f1(s.stats.avg) + '</b></td><td class="n">' + s.stats.best + '</td><td class="n">' + f1(s.stats.sd) + '</td></tr>');
       });
       t.push('</table>');
-      h.push(section(label(m), t.join(''), plural(ss.length, 'session')));
+      h.push(section(label(m), t.join(''), plural(ss.length, 'day')));
     });
     if (any) h.push('<p class="small">* Played on zetamac.com.</p>');
-    main.innerHTML = h.join('');
+    fill('log', h.join(''));
 
     $('#copy').addEventListener('click', function () {
       var text = P.summary(data), ta = $('#summary'), stEl = $('#copy-st');
@@ -1088,15 +1194,15 @@
     h.push(section('Rounds', '<div class="form">' +
       frow('Countdown', '<label><input type="checkbox" id="cd" name="countdown"' + (st.countdown ? ' checked' : '') + '>Count 3, 2, 1 before each round</label>') +
       frow('Current step', '<select id="step" name="step"><option value="">Automatic</option>' + P.STEPS.map(function (s) {
-        return '<option value="' + s.id + '"' + (st.stepOverride === s.id ? ' selected' : '') + '>Step ' + s.id + ': ' + esc(s.desc) + '</option>';
-      }).join('') + '</select>', 'Automatic moves you on after 3 qualifying sessions in a row.', 'step') +
-      frow('Interview penalty', '<input type="number" id="neg" name="penalty" autocomplete="off" min="0" max="5" step="0.25" value="' + st.negMark + '">',
+        return '<option value="' + s.id + '"' + (st.stepOverride === s.id ? ' selected' : '') + '>Step ' + s.n + ': ' + esc(s.name) + ', ' + esc(s.desc) + '</option>';
+      }).join('') + '</select>', 'Automatic moves you on after 3 qualifying days in a row.', 'step') +
+      frow('Interview sim penalty', '<input type="number" id="neg" name="penalty" autocomplete="off" min="0" max="5" step="0.25" value="' + st.negMark + '">',
         'Points you lose for a wrong answer. Skips cost 0.', 'neg') +
       '</div>'));
 
     h.push(section('Backup', '<div class="form">' +
       frow('Export', '<button type="button" id="export" class="primary">Export JSON</button>',
-        'You have ' + plural(data.rounds.length, 'round') + ' in ' + plural(S.sessionDays(data.rounds).length, 'session') + '. Last export: ' +
+        'You have ' + plural(data.rounds.length, 'round') + ' in ' + plural(S.sessionDays(data.rounds).length, 'day') + '. Last export: ' +
         (st.lastExport ? esc(fmtDate(st.lastExport)) : 'never') + '.') +
       frow('Import', '<input type="file" id="import" name="import" accept=".json,application/json">', 'You see what the file contains, then choose to replace or merge.', 'import') +
       '</div><div id="import-preview" aria-live="polite"></div>'));
@@ -1137,7 +1243,7 @@
         try {
           var inc = Store.parseBackup(String(reader.result));
           ui.importPending = inc;
-          box.innerHTML = '<div class="notices"><p class="notice">This file has ' + plural(inc.rounds.length, 'round') + ' in ' + plural(S.sessionDays(inc.rounds).length, 'session') +
+          box.innerHTML = '<div class="notices"><p class="notice">This file has ' + plural(inc.rounds.length, 'round') + ' in ' + plural(S.sessionDays(inc.rounds).length, 'day') +
             '. Replace your data with it, or merge it into your data?</p></div>' +
             '<div class="row"><button type="button" id="imp-replace" class="primary">Replace my data</button><button type="button" id="imp-merge">Merge</button><button type="button" id="imp-cancel">Cancel</button></div>';
           $('#imp-replace').addEventListener('click', function () { setData(ui.importPending, 'Replaced'); });

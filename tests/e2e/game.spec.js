@@ -97,7 +97,7 @@ test.describe('Interview round', () => {
   test('Enter submits, Tab skips, and a wrong answer costs the penalty', async ({ page }) => {
     await openApp(page);
     await page.keyboard.press('6');
-    await expect(page.getByRole('heading', { level: 1, name: 'Interview' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Interview sim', exact: true })).toBeVisible();
     await startSelected(page);
 
     await expect(page.getByTestId('game-count')).toHaveText('1 / 80');

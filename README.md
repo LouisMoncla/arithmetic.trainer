@@ -21,7 +21,7 @@ A Zetamac-style mental-math trainer for quant interviews. Black and white, keybo
 ## Back up your data
 
 Settings (`S`) → **Export JSON** downloads `arithmetic-trainer-YYYY-MM-DD.json`.
-**Import JSON** shows a preview ("142 rounds, 12 sessions") and lets you *Replace* everything
+**Import JSON** shows a preview ("142 rounds, 12 days") and lets you *Replace* everything
 or *Merge* (rounds are matched by id, so merging the same file twice adds nothing).
 If your last export is older than 7 days, the home screen shows a one-line reminder.
 
@@ -41,12 +41,12 @@ Every round is saved automatically on this computer, inside the browser's own st
 | # | Mode | What it's for |
 |---|------|---------------|
 | 1 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up; the home screen says "warm-up first" until you play one each day. |
-| 2 | **P2** | ×÷ (2–12)×(2–100), 60 s. One-digit × two-digit and big divisions (637 ÷ 7). |
-| 3 | **P3** | Zetamac Normal, 60 s. |
-| 4 | **Normal 120 s** | The real benchmark (step P4). |
+| 2 | **Foundations** | ×÷ (2–12)×(2–100), 60 s. One-digit × two-digit and big divisions (637 ÷ 7). |
+| 3 | **Speed** | Zetamac Normal, 60 s. |
+| 4 | **Interview-ready** | Zetamac Normal, 120 s: the real benchmark (step 3). |
 | – | **Weighted tables** | From Review (`W`). Tables, but every × fact and every ÷ (each direction on its own) comes up in proportion to (your median time on it)², so slow facts appear far more often. Facts with no data count as slowest until seen. Counts as the daily warm-up. |
-| 5 | **Weak-fact drill** | Shows your top 10 weak facts, then 60 s: ~70% from them (weighted by slowness, with their fact families), ~30% normal P2. |
-| 6 | **Interview** | Optiver-style: 80 questions in 8 min. Integers, decimals, fractions, percentages, estimates. Type and press Enter (`0.5`, `.5`, `1/2` all accepted); Tab skips; +1 / −1 (penalty set in Settings) / 0. |
+| 5 | **Weak-fact drill** | Shows your top 10 weak facts, then 60 s: ~70% from them (weighted by slowness, with their fact families), ~30% normal Foundations. |
+| 6 | **Interview sim** | Optiver-style: 80 questions in 8 min. Integers, decimals, fractions, percentages, estimates. Type and press Enter (`0.5`, `.5`, `1/2` all accepted); Tab skips; +1 / −1 (penalty set in Settings) / 0. |
 | 7 | **Custom** | Every Zetamac setting: operations, 4 ranges, 30/60/120/300 s. Save named presets. |
 
 In Zetamac modes the answer is accepted the moment it's right; no Enter. A full-length wrong
@@ -56,38 +56,41 @@ value counts as one wrong attempt (Backspace and keep going). `Esc` aborts (not 
 
 | Step | Mode | Advance when |
 |---|---|---|
-| P2 | P2 | session average ≥ 18 for 3 sessions in a row |
-| P3 | P3 | session average ≥ 25 for 3 sessions in a row |
-| P4 | Normal 120 s | session average ≥ 60 for 3 sessions in a row |
+| 1 | Foundations | day average ≥ 18 for 3 days in a row |
+| 2 | Speed | day average ≥ 25 for 3 days in a row |
+| 3 | Interview-ready | day average ≥ 60 for 3 days in a row |
 
-A session is one calendar day. It only counts if it has at least 3 rounds in that step's mode.
+A day only counts if it has at least 3 rounds in that step's mode. (In the code and saved data a day of practice is called a session, and the steps keep their old ids P2, P3, P4.)
 Rounds you enter from zetamac.com (Log screen) count too. Override the step in Settings.
 
 ## Screens
 
-- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–7` or `↑ ↓`); then your step, its rule and the 3-box streak; then all modes.
-- **End of round**: a summary first: score, vs your 7-session average (and the step threshold),
+The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
+
+- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–7` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
+- **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
   median time vs usual, first-try accuracy, rank among all your rounds in that mode, and up to 3
   takeaways (personal best, the operation that cost you most, freezes, a slowdown, wrong attempts).
   Scroll for the details: seconds per question through the round, answers and median time per third
   of the clock, each operation vs your usual, time spread, freezes (over 3× your median, with a
   chunking hint), slowest questions, facts slower or faster than usual, and every question. Buttons
   and keys: `Enter` play again, `D` drill those slow questions, `A` today’s analysis, `H` home.
-- **Drill**: weak-fact list and drill; `M` replays mistakes (wrong or > 4 s, last 3 sessions).
-- **Review**: tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
-- **Session** (`E`): one day analysed. Scores round by round against your threshold and 7-session average, pace inside rounds (answers and median time per third of the clock), mistakes and freezes with how to think them, each operation today vs usual, and the facts that got faster or slower. `←` `→` move between sessions; `A` on any end screen jumps here.
-- **Progress**: per-mode charts (session average, best, threshold), trend per session and
-  sessions-to-threshold, estimated 120 s score, time per question by operation, average score
+- **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong or > 4 s, last 3 days).
+- **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
+- **Stats** (`A`): three big sections you open and close: Today, Progress and Log. Closed, each shows one line (today's rounds, your step's last average, how many rounds). The ones you leave open stay open in this browser. `E` `G` `L` jump to a section; links to the old pages (`#session/…`, `#log`, `#stats/review/…`) still work.
+  - **Today** (`E`): one day analysed. Scores round by round against your threshold and your last 7 days played, pace inside rounds (answers and median time per third of the clock), mistakes and freezes with how to think them, each operation today vs usual, and the facts that got faster or slower. `←` `→` move between days; `A` on any end screen jumps here.
+  - **Progress** (`G`): per-mode charts (day average, best, threshold), trend per day and
+  days-to-threshold, estimated 120 s score, time per question by operation, average score
   by round index (fatigue).
-- **Log**: one row per session, add zetamac.com scores, delete a round (activate its score),
-  **Copy report for Claude**: a self-explanatory text report (rules, every session, steps and trends,
-  per-operation speed, weak facts, tables grid, latest session in detail, fatigue). For the raw
+  - **Log** (`L`): one row per day, add zetamac.com scores, delete a round (activate its score),
+  **Copy report for Claude**: a self-explanatory text report (rules, every day, steps and trends,
+  per-operation speed, weak facts, tables grid, latest day in detail, fatigue). For the raw
   data, Export JSON in Settings.
 - **Settings**: theme, countdown, step override, interview penalty, export/import, reset.
 
 ## Keys
 
-`P` play · `D` drill · `R` review · `E` session · `G` progress · `L` log · `S` settings · `T` light/dark · `?` help.
+`P` play · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
 Play: `1–7` or `↑ ↓` select, `Enter`/`Space` start.
 
 ## How weak facts are found
@@ -96,8 +99,8 @@ Each question maps to fact keys: `7x8` for tables (× and ÷ share it), `8x30s` 
 ×÷, and `add-carry`, `sub-borrow`, `add-2d+2d`… for + and −.
 Slowness = median of (time ÷ your median for that operation) × (1 + wrong rate). Attempts older
 than 21 days count half. A fact is **weak** with slowness ≥ 1.5 over ≥ 3 attempts, or any attempt
-over 4 s in the last 2 sessions. After a good session (every attempt at or under your median) it is
-**improving**. After 3 good sessions it is **mastered**. A bad session sends it back to weak.
+over 4 s in the last 2 days. After a good day (every attempt at or under your median) it is
+**improving**. After 3 good days it is **mastered**. A bad day sends it back to weak.
 
 ## Develop
 
@@ -155,7 +158,7 @@ npm run test:e2e
 ```
 
 They cover: auto-accept, wrong-attempt counting, time-up saving, Esc, Enter to replay, Interview
-scoring, the home hero, Review views and their URLs, Session deep links and `A`, the skip link,
+scoring, the home hero, Review views and their URLs, Session deep links and `A`, Stats sections and old links, the skip link,
 help, zetamac.com entry, export → reset → import, and account sync against a fake Supabase
 (served over http by `tests/e2e/server.js`): first sign-in merge, push, tombstones, pull.
 
