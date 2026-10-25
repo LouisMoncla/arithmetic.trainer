@@ -6,6 +6,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+.playwright-mcp/
 
 # Personal data exports: your training history, never commit
 arithmetic-trainer-*.json
