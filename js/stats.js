@@ -12,6 +12,8 @@
 
   var DAY = 86400000;
   var SLOW_MS = 4000;
+  // Zetamac operations. Interview ("iv") and trick ("tr") questions are left out of speed comparisons.
+  var ZETAMAC_OP = { add: 1, sub: 1, mul: 1, div: 1 };
 
   // ---------- basic numbers ----------
 
@@ -144,7 +146,7 @@
     var days = sessionDays(rounds), acc = {};
     rounds.forEach(function (r) {
       (r.questions || []).forEach(function (q) {
-        if (q.unanswered || q.op === 'iv') return;
+        if (q.unanswered || !ZETAMAC_OP[q.op]) return;
         var k = q.op + '|' + dayKey(r.startedAt);
         var a = acc[k] = acc[k] || { op: q.op, day: dayKey(r.startedAt), t: 0, n: 0 };
         a.t += q.timeMs; a.n++;
@@ -364,7 +366,7 @@
     return Object.keys(map).map(function (k) {
       var e = map[k], list = e.list;
       var sw = slownessOf(list);
-      var isIv = e.cat === 'iv';
+      var untimed = e.cat === 'iv' || e.cat === 'tr';   // interview and tricks: no 4 s rule, they are slower by nature
 
       // Walk sessions in order.
       var sessDays = [], bySess = {};
@@ -375,12 +377,12 @@
         prefix = prefix.concat(s);
         var isGood = s.every(function (a) { return a.ratio <= 1; });
         var tripped = (prefix.length >= 3 && slownessOf(prefix).slowness >= 1.5) ||
-          (!isIv && s.some(function (a) { return a.time > SLOW_MS; }));
+          (!untimed && s.some(function (a) { return a.time > SLOW_MS; }));
         if (state === 'weak' || state === 'improving') {
           if (isGood) { good++; state = good >= 3 ? 'mastered' : 'improving'; } else { good = 0; state = 'weak'; }
         } else if (tripped && !isGood) { state = 'weak'; good = 0; }
       });
-      var recentSlow = !isIv && list.some(function (a) { return last2.indexOf(a.day) >= 0 && a.time > SLOW_MS; });
+      var recentSlow = !untimed && list.some(function (a) { return last2.indexOf(a.day) >= 0 && a.time > SLOW_MS; });
       var weakNow = (list.length >= 3 && sw.slowness >= 1.5) || recentSlow;
       if (state === 'ok' && weakNow) state = 'weak';
 
@@ -400,10 +402,10 @@
     });
   }
 
-  // Facts to drill: weak first, then improving; by slowness. Interview keys excluded (not Zetamac-style).
+  // Facts to drill: weak first, then improving; by slowness. Interview and trick keys excluded (not Zetamac-style).
   function drillTargets(stats) {
     var rank = { weak: 0, improving: 1 };
-    return stats.filter(function (f) { return rank[f.status] !== undefined && f.cat !== 'iv'; })
+    return stats.filter(function (f) { return rank[f.status] !== undefined && f.cat !== 'iv' && f.cat !== 'tr'; })
       .sort(function (a, b) { return rank[a.status] - rank[b.status] || b.slowness - a.slowness; });
   }
 
@@ -523,7 +525,7 @@
     rounds.forEach(function (r) {
       if (days.indexOf(dayKey(r.startedAt)) < 0) return;
       (r.questions || []).forEach(function (q) {
-        if (q.op === 'iv') return;
+        if (!ZETAMAC_OP[q.op]) return;
         if ((q.wrongAttempts > 0 || q.timeMs > SLOW_MS) && !seen[q.shown]) { seen[q.shown] = 1; out.push(q); }
       });
     });
@@ -572,7 +574,7 @@
     var before = rounds.filter(function (r) { return dayKey(r.startedAt) < day; });
     var earlier = days.filter(function (d) { return d < day; }), later = days.filter(function (d) { return d > day; });
     var qT = answeredQs(today), qB = answeredQs(before);
-    function zq(qs) { return qs.filter(function (q) { return q.op !== 'iv'; }); }
+    function zq(qs) { return qs.filter(function (q) { return ZETAMAC_OP[q.op]; }); }
     var times = function (qs) { return qs.map(function (q) { return q.timeMs; }); };
 
     var rep = {

@@ -64,10 +64,10 @@ Script order matters: generator → stats → progression → storage → config
 ```js
 { schemaVersion: 1, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
-             questions: [{ op /*add sub mul div iv*/, a, b, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
+             questions: [{ op /*add sub mul div iv tr*/, a, b, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
 ```
 
-- `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, or EXTERNAL
+- `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, or EXTERNAL
   (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as).
 - A **session = one local calendar day**. Session numbers count days with any round.
 - Rounds are immutable once saved and identified by `id`. Merge/sync rely on this.
@@ -148,6 +148,13 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     Play: one recommendation tag, the step block is one line, backup reminder from 10 rounds.
 12. Plain names. Steps and their modes are shown as Step 1 Foundations (P2), Step 2 Speed (P3), Step 3
     Interview-ready (NORMAL120); ids in data stay P2/P3/P4. Users see "day" where the code says session.
+13. Trick modes (keys 8, 9, 0): Squares, % and fractions (id PERCENT), Mixed tricks. Questions are op `tr` with a `type`
+    (sqmem sq5 sq50 sq100 diff x11 x25 near100 pct pctswap frac dec2frac fracadd fracsub), fact key `tr-<type>`,
+    settings `{ types, duration }`. Fraction answers (`q.frac = [n, d]`, lowest terms) get two boxes in game.js:
+    numerator, then denominator, each auto-accepted; fracadd/fracsub store a and b as [n, d] pairs.
+    `G.makeTrick(type, a, b)` rebuilds one (replays, drills); `G.trickAdvice` works the shortcut on the question.
+    Outside the steps; kept out of the weak-fact drill, mistakes replay and per-op times (`ZETAMAC_OP` in stats.js),
+    like interview questions. Fractions take decimal answers (the input allows a point only for those).
 
 ## Working conventions
 

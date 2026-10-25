@@ -36,7 +36,7 @@ Every round is saved automatically on this computer, inside the browser's own st
 - Another browser, another browser profile or a private window starts empty. Export, then Import there.
 - Firefox may tie storage to the exact file path, so export before moving the folder if you use it.
 
-## Modes (Play screen, keys 1–7)
+## Modes (Play screen, keys 1–9 and 0)
 
 | # | Mode | What it's for |
 |---|------|---------------|
@@ -48,6 +48,13 @@ Every round is saved automatically on this computer, inside the browser's own st
 | 5 | **Weak-fact drill** | Shows your top 10 weak facts, then 60 s: ~70% from them (weighted by slowness, with their fact families), ~30% normal Foundations. |
 | 6 | **Interview sim** | Optiver-style: 80 questions in 8 min. Integers, decimals, fractions, percentages, estimates. Type and press Enter (`0.5`, `.5`, `1/2` all accepted); Tab skips; +1 / −1 (penalty set in Settings) / 0. |
 | 7 | **Custom** | Every Zetamac setting: operations, 4 ranges, 30/60/120/300 s. Save named presets. |
+| 8 | **Squares** | 60 s of squares: 11² to 30² by heart, ending in 5 (65²), near 50 (47²), near 100 (97², 104²). |
+| 9 | **% and fractions** | 60 s: percent of a number (15% of 80), swapped percentages (8% of 25 = 25% of 8), fractions as decimals (3 ÷ 8 = 0.375; `.375` works too), decimals as fractions (0.375 → 3/8) and adding or subtracting fractions (1/4 + 1/8 → 3/8). A fraction answer gets two boxes: type the numerator, and once it is right the cursor moves to the denominator; no Enter. Lowest terms. |
+| 0 | **Mixed tricks** | 60 s mixing the shortcuts: squares, × 11, × 25, products near 100 (97 × 96), difference of squares (47 × 53 = 50² − 3²). |
+
+Modes 8, 9 and 0 are training only: they don't count toward the steps. Each question records which trick it
+trains (fact key `tr-sq5`, `tr-x11`…), so slow tricks show in Review, and a freeze shows the shortcut
+worked on that exact question ("Ends in 5: 6 × 7 = 42, then 25 → 4225").
 
 In Zetamac modes the answer is accepted the moment it's right; no Enter. A full-length wrong
 value counts as one wrong attempt (Backspace and keep going). `Esc` aborts (not saved).
@@ -67,7 +74,7 @@ Rounds you enter from zetamac.com (Log screen) count too. Override the step in S
 
 The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
 
-- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–7` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
+- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–9`, `0` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
   median time vs usual, first-try accuracy, rank among all your rounds in that mode, and up to 3
   takeaways (personal best, the operation that cost you most, freezes, a slowdown, wrong attempts).
@@ -91,7 +98,7 @@ The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
 ## Keys
 
 `P` play · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
-Play: `1–7` or `↑ ↓` select, `Enter`/`Space` start.
+Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start.
 
 ## How weak facts are found
 

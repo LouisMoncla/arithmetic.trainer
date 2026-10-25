@@ -285,3 +285,23 @@ test('roundReport: a first round and a round with no answers do not throw', () =
   assert.strictEqual(rep.pace, null);
   assert.deepStrictEqual(rep.ops, []);
 });
+
+test('trick questions count as facts but stay out of Zetamac drills, mistakes and per-op times', () => {
+  const tq = (type, a, b, timeMs, wrongAttempts = 0) => ({ ...G.makeTrick(type, a, b), timeMs, wrongAttempts });
+  const rs = [];
+  for (let d = 1; d <= 3; d++) {
+    rs.push(round('SQUARES', `2026-10-0${d}`, 10, [tq('sq50', 47, undefined, 9000, 1), tq('sq5', 35, undefined, 1500), tq('sq5', 45, undefined, 1600), tq('sq5', 55, undefined, 1400)]));
+  }
+  rs.push(round('P2', '2026-10-03', 20, [q('mul', 7, 8, 1200), q('mul', 6, 9, 1100)]));
+  const fs = S.factStats(rs, new Date(2026, 9, 3, 20).getTime());
+  const sq50 = fs.find((f) => f.key === 'tr-sq50');
+  assert.strictEqual(sq50.cat, 'tr');
+  assert.strictEqual(sq50.status, 'weak');                       // slow against your trick median, and often wrong
+  assert.ok(S.drillTargets(fs).every((f) => f.cat !== 'tr'));     // the weak-fact drill stays Zetamac
+  assert.ok(S.mistakes(rs).every((x) => x.op !== 'tr'));
+  const t = S.timeByOp(rs);                                       // used to crash on an unknown op
+  assert.deepStrictEqual(Object.keys(t).sort(), ['add', 'div', 'mul', 'sub']);
+  const rep = S.sessionReport(rs, '2026-10-03');
+  assert.ok(rep.mistakes.some((m) => m.q.op === 'tr' && /Near 50/.test(m.advice)));
+  assert.ok(S.roundReport(rs, rs[2]).takeaways.length);
+});

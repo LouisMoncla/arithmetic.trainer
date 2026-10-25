@@ -309,8 +309,13 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 .g-top { display: flex; justify-content: space-between; padding: max(20px, env(safe-area-inset-top)) max(28px, env(safe-area-inset-right)) 20px max(28px, env(safe-area-inset-left)); font-size: 22px; color: var(--mid); }
 .g-center { display: flex; flex-direction: column; align-items: center; justify-content: center; height: calc(100% - 140px); }
 .g-q { font-size: clamp(48px, 11vw, 120px); line-height: 1.1; white-space: nowrap; }
+/* Answer row: one box, or numerator / denominator for a fraction answer. */
+.g-ans { display: flex; align-items: center; gap: 16px; margin-top: 36px; }
+.g-ans.frac .g-in { width: 4ch; }
+.g-bar { font-size: 56px; line-height: 1; color: var(--mid); }
+.g-in[readonly] { border-color: var(--line); }  /* a right numerator, kept while you type the denominator */
 .g-in {
-  margin-top: 36px; width: 7ch; height: auto; font-size: 44px; text-align: center; padding: 4px 8px;
+  width: 7ch; height: auto; font-size: 44px; text-align: center; padding: 4px 8px;
   border: 1px solid var(--fg); background: var(--bg); color: var(--fg); outline: none;
 }
 .g-in:focus-visible { outline: none; border-width: 2px; padding: 3px 7px; }  /* the box itself is the focus indicator */

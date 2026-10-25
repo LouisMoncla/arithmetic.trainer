@@ -129,3 +129,89 @@ test('weighted pool draws in proportion to weights', () => {
   const ratio = n['7x8'] / n['2x3'];
   assert.ok(ratio > 8 && ratio < 30, String(ratio));
 });
+
+// ---------- tricks ----------
+
+// What each trick must be: the right numbers, and an answer you can type without long decimals.
+const TRICK_RULES = {
+  sqmem: (q) => q.a >= 11 && q.a <= 30,
+  sq5: (q) => q.a % 10 === 5 && q.a >= 15 && q.a <= 95,
+  sq50: (q) => Math.abs(q.a - 50) >= 1 && Math.abs(q.a - 50) <= 9,
+  sq100: (q) => Math.abs(q.a - 100) >= 1 && Math.abs(q.a - 100) <= 12,
+  diff: (q) => (q.a + q.b) % 20 === 0 && q.b - q.a >= 2 && q.b - q.a <= 18,
+  x11: (q) => (q.a === 11 || q.b === 11) && Math.max(q.a, q.b) >= 12 && Math.max(q.a, q.b) <= 99,
+  x25: (q) => (q.a === 25 || q.b === 25) && q.a * q.b / 25 >= 12 && q.a * q.b / 25 <= 99,
+  near100: (q) => q.a >= 88 && q.a <= 99 && q.b >= 88 && q.b <= 99,
+  pct: (q) => Number.isInteger(q.answer),
+  pctswap: (q) => Number.isInteger(q.answer) && [20, 25, 50].includes(q.b),
+  frac: (q) => q.a < q.b && /^0\.\d{1,4}$/.test(q.answerText),
+  dec2frac: (q) => /^0\.\d{1,4}$/.test(q.shown) && q.frac[0] === q.a && q.frac[1] === q.b,
+  fracadd: (q) => q.frac[1] > 1 && q.frac[1] <= 60,
+  fracsub: (q) => q.answer > 0 && q.frac[1] > 1 && q.frac[1] <= 60
+};
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+
+test('every trick type gives the right answer, in range, and clean', () => {
+  const rng = G.mulberry32(5);
+  assert.deepStrictEqual(Object.keys(G.trickNames()).sort(), Object.keys(TRICK_RULES).sort());
+  for (const type of Object.keys(TRICK_RULES)) {
+    for (let i = 0; i < 2000; i++) {
+      const q = G.trickQuestion(type, rng);
+      assert.strictEqual(q.op, 'tr');
+      assert.strictEqual(q.type, type);
+      assert.ok(TRICK_RULES[type](q), type + ': ' + q.shown);
+      if (/^sq/.test(type)) { assert.strictEqual(q.shown, q.a + '²'); assert.strictEqual(q.answer, q.a * q.a); }
+      else if (/^pct/.test(type)) { assert.strictEqual(q.shown, `${q.a}% of ${q.b}`); assert.strictEqual(q.answer, q.a * q.b / 100); }
+      else if (type === 'frac') { assert.strictEqual(q.shown, `${q.a} ÷ ${q.b}`); assert.strictEqual(Number(q.answerText), q.a / q.b); }
+      else if (q.frac) {
+        // Fraction answers: lowest terms, and equal to the question's value.
+        const [n, d] = q.frac;
+        assert.strictEqual(gcd(n, d), 1, type + ': ' + q.answerText);
+        assert.strictEqual(q.answerText, n + '/' + d);
+        const value = type === 'dec2frac' ? Number(q.shown) : q.a[0] / q.a[1] + (type === 'fracadd' ? 1 : -1) * q.b[0] / q.b[1];
+        assert.ok(Math.abs(n / d - value) < 1e-9, type + ': ' + q.shown + ' = ' + q.answerText);
+      }
+      else { assert.strictEqual(q.shown, `${q.a} × ${q.b}`); assert.strictEqual(q.answer, q.a * q.b); }
+      // The worked advice ends on the answer, so it can't drift from the question.
+      assert.ok(G.advice(q).endsWith('→ ' + (q.answerText || q.answer) + '.') || type === 'sqmem', type + ': ' + G.advice(q));
+    }
+  }
+});
+
+test('a trick rebuilt from its numbers is the same question, and replays exactly', () => {
+  const rng = G.mulberry32(9);
+  for (const type of Object.keys(G.trickNames())) {
+    const q = G.trickQuestion(type, rng);
+    const again = G.makeTrick(type, q.a, q.b);
+    assert.strictEqual(again.shown, q.shown);
+    assert.strictEqual(again.answer, q.answer);
+    const gen = G.makeMixedGenerator({ pool: [{ q: { op: 'tr', type, a: q.a, b: q.b }, weight: 1 }], share: 1, base: G.modeSettings('SQUARES'), rng });
+    assert.strictEqual(gen.next().shown, q.shown);
+    // Stored rounds go through JSON; fraction operands are [n, d] pairs and must survive it.
+    const stored = JSON.parse(JSON.stringify(q));
+    assert.deepStrictEqual(G.makeTrick(type, stored.a, stored.b).frac, q.frac);
+  }
+});
+
+test('trick modes draw only their own tricks and stay off the Zetamac ops', () => {
+  const rng = G.mulberry32(11);
+  for (const mode of ['SQUARES', 'PERCENT', 'TRICKS']) {
+    const s = G.modeSettings(mode), seen = new Set();
+    assert.strictEqual(s.duration, 60);
+    assert.strictEqual(s.ops, undefined);
+    const gen = G.makeGenerator(s, rng);
+    for (let i = 0; i < 3000; i++) { const q = gen.next(); assert.strictEqual(q.op, 'tr'); seen.add(q.type); }
+    assert.deepStrictEqual([...seen].sort(), [...s.types].sort(), mode);
+  }
+  assert.deepStrictEqual(G.modeSettings('P2').ops, ['mul', 'div']);   // Zetamac modes unchanged
+});
+
+test('trick fact keys and labels', () => {
+  const q = G.makeTrick('sq5', 65);
+  assert.deepStrictEqual(G.factKeys(q), ['tr-sq5']);
+  assert.strictEqual(G.keyLabel('tr-sq5'), 'Squares ending in 5');
+  assert.strictEqual(G.fromKey('tr-near100', G.mulberry32(1)).type, 'near100');
+  assert.strictEqual(G.advice(G.makeTrick('sq5', 65)), 'Ends in 5: 6 × 7 = 42, then 25 → 4225.');
+  assert.strictEqual(G.advice(G.makeTrick('near100', 97, 96)), 'Near 100: 97 − 4 = 93 hundreds, plus 3 × 4 = 12 → 9312.');
+  assert.strictEqual(G.advice(G.makeTrick('diff', 47, 53)), 'Difference of squares: 50² − 3² = 2500 − 9 → 2491.');
+});

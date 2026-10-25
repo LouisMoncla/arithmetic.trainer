@@ -28,10 +28,14 @@
     { id: 'NORMAL120', label: 'Interview-ready', desc: 'All four operations, 120 seconds, the interview benchmark' },
     { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts mixed with Foundations, 60 seconds' },
     { id: 'INTERVIEW', label: 'Interview sim', desc: '80 questions in 8 minutes, answer with Enter' },
-    { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations, ranges and length' }
+    { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations, ranges and length' },
+    { id: 'SQUARES', label: 'Squares', desc: '11² to 30² by heart, and squares near 50, near 100 or ending in 5, 60 seconds' },
+    { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions to decimals and back, adding and subtracting fractions, 60 seconds' },
+    { id: 'TRICKS', label: 'Mixed tricks', desc: 'Squares, × 11, × 25, products near 100, difference of squares, 60 seconds' }
   ];
-  var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7]];
-  var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM'];
+  // Keys 1–9 then 0 choose a mode, in this order.
+  var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
+  var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
   var THRESHOLDS = { P2: 18, P3: 25, NORMAL120: 60 };
   var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
   var OP_NAME = { add: 'Addition', sub: 'Subtraction', mul: 'Multiplication', div: 'Division' };
@@ -242,8 +246,8 @@
 
   // Replay exact questions: `share` of them from the list, the rest from `base` settings.
   function playPool(questions, share, base, source) {
-    var pool = questions.map(function (q) { return { q: { op: q.op, a: q.a, b: q.b }, weight: 1 }; });
-    var s = JSON.parse(JSON.stringify({ ops: base.ops, ranges: base.ranges, duration: 60 })); s.source = source;
+    var pool = questions.map(function (q) { return { q: { op: q.op, a: q.a, b: q.b, type: q.type }, weight: 1 }; });
+    var s = JSON.parse(JSON.stringify(base.types ? { types: base.types, duration: 60 } : { ops: base.ops, ranges: base.ranges, duration: 60 })); s.source = source;
     launchZetamac('DRILL', s, function () {
       return G.makeMixedGenerator({ pool: pool, share: share, base: s, rng: G.mulberry32(seed()) });
     }, function () { playPool(questions, share, base, source); });
@@ -284,7 +288,9 @@
       INTERVIEW: 'Integers, decimals, fractions, percentages and estimates. Type the answer and press Enter: 0.5, .5 and 1/2 all count. Tab skips. ' +
         'You get +1 for a right answer, −' + (Number(data.settings.negMark) || 0) + ' for a wrong one, 0 for a skip.',
       CUSTOM: 'Set the operations, ranges and length below, then start.',
-      NORMAL120: 'This is the score that matters for interviews. Target: 60 or more.'
+      NORMAL120: 'This is the score that matters for interviews. Target: 60 or more.',
+      PERCENT: '3 ÷ 8 wants a decimal: 0.375. A fraction answer gets two boxes: type the numerator, then the denominator, in lowest terms.',
+      TRICKS: 'Each question has a shortcut. Freeze on one and the end screen shows how to think it.'
     }[m.id];
     return '<section class="hero" aria-labelledby="hero-mode">' +
       '<p class="hero-why">' + esc(why) + '</p>' +
@@ -352,13 +358,13 @@
         if (rec.warmup ? m.id === 'TABLES' : m.id === rec.mode) tag = rec.warmup ? 'Warm up first' : 'Recommended';
         body.push('<li><button type="button" class="mode' + (ui.sel === m.id ? ' sel' : '') + (tag ? ' rec' : '') + '" data-mode="' + m.id + '"' +
           ' aria-pressed="' + (ui.sel === m.id) + '">' +
-          '<span class="k">' + (i + 1) + '</span><span class="nm">' + esc(m.label) + '</span><span class="ds">' + esc(m.desc) + '</span>' +
+          '<span class="k">' + modeKey(i) + '</span><span class="nm">' + esc(m.label) + '</span><span class="ds">' + esc(m.desc) + '</span>' +
           '<span class="tag">' + tag + '</span></button>' + (ui.sel === m.id && m.id === 'CUSTOM' ? customPanel() : '') + '</li>');
       });
       body.push('</ol>');
     });
     h.push(section('All modes', body.join('')));
-    h.push(keys([['1–7', 'choose a mode'], ['↑ ↓', 'move'], ['Enter', 'start']]));
+    h.push(keys([['1–9 0', 'choose a mode'], ['↑ ↓', 'move'], ['Enter', 'start']]));
     main.innerHTML = h.join('');
 
     $('#hero-start').addEventListener('click', function () { startMode(ui.sel); });
@@ -374,13 +380,15 @@
 
     screenKeys = function (e) {
       var ids = MODES.map(function (m) { return m.id; }), i = ids.indexOf(ui.sel);
-      if (/^[1-7]$/.test(e.key)) { ui.sel = ids[+e.key - 1]; renderPlay(); return true; }
+      if (/^[0-9]$/.test(e.key) && ids[(+e.key + 9) % 10]) { ui.sel = ids[(+e.key + 9) % 10]; renderPlay(); return true; }
       if (e.key === 'ArrowDown') { ui.sel = ids[(i + 1) % ids.length]; renderPlay(); return true; }
       if (e.key === 'ArrowUp') { ui.sel = ids[(i + ids.length - 1) % ids.length]; renderPlay(); return true; }
       if (e.key === 'Enter' || e.key === ' ') { startMode(ui.sel); return true; }
       return false;
     };
   }
+
+  function modeKey(i) { return String((i + 1) % 10); }   // 1–9, then 0
 
   // ---------- Custom ----------
 
@@ -602,7 +610,7 @@
     main.innerHTML = h.join('');
     var actions = {
       again: again,
-      d: function () { if (slowQs.length) playPool(slowQs, 0.7, round.settings.ops ? round.settings : G.modeSettings('P2'), 'slow'); },
+      d: function () { if (slowQs.length) playPool(slowQs, 0.7, round.settings.ops || round.settings.types ? round.settings : G.modeSettings('P2'), 'slow'); },
       a: function () { go('stats', 'day/' + todayKey()); },
       h: function () { go('play'); }
     };
@@ -840,7 +848,7 @@
       return (vx < vy ? -1 : vx > vy ? 1 : 0) * dir;
     });
     var tools = '<div class="row"><label for="filter">Operation</label><select id="filter" name="filter">' +
-      [['all', 'All'], ['muldiv', '× and ÷'], ['add', '+'], ['sub', '−'], ['iv', 'Interview sim']].map(function (o) {
+      [['all', 'All'], ['muldiv', '× and ÷'], ['add', '+'], ['sub', '−'], ['iv', 'Interview sim'], ['tr', 'Tricks']].map(function (o) {
         return '<option value="' + o[0] + '"' + (ui.filter === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join('') + '</select><span class="small">' + plural(rows.length, 'fact') + '. Select a column heading to sort.</span></div>';
     var cols = [['key', 'Fact', ''], ['attempts', 'Attempts', 'n'], ['medianTime', 'Median', 'n'], ['wrongRate', 'Wrong', 'n'],

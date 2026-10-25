@@ -23,7 +23,8 @@
 
   var MODE_LABELS = {
     TABLES: 'Tables', WTABLES: 'Weighted tables', P2: 'Foundations', P3: 'Speed', NORMAL120: 'Interview-ready', DRILL: 'Drill',
-    INTERVIEW: 'Interview sim', CUSTOM: 'Custom'
+    INTERVIEW: 'Interview sim', CUSTOM: 'Custom',
+    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks'
   };
 
   function qualifying(rounds, mode) {
@@ -70,8 +71,8 @@
   function sec(ms) { return ms === null || ms === undefined ? '–' : (ms / 1000).toFixed(1); }
   function pct(x) { return x === null || x === undefined ? '–' : Math.round(x * 100) + '%'; }
 
-  var REPORT_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM'];
-  var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview' };
+  var REPORT_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
+  var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview sim', tr: 'tricks' };
 
   /*
    * Plain-text coaching report to paste into a chat. Self-explanatory: it states the rules
@@ -95,7 +96,7 @@
     L.push('Mental-math trainer for Zetamac-style quant interview tests. Score = correct answers in the time limit.');
     L.push('Modes: Tables (× ÷ 2–12, 60 s), Weighted tables (same, slow facts come up more), ' +
       STEPS.map(function (s) { return 'Step ' + s.n + ' ' + s.name + ' (' + s.desc + ')'; }).join(', ') +
-      ', Drill (weak facts), Interview sim (Optiver-style: harder mixed questions, wrong answers penalised), Custom.');
+      ', Drill (weak facts), Squares, Percentages and Mixed tricks (shortcut training, outside the steps), Interview sim (Optiver-style: harder mixed questions, wrong answers penalised), Custom.');
     L.push('A day is one calendar day with any round. Day numbers count those days.');
     L.push('Steps: a day qualifies with >= ' + MIN_ROUNDS + ' rounds of the step mode; the step is done after ' +
       IN_A_ROW + ' qualifying days in a row with average >= threshold.');
