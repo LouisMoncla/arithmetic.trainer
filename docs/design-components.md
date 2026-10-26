@@ -94,7 +94,8 @@ Three-zone grid `1fr auto 1fr`: brand left (`translate="no"`), tabs centred, too
 |---|---|
 | Tab | 17px/15px vertical padding, secondary ink; hover ink |
 | Active tab | `aria-current="page"`, ink, 600, 2px ink underline sitting on the bar's rule |
-| Compact | Brand row, then tabs on their own scrolling row |
+| Compact | Brand row, then tabs on their own row |
+| Tabs | Play · Review · Stats · Settings (Learn joins later). Stats sections are not tabs. |
 
 ---
 
@@ -141,13 +142,19 @@ Joined outline buttons (30px, 13px); the active one filled, `aria-pressed`. Used
 
 ### Hero (Home)
 
-"Why" line (secondary ink: "Warm up first", "Today's training, step P2", "Your choice"), the mode name at 56px bold as the page `h1`, a description at 18px, an optional note, then the hero start button.
+"Why" line (secondary ink: "Warm up first, then Foundations", "Today's training, step 1 of 3", "Your choice"), the mode name at 56px bold as the page `h1`, a description at 18px, an optional note, then the hero start button.
 
 ---
 
 ### Step block
 
-Ink rule above, `--line` below, grid `9em | 1fr`: "Step P2" (24px bold, `h2`), the rule sentence, the 3-box streak (24px mono, `aria-label="2 of 3 sessions done"`), and today's status.
+A `<details>`: ink rule above, `--line` below. The summary is one line: "Step 1: Foundations" (24px bold, `h2`), the 3-box streak (24px mono, `aria-label="2 of 3 days done"`) and "2 of 3 days done", with the disclosure marker right. Open, it shows the rule sentence and today's status.
+
+---
+
+### Disclosure section (Stats)
+
+`details.pane`, one per Stats section. Summary: the title as `h2` (32px bold, 24px compact) and, while closed, one line in secondary ink with the single thing worth knowing (`.pane-line`). Marker: `+` closed, `−` open, mono 24px at the right, secondary ink, ink on hover; no animation. Ink rule above each section. Content is rendered on first open; its own headings sit one level down (`h3` sections). Use native `<details>`/`<summary>` so keyboard and screen readers work without script.
 
 ---
 

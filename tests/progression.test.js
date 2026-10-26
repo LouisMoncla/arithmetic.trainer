@@ -76,11 +76,11 @@ test('report has every section, every session, and stays bounded', () => {
   const text = P.summary(data, new Date(2026, 9, 20, 20).getTime());
   const lines = text.split('\n');
   assert.ok(lines.length <= 400, lines.length + ' lines');
-  ['About this data', 'Overview', 'Steps', 'Every session per mode', 'Average score by round number',
-    'Speed and accuracy per operation', 'Facts', 'Tables grid', 'Latest session in detail', 'Fatigue'].forEach((h) => {
+  ['About this data', 'Overview', 'Steps', 'Every day per mode', 'Average score by round number',
+    'Speed and accuracy per operation', 'Facts', 'Tables grid', 'Latest day in detail', 'Fatigue'].forEach((h) => {
     assert.match(text, new RegExp('^## ' + h, 'm'));
   });
-  assert.match(text, /P2 \(current\)/);
+  assert.match(text, /Step 1 Foundations \(current\)/);
   assert.match(text, /S1 \S+  avg 22\.5  best 28  worst 14 .*\[28\*,24\*,25\*,14\*,22\*,21\*,25\*,21\*\]/);
   assert.match(text, /S2 2026-10-20  avg 16\.0  best 17  worst 15 .*\[15,16,17\]/);
 });
@@ -88,7 +88,7 @@ test('report has every section, every session, and stays bounded', () => {
 test('report on empty data says none yet instead of failing', () => {
   const text = P.summary(Storage.defaults(), new Date(2026, 9, 20, 20).getTime());
   assert.match(text, /## Overview\nnone yet/);
-  assert.match(text, /## Latest session in detail\nnone yet/);
+  assert.match(text, /## Latest day in detail\nnone yet/);
 });
 
 test('storage: export → reset → import round-trips; merge dedupes by id', () => {

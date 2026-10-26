@@ -40,7 +40,9 @@ Everything works without a mouse.
 | Key | Action |
 |---|---|
 | Tab | Skip link first, then bar, then content |
-| P D R E G L S | Play, Drill, Review, Session, Progress, Log, Settings |
+| P R A S | Play, Review, Stats, Settings |
+| E G L | Open Stats at Today, Progress, Log |
+| D | Weak-fact drill |
 | ? / Esc | Open / close the shortcut list |
 | T | Switch light and dark |
 | 1–7, ↑ ↓ | Home: choose a mode |
@@ -49,7 +51,7 @@ Everything works without a mouse.
 | Enter, Tab | Interview: answer, skip |
 | Enter D A H | After a round: play again, drill slow questions, today's analysis, home |
 | M, W, V | Review: replay mistakes, weighted tables, switch heatmap view |
-| ← → | Session: previous / next. On a focused chart or heatmap: move along it |
+| ← → | Today: previous / next day. On a focused chart or heatmap: move along it |
 
 ### Assistive Technology
 
@@ -82,7 +84,7 @@ Everything works without a mouse.
 - **One name per action:** "Start Tables" on Home, "Play again" after; "Export JSON" everywhere.
 - **Errors say how to fix them:** "Type whole-number scores separated by commas, for example 28, 24, 25."
 - **Empty states invite an action:** "No rounds yet. Press P and play one."
-- **Numbers:** numerals always ("3 sessions"), units spelled out in prose ("60 seconds"), `s` in data ("1.9 s").
+- **Numbers:** numerals always ("3 days"), units spelled out in prose ("60 seconds"), `s` in data ("1.9 s").
 - **No meta strings joined with middle dots**, no all-caps eyebrow labels, no "→" decoration on buttons.
 - Lines under 70 characters; `…` and curly quotes.
 

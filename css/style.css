@@ -170,12 +170,36 @@ label { white-space: nowrap; }
 .hero-note { color: var(--mid); margin: 6px 0 0; }
 .hero-start { height: 52px; padding: 0 22px; font-size: var(--t-m); margin-top: 22px; }
 
-.step { margin: 48px 0 0; padding: 18px 0; border-top: 1px solid var(--fg); border-bottom: 1px solid var(--line);
-  display: grid; grid-template-columns: 9em 1fr; gap: 6px 24px; align-items: baseline; }
+/* Step block: one line (step, streak, count) that opens to the rule and today's count. */
+.step { margin: 48px 0 0; padding: 18px 0; border-top: 1px solid var(--fg); border-bottom: 1px solid var(--line); }
+.step > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; cursor: pointer; list-style: none; }
 .step-id { font-size: var(--t-l); font-weight: 700; margin: 0; }
-.step-rule { margin: 0; }
+.step-count { color: var(--mid); }
+.step-rule { margin: 14px 0 0; }
 .streak { font-size: var(--t-l); letter-spacing: 4px; line-height: 1; }
-.step-now { margin: 0; color: var(--mid); }
+.step-now { margin: 4px 0 0; color: var(--mid); }
+
+/* Disclosure marker shared by the step block and Stats sections: + closed, − open. */
+.step > summary::-webkit-details-marker, .pane > summary::-webkit-details-marker { display: none; }
+.step > summary::after, .pane > summary::after { content: "+"; margin-left: auto; font: var(--t-l) var(--mono); line-height: 1; color: var(--mid); }
+.step[open] > summary::after, .pane[open] > summary::after { content: "−"; }
+.step > summary:hover::after, .pane > summary:hover::after { color: var(--fg); }
+
+/* ---------- stats sections ---------- */
+/* Big titles you open. The line under each title is the one thing worth reading while it is closed. */
+.pane { border-top: 1px solid var(--fg); }
+.pane:last-of-type { border-bottom: 1px solid var(--line); }
+.pane > summary {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: baseline;
+  padding: 20px 0; cursor: pointer; list-style: none;
+}
+.pane > summary::after { grid-column: 2; grid-row: 1; }
+.pane-h { grid-column: 1; grid-row: 1; margin: 0; font-size: var(--t-xl); font-weight: 700; line-height: 1.15; }
+.pane-line { grid-column: 1; grid-row: 2; color: var(--mid); }
+.pane[open] .pane-line { display: none; }  /* open, the section itself says it */
+.pane-body { padding: 0 0 48px; }
+.pane-head { margin: 4px 0 8px; align-items: center; }
+.pane-title { margin: 0; font-size: var(--t-l); font-weight: 700; line-height: 1.3; }
 
 .modes { list-style: none; padding: 0; margin: 0; }
 .modes li { border-bottom: 1px solid var(--line); }
@@ -307,7 +331,7 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
   .top-in nav { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; margin: 0 -16px; padding: 0 4px; }
   nav a { padding-left: 10px; padding-right: 10px; white-space: nowrap; }
   .hero-mode { font-size: 40px; }
-  .step { grid-template-columns: 1fr; }
+  .pane-h { font-size: var(--t-l); }
   .heat-side { padding-top: 0; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .stat:nth-child(odd) { border-left: 0; padding-left: 0; }
@@ -320,4 +344,10 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
   .small-multiples { grid-template-columns: 1fr; }
   .twocol { grid-template-columns: 1fr; }
   .score { font-size: 88px; }
+}
+
+/* ---------- touch screens ---------- */
+/* No keyboard, so no key hints. The mode numbers stay: they also number the list. */
+@media (hover: none) and (pointer: coarse) {
+  .keys, button kbd { display: none; }
 }

@@ -34,9 +34,9 @@
 
   var MODES = {
     TABLES:    { label: 'Tables',       ops: ['mul', 'div'],               ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 12] } },  duration: 60 },
-    P2:        { label: 'P2',           ops: ['mul', 'div'],               ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 60 },
-    P3:        { label: 'P3',           ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 60 },
-    NORMAL120: { label: 'Normal 120 s', ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 120 }
+    P2:        { label: 'Foundations',         ops: ['mul', 'div'],               ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 60 },
+    P3:        { label: 'Speed',         ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 60 },
+    NORMAL120: { label: 'Interview-ready', ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 120 }
   };
 
   // Fresh copy of a mode's settings (callers may mutate it).
@@ -179,8 +179,8 @@
     var names = {
       'add-carry': '+ with carry', 'add-nocarry': '+ no carry',
       'sub-borrow': '− with borrow', 'sub-noborrow': '− no borrow',
-      'iv-int': 'interview: integer', 'iv-dec': 'interview: decimal', 'iv-frac': 'interview: fraction',
-      'iv-pct': 'interview: percent', 'iv-mag': 'interview: estimate'
+      'iv-int': 'interview sim: integer', 'iv-dec': 'interview sim: decimal', 'iv-frac': 'interview sim: fraction',
+      'iv-pct': 'interview sim: percent', 'iv-mag': 'interview sim: estimate'
     };
     if (names[key]) return names[key];
     if ((m = /^add-(\d)d\+(\d)d$/.exec(key))) return m[1] + '-digit + ' + m[2] + '-digit';

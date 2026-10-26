@@ -14,15 +14,16 @@
   var G = node ? require('./generator.js') : AT.Generator;
 
   var STEPS = [
-    { id: 'P2', mode: 'P2', threshold: 18, desc: '×÷ (2–12)×(2–100), 60 s' },
-    { id: 'P3', mode: 'P3', threshold: 25, desc: 'Normal + − × ÷, 60 s' },
-    { id: 'P4', mode: 'NORMAL120', threshold: 60, desc: 'Normal + − × ÷, 120 s' }
+    // `id` is stored (stepOverride, announced) and never shown; people see `n` and `name`.
+    { id: 'P2', n: 1, name: 'Foundations', mode: 'P2', threshold: 18, desc: '× and ÷, 2–12 by 2–100, 60 s' },
+    { id: 'P3', n: 2, name: 'Speed', mode: 'P3', threshold: 25, desc: 'all four operations, 60 s' },
+    { id: 'P4', n: 3, name: 'Interview-ready', mode: 'NORMAL120', threshold: 60, desc: 'all four operations, 120 s' }
   ];
   var MIN_ROUNDS = 3, IN_A_ROW = 3;
 
   var MODE_LABELS = {
-    TABLES: 'Tables', WTABLES: 'Weighted tables', P2: 'P2', P3: 'P3', NORMAL120: 'Normal 120 s', DRILL: 'Drill',
-    INTERVIEW: 'Interview', CUSTOM: 'Custom'
+    TABLES: 'Tables', WTABLES: 'Weighted tables', P2: 'Foundations', P3: 'Speed', NORMAL120: 'Interview-ready', DRILL: 'Drill',
+    INTERVIEW: 'Interview sim', CUSTOM: 'Custom'
   };
 
   function qualifying(rounds, mode) {
@@ -93,13 +94,13 @@
     L.push('## About this data');
     L.push('Mental-math trainer for Zetamac-style quant interview tests. Score = correct answers in the time limit.');
     L.push('Modes: Tables (× ÷ 2–12, 60 s), Weighted tables (same, slow facts come up more), ' +
-      STEPS.map(function (s) { return s.id + ' (' + s.desc + ')'; }).join(', ') +
-      ', Drill (weak facts), Interview (harder mixed questions, wrong answers penalised), Custom.');
-    L.push('A session is one calendar day. Session numbers count days with any round.');
-    L.push('Steps: a session qualifies with >= ' + MIN_ROUNDS + ' rounds of the step mode; the step is done after ' +
-      IN_A_ROW + ' qualifying sessions in a row with average >= threshold.');
+      STEPS.map(function (s) { return 'Step ' + s.n + ' ' + s.name + ' (' + s.desc + ')'; }).join(', ') +
+      ', Drill (weak facts), Interview sim (Optiver-style: harder mixed questions, wrong answers penalised), Custom.');
+    L.push('A day is one calendar day with any round. Day numbers count those days.');
+    L.push('Steps: a day qualifies with >= ' + MIN_ROUNDS + ' rounds of the step mode; the step is done after ' +
+      IN_A_ROW + ' qualifying days in a row with average >= threshold.');
     L.push('Facts: weak = slow vs my own median for that operation (or often wrong, or > 4 s recently); ' +
-      'improving = a good session since; mastered = 3 good sessions in a row.');
+      'improving = a good day since; mastered = 3 good days in a row.');
     L.push('Freeze = an answer taking > 3x the round median. Times are in seconds. * = round entered from zetamac.com (no per-question data).');
   }
 
@@ -111,10 +112,10 @@
     });
     L.push('## Overview');
     if (!rs.length) { L.push('none yet'); return; }
-    L.push('Rounds: ' + rs.length + ' (' + ext + ' from zetamac.com). Sessions: ' + days.length +
+    L.push('Rounds: ' + rs.length + ' (' + ext + ' from zetamac.com). Days played: ' + days.length +
       ' (' + days[0] + ' to ' + days[days.length - 1] + '). Questions answered: ' + qs + '.');
     var rec = recommend(rs, ctx.info, ctx.today);
-    L.push('Today is session ' + S.sessionNumber(rs, ctx.today) + '. Recommended: ' +
+    L.push('Today is day ' + S.sessionNumber(rs, ctx.today) + '. Recommended: ' +
       (rec.warmup ? 'warm up with Tables, then ' : '') + MODE_LABELS[rec.mode] + '.');
   }
 
@@ -122,29 +123,29 @@
     L.push('## Steps');
     ctx.info.all.forEach(function (p) {
       var st = p.step, ss = S.sessionsForMode(ctx.rounds, st.mode), tr = S.trend(ss, st.threshold);
-      var line = st.id + (p === ctx.info.current ? ' (current' + (ctx.info.overridden ? ', set manually' : '') + ')' : '') +
+      var line = 'Step ' + st.n + ' ' + st.name + (p === ctx.info.current ? ' (current' + (ctx.info.overridden ? ', set manually' : '') + ')' : '') +
         ': ' + st.desc + ', threshold ' + st.threshold + '. ';
-      line += p.completed ? 'Done at session ' + p.completedAt + '. ' : 'Streak ' + boxes(p.streak) + ' ' + p.streak + ' of ' + IN_A_ROW + '. ';
-      line += 'Qualifying sessions ' + p.qualifying.length + ', all sessions ' + ss.length + '.';
+      line += p.completed ? 'Done on day ' + p.completedAt + '. ' : 'Streak ' + boxes(p.streak) + ' ' + p.streak + ' of ' + IN_A_ROW + '. ';
+      line += 'Qualifying days ' + p.qualifying.length + ', all days ' + ss.length + '.';
       if (tr.slope !== null) {
-        line += ' Trend ' + (tr.slope >= 0 ? '+' : '') + tr.slope.toFixed(2) + ' per session' +
-          (tr.sessionsToThreshold !== null ? ', about ' + tr.sessionsToThreshold + ' sessions to threshold' : '') + '.';
+        line += ' Trend ' + (tr.slope >= 0 ? '+' : '') + tr.slope.toFixed(2) + ' per day' +
+          (tr.sessionsToThreshold !== null ? ', about ' + tr.sessionsToThreshold + ' days to threshold' : '') + '.';
       }
       L.push(line);
     });
     var est = S.estimate120(ctx.rounds);
-    if (est) L.push('Estimated 120 s score from P3: ' + f1(est.estimate) + (est.calibrated ? ' (calibrated x' + est.factor.toFixed(2) + ')' : ' (2x rule)') + '.');
+    if (est) L.push('Estimated 120 s score from Speed: ' + f1(est.estimate) + (est.calibrated ? ' (calibrated x' + est.factor.toFixed(2) + ')' : ' (2x rule)') + '.');
     if (ctx.info.allDone) L.push('All steps complete.');
   }
 
   function rSessions(ctx, L) {
-    L.push('## Every session per mode (last 30 each)');
+    L.push('## Every day per mode (last 30 each)');
     var any = false;
     REPORT_MODES.forEach(function (m) {
       var ss = S.sessionsForMode(ctx.rounds, m);
       if (!ss.length) return;
       any = true;
-      L.push(MODE_LABELS[m] + ' (' + ss.length + (ss.length === 1 ? ' session' : ' sessions') + '):');
+      L.push(MODE_LABELS[m] + ' (' + ss.length + (ss.length === 1 ? ' day' : ' days') + '):');
       ss.slice(-30).forEach(function (s) {
         var st = s.stats;
         L.push('  S' + s.number + ' ' + s.day + '  avg ' + f1(st.avg) + '  best ' + st.best + '  worst ' + st.worst + '  sd ' + f1(st.sd) +
@@ -155,7 +156,7 @@
   }
 
   function rRoundIndex(ctx, L) {
-    L.push('## Average score by round number within a session');
+    L.push('## Average score by round number within a day');
     var any = false;
     REPORT_MODES.forEach(function (m) {
       var b = S.roundIndexAverages(ctx.rounds, m).slice(0, 12);
@@ -173,7 +174,7 @@
     var sess = Object.keys(nums).map(Number).sort(function (a, b) { return a - b; }).slice(-10);
     if (!sess.length) L.push('Mean answer time: none yet');
     else {
-      L.push('Mean answer time (s) per session, last 10 sessions with question data:');
+      L.push('Mean answer time (s) per day, last 10 days with question data:');
       ['add', 'sub', 'mul', 'div'].forEach(function (op) {
         if (!t[op].length) return;
         L.push('  ' + OP_SYM[op] + ': ' + sess.map(function (n) {
@@ -188,7 +189,7 @@
       var wr = S.wrongRateByOp(rs), ks = Object.keys(wr);
       return ks.length ? ks.map(function (op) { return OP_SYM[op] + ' ' + pct(wr[op].rate) + ' of ' + wr[op].n; }).join(', ') : 'no per-question data';
     }
-    L.push('Questions with a wrong attempt, last 5 sessions: ' + rate(recent));
+    L.push('Questions with a wrong attempt, last 5 days: ' + rate(recent));
     L.push('Questions with a wrong attempt, all time: ' + rate(ctx.rounds));
   }
 
@@ -227,13 +228,13 @@
 
   function rLatest(ctx, L) {
     var days = S.sessionDays(ctx.rounds);
-    L.push('## Latest session in detail');
+    L.push('## Latest day in detail');
     if (!days.length) { L.push('none yet'); return; }
     var rep = S.sessionReport(ctx.rounds, days[days.length - 1]);
-    L.push('Session ' + rep.number + ' (' + rep.day + '): ' + rep.rounds + ' rounds, ' + rep.questions + ' questions. Median answer ' +
+    L.push('Day ' + rep.number + ' (' + rep.day + '): ' + rep.rounds + ' rounds, ' + rep.questions + ' questions. Median answer ' +
       sec(rep.median) + ' s (usual ' + sec(rep.usualMedian) + '). Wrong ' + pct(rep.wrong) + ' (usual ' + pct(rep.usualWrong) + ').');
     rep.scores.forEach(function (s) {
-      L.push('  ' + MODE_LABELS[s.mode] + ': [' + s.scores.join(',') + '] avg ' + f1(s.stats.avg) + ', previous 7-session avg ' + f1(s.prevAvg) +
+      L.push('  ' + MODE_LABELS[s.mode] + ': [' + s.scores.join(',') + '] avg ' + f1(s.stats.avg) + ', previous 7 days avg ' + f1(s.prevAvg) +
         (s.threshold ? ', threshold ' + s.threshold : '') + (s.fatigue ? ', fatigue detected' : '') + '.');
     });
     rep.pace.forEach(function (p) {
@@ -269,7 +270,7 @@
       S.sessionsForMode(rounds, m).forEach(function (s) {
         if (days.indexOf(s.day) < 0) return;
         var f = S.fatigue(s.scores);
-        if (f) notes.push('Session ' + s.number + ', ' + MODE_LABELS[m] + ': last 3 rounds ' + f.last.join(', ') + ' vs first-3 avg ' + f1(f.base));
+        if (f) notes.push('Day ' + s.number + ', ' + MODE_LABELS[m] + ': last 3 rounds ' + f.last.join(', ') + ' vs first-3 avg ' + f1(f.base));
       });
     });
     return notes;

@@ -48,7 +48,7 @@ js/config.js      Supabase URL + anon key (empty = no accounts)
 js/sync.js        optional account sync (Supabase); pure diff/applyRemote exported for tests
 js/charts.js      inline-SVG line/bar charts, legend, tooltip, keyboard, "Show as table"
 js/game.js        the round loop (timer, input, auto-accept, interview scoring)
-js/ui.js          every screen, routing, keys, settings, account UI (largest file)
+js/ui.js          every screen, routing, keys, settings, account UI (largest file); Stats sections render via fill()
 js/app.js         bootstrap: load data, UI.init
 supabase/schema.sql  tables, row-level security, delete_my_account()
 tests/*.test.js   node --test (logic, sync pure functions); tests/fixtures.js shared data
@@ -75,7 +75,7 @@ Script order matters: generator → stats → progression → storage → config
 
 ## Domain logic worth knowing
 
-- **Steps:** P2 (avg ≥ 18), P3 (≥ 25), P4 = Normal 120 s (≥ 60). A session qualifies with ≥ 3 rounds of
+- **Steps:** P2 = Foundations (avg ≥ 18), P3 = Speed (≥ 25), P4 = Interview-ready, the 120 s mode (≥ 60). Shown as Step 1–3 with these names (`STEPS[i].n`, `.name`); the P ids are stored, never shown. A session qualifies with ≥ 3 rounds of
   the step's mode; a step is done after 3 qualifying sessions in a row at or above the threshold.
 - **Weak facts** (`Stats.factStats`): slowness = weighted median of time ÷ my median for that op ×
   (1 + wrong rate), attempts > 21 days old weigh 0.5. State machine ok → weak → improving → mastered.
@@ -129,7 +129,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
 3. Weighted tables mode (Review, key W) and the tables heatmap with Combined / × / ÷ views
    (division laid out divisor × answer, × and ÷ weighted separately).
 4. Session page (key E): one day analysed: scores vs threshold, pace by thirds, mistakes and freezes
-   with advice, ops today vs usual, facts that moved. Deep links `#session/YYYY-MM-DD`, `#review/div`.
+   with advice, ops today vs usual, facts that moved. Deep links `#session/YYYY-MM-DD`, `#review/div` (now `#stats/day/…`, `#review/div`).
 5. Charts reworked to data-viz rules (thin marks, legends, crosshair tooltips, table twins).
 6. Redesign with the frontend-design / web-design-guidelines / design-system / Playwright skills:
    home leads with the next round (hero + one Start button), sentence case, no meta strings,
@@ -140,6 +140,14 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
 9. Published on Vercel; added optional Supabase accounts with sync, privacy page, CSP headers.
 10. Post-round analysis on the end screen (`Stats.roundReport`): a summary (4 tiles + up to 3 takeaways),
     then details below (time per question, thirds, per op vs usual, time spread, freezes, facts, every question).
+11. Simpler layout: tabs are Play · Review · Stats · Settings. Session (shown as "Today"), Progress and Log
+    became collapsible `<details>` sections of Stats (`renderStats`, `PANES`: day, progress, log), each built
+    on first open, with a one-line summary while closed; open state per browser in localStorage
+    `arithmeticTrainer.statsOpen`. Routes: `#review/<view>`, `#stats/<section>/<arg>`; old hashes redirect
+    (`MOVED`). Keys kept: R review, E G L open a section, A opens Stats.
+    Play: one recommendation tag, the step block is one line, backup reminder from 10 rounds.
+12. Plain names. Steps and their modes are shown as Step 1 Foundations (P2), Step 2 Speed (P3), Step 3
+    Interview-ready (NORMAL120); ids in data stay P2/P3/P4. Users see "day" where the code says session.
 
 ## Working conventions
 
