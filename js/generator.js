@@ -120,7 +120,7 @@
    */
   function factKeys(q) {
     if (q.keys) return q.keys;
-    if (q.op === 'tr') return ['tr-' + q.type];
+    if (q.op === 'tr') return q.type === 'fd' || q.type === 'df' ? ['tr-' + q.type, 'fr-' + q.a + '/' + q.b] : ['tr-' + q.type];
     if (q.op === 'mul' || q.op === 'div') {
       var s = Math.min(q.a, q.b), l = Math.max(q.a, q.b), pair = s + 'x' + l;
       if (l <= 12) return [pair];
@@ -185,6 +185,7 @@
     // The pair itself: 2x12, 3x8 and 4x6 are separate facts, so they need separate labels.
     if ((m = /^(\d+)x(\d+)$/.exec(key))) return m[1] + '×' + m[2] + ' = ' + m[1] * m[2];
     if ((m = /^(\d+)x(\d+)s$/.exec(key))) return m[1] + ' × ' + m[2] + 's';
+    if ((m = /^fr-(\d+)\/(\d+)$/.exec(key))) { var hk = heartDecimal(+m[1], +m[2]); return m[1] + '/' + m[2] + ' = ' + hk.text + (hk.repeating ? '…' : ''); }
     var names = {
       'add-carry': '+ with carry', 'add-nocarry': '+ no carry',
       'sub-borrow': '− with borrow', 'sub-noborrow': '− no borrow',
@@ -357,6 +358,10 @@
    *   dec2frac a decimal, answered as a fraction in lowest terms (0.375 = 3/8)
    *   fracadd  n1/d1 + n2/d2, answered as a fraction in lowest terms; a and b are [n, d] pairs
    *   fracsub  n1/d1 − n2/d2, the same, never below zero
+   *   fd       a fraction from the by-heart set (HEART), answered as a decimal: 3/7 → 0.429
+   *   df       the same decimal, answered as the fraction: 0.429… → 3/7
+   * By-heart decimals (heartDecimal): exact when the fraction terminates (3/16 = 0.1875), otherwise
+   * 3 places, rounded or cut off both accepted (q.answerAlt), and shown with "…" when it is a question.
    * Fraction answers carry q.frac = [numerator, denominator]: the game asks for one, then the other.
    * makeTrick(type, a, b) rebuilds a question from its numbers, so rounds can be replayed exactly.
    */
@@ -374,8 +379,26 @@
     frac:    { name: 'Fractions as decimals' },
     dec2frac: { name: 'Decimals as fractions' },
     fracadd: { name: 'Adding fractions' },
-    fracsub: { name: 'Subtracting fractions' }
+    fracsub: { name: 'Subtracting fractions' },
+    fd:      { name: 'Fraction to decimal' },
+    df:      { name: 'Decimal to fraction' }
   };
+
+  // Fractions to know by heart: every n/d in lowest terms with d 2–12, plus a few common larger ones.
+  var HEART = (function () {
+    var out = [], d, n;
+    for (d = 2; d <= 12; d++) for (n = 1; n < d; n++) if (gcd(n, d) === 1) out.push([n, d]);
+    return out.concat([[1, 16], [3, 16], [1, 20], [1, 25]]);
+  })();
+
+  function terminates(d) { while (d % 2 === 0) d /= 2; while (d % 5 === 0) d /= 5; return d === 1; }
+
+  // { text, alt, repeating }: 3/8 → "0.375"; 2/3 → "0.667", alt "0.666" (cut off), repeating.
+  function heartDecimal(n, d) {
+    if (terminates(d)) return { text: decimalText(n, d), alt: null, repeating: false };
+    var text = (n / d).toFixed(3), cut = (Math.floor(n * 1000 / d) / 1000).toFixed(3);
+    return { text: text, alt: cut !== text ? cut : null, repeating: true };
+  }
   var SUM_DENS = [2, 3, 4, 5, 6, 8, 10, 12];
   var FRAC_DENS = [4, 5, 8, 16, 20, 25, 40];
   var SWAP_BASES = [[25, 4], [50, 2], [20, 5]];   // [b, a must be a multiple of this] so a% of b is whole
@@ -389,6 +412,12 @@
     else if (type === 'pct' || type === 'pctswap') { q.shown = a + '% of ' + b; q.answer = a * b / 100; }
     else if (type === 'frac') { q.shown = a + ' ÷ ' + b; q.answer = a / b; q.answerText = decimalText(a, b); }
     else if (type === 'dec2frac') { q.shown = decimalText(a, b); setFrac(q, a, b); }
+    else if (type === 'fd') {
+      var hd = heartDecimal(a, b);
+      q.shown = a + '/' + b; q.answer = a / b; q.answerText = hd.text;
+      if (hd.alt) q.answerAlt = hd.alt;
+    }
+    else if (type === 'df') { var hx = heartDecimal(a, b); q.shown = hx.text + (hx.repeating ? '…' : ''); setFrac(q, a, b); }
     else if (type === 'fracadd' || type === 'fracsub') {
       var plus = type === 'fracadd';
       q.shown = a[0] + '/' + a[1] + (plus ? ' + ' : ' − ') + b[0] + '/' + b[1];
@@ -436,6 +465,10 @@
         den = FRAC_DENS[randInt(rng, 0, FRAC_DENS.length - 1)];
         do { num = randInt(rng, 1, den - 1); } while (gcd(num, den) !== 1);
         return makeTrick(type, num, den);
+      case 'fd':
+      case 'df':
+        var hp = HEART[randInt(rng, 0, HEART.length - 1)];
+        return makeTrick(type, hp[0], hp[1]);
       case 'fracadd':
       case 'fracsub':
         // Two different proper fractions whose result is a fraction (not 0, not a whole number), denominator ≤ 60.
@@ -480,6 +513,9 @@
       case 'pctswap': return 'Swap them: ' + a + '% of ' + b + ' = ' + b + '% of ' + a + ' → ' + a * b / 100 + '.';
       case 'frac': return 'From 1 ÷ ' + b + ' = ' + decimalText(1, b) + ': ' + a + ' × ' + decimalText(1, b) + ' → ' + decimalText(a, b) + '.';
       case 'dec2frac': return '1/' + b + ' = ' + decimalText(1, b) + ', and ' + q.shown + ' is ' + a + ' of those → ' + q.answerText + '.';
+      case 'fd':
+      case 'df':
+        return heartAdvice(a, b, q.type === 'fd');
       case 'fracadd':
       case 'fracsub':
         var l = lcm(a[1], b[1]), x = a[0] * l / a[1], y = b[0] * l / b[1], sign = q.type === 'fracadd' ? ' + ' : ' − ';
@@ -487,6 +523,21 @@
           (q.frac[1] !== l ? ', reduce' : '') + ' → ' + q.answerText + '.';
     }
     return 'Skip earlier: move on after 5 seconds.';
+  }
+
+  // By heart, with the pattern that makes it memorable: ninths repeat the numerator, elevenths repeat 9 × it,
+  // sevenths cycle 142857; anything else is n × (1/d).
+  function heartAdvice(n, d, toDecimal) {
+    var hd = heartDecimal(n, d), f = n + '/' + d, how;
+    // Cut off (not rounded) so the repeating pattern stays visible: 6/7 = 0.857142…, 1/12 = 0.0833…
+    function cut(x, places) { return (Math.floor(x * Math.pow(10, places)) / Math.pow(10, places)).toFixed(places) + '…'; }
+    if (n === 1 && !hd.repeating) return toDecimal ? 'Know it by heart: ' + f + ' = ' + hd.text + '.' : 'Know it by heart: ' + hd.text + ' = ' + f + '.';
+    if (d === 9) how = 'Ninths repeat the numerator: ' + f + ' = 0.' + n + n + n + '…';
+    else if (d === 11) { var nn = ('0' + 9 * n).slice(-2); how = 'Elevenths repeat 9 × the numerator, ' + nn + ': ' + f + ' = 0.' + nn + nn + '…'; }
+    else if (d === 7) how = 'Sevenths cycle the digits 142857 from a different start: ' + f + ' = ' + cut(n / 7, 6);
+    else if (n === 1) how = 'Know it by heart: ' + f + ' = ' + cut(1 / d, 4);
+    else { var one = heartDecimal(1, d); how = f + ' = ' + n + ' × 1/' + d + ' = ' + n + ' × ' + (one.repeating ? cut(1 / d, 4) : one.text); }
+    return how + (toDecimal ? ' → ' + hd.text + (hd.alt ? ' (or ' + hd.alt + ')' : '') + '.' : ' → ' + f + '.');
   }
 
   function trickNames() {
@@ -520,7 +571,7 @@
   var api = {
     mulberry32: mulberry32, randInt: randInt, MODES: MODES, modeSettings: modeSettings,
     makeQuestion: makeQuestion, generate: generate, makeGenerator: makeGenerator,
-    factKeys: factKeys, fromKey: fromKey, family: family, familyText: familyText, keyLabel: keyLabel,
+    HEART: HEART, heartDecimal: heartDecimal, factKeys: factKeys, fromKey: fromKey, family: family, familyText: familyText, keyLabel: keyLabel,
     makeMixedGenerator: makeMixedGenerator, advice: advice,
     interviewQuestion: interviewQuestion, makeInterviewGenerator: makeInterviewGenerator,
     parseAnswer: parseAnswer, checkInterview: checkInterview, hasCarry: hasCarry, hasBorrow: hasBorrow,

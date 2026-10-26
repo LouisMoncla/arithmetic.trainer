@@ -4,6 +4,9 @@
  *   startZetamac:  answers auto-accept the moment the typed value is correct. A fraction answer
  *                  (q.frac) shows two boxes: the numerator first, then the denominator, each auto-accepted.
  *                  Trick modes: Tab skips a question (stored unanswered + skipped, no point).
+ *   startPractice: the Learn tab. The same input, but no clock and a fixed number of questions.
+ *                  A wrong full-length answer, or Tab, shows the method under the box; typing the
+ *                  right answer then moves on. Nothing is saved (ui.js decides), so timing stats stay clean.
  *   startInterview: Enter submits, Tab skips, negative marking.
  * During a game only the question, input, timer and score are shown.
  */
@@ -27,7 +30,8 @@
       '<span id="g-bar" class="g-bar num" aria-hidden="true" hidden>/</span>' +
       '<input id="g-den" class="g-in num" name="denominator" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" ' +
       'autocapitalize="off" spellcheck="false" aria-label="Denominator" hidden></div>' +
-      '<p id="g-hint" class="g-hint" data-testid="game-fraction-hint" hidden>In lowest terms</p></div>';
+      '<p id="g-hint" class="g-hint" data-testid="game-fraction-hint" hidden>In lowest terms</p>' +
+      '<p id="g-method" class="g-method" data-testid="game-method" aria-live="polite" hidden></p></div>';
     qEl = document.getElementById('g-q'); ansEl = document.getElementById('g-ans'); inEl = document.getElementById('g-in');
     barEl = document.getElementById('g-bar'); denEl = document.getElementById('g-den'); curEl = inEl;
     timerEl = document.getElementById('g-timer'); scoreEl = document.getElementById('g-score');
@@ -88,6 +92,8 @@
       else if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); answerInterview(null); }
     } else if (st.kind === 'zetamac' && st.running && st.skip && e.key === 'Tab') {
       e.preventDefault(); e.stopPropagation(); skipZetamac();
+    } else if (st.kind === 'practice' && st.running && e.key === 'Tab') {
+      e.preventDefault(); e.stopPropagation(); showMethod();
     }
   }
 
@@ -96,7 +102,7 @@
     st = { kind: kind, opts: opts, score: 0, questions: [], timeouts: [], running: false, duration: opts.duration };
     document.addEventListener('keydown', onKey, true);
     inEl.focus();
-    timerEl.textContent = fmtClock(opts.duration);
+    timerEl.textContent = kind === 'practice' ? '' : fmtClock(opts.duration);
     scoreEl.textContent = '';
     countdown(begin);
   }
@@ -105,6 +111,7 @@
     st.running = true;
     st.t0 = now();
     st.startedAt = new Date().toISOString();
+    if (st.kind === 'practice') { nextQuestion(); inEl.focus(); return; }   // no clock, no score
     scoreEl.textContent = 'Score: 0';
     nextQuestion();
     st.interval = setInterval(tick, 50);
@@ -125,6 +132,9 @@
     inEl.setAttribute('aria-label', fr ? 'Numerator' : 'Answer');
     st.part = fr ? 'num' : null;
     curEl = inEl; inEl.focus();
+    var m = document.getElementById('g-method');
+    m.hidden = true; m.textContent = ''; st.method = false;
+    if (st.kind === 'practice') timerEl.textContent = (st.questions.length + 1) + ' / ' + st.opts.count;
     if (st.kind === 'interview') {
       var c = document.getElementById('g-count');
       if (c) c.textContent = (st.questions.length + 1) + ' / ' + st.opts.count;
@@ -151,12 +161,28 @@
   // One wrong attempt per distinct full-length wrong value (per box, for fractions).
   function countWrong(typed, target) {
     var k = (st.part || '') + typed;
-    if (typed.length >= target.length && !st.wrongSeen[k]) { st.wrongSeen[k] = 1; st.wrong++; }
+    if (typed.length >= target.length && !st.wrongSeen[k]) {
+      st.wrongSeen[k] = 1; st.wrong++;
+      if (st.kind === 'practice') showMethod();
+    }
+  }
+
+  // Practice: the worked shortcut for this exact question, under the box.
+  function showMethod() {
+    if (st.method) return;
+    st.method = true;
+    var m = document.getElementById('g-method');
+    m.textContent = st.opts.advice(st.q) + ' Type the answer to go on.';
+    m.hidden = false;
+    curEl.focus();
   }
 
   function accept() {
-    st.questions.push(record(st.q, { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong }));
+    var extra = { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong };
+    if (st.kind === 'practice') extra.method = st.method;
+    st.questions.push(record(st.q, extra));
     st.score++;
+    if (st.kind === 'practice') { if (st.questions.length >= st.opts.count) finish(false); else nextQuestion(); return; }
     scoreEl.textContent = 'Score: ' + st.score;
     nextQuestion();
   }
@@ -172,7 +198,7 @@
     var fr = st.q.frac, ans = fr ? String(fr[0]) : st.q.answerText || String(st.q.answer);
     var typed = cleanInput(inEl, !fr && ans.indexOf('.') >= 0);
     if (!typed) return;
-    if (typed !== ans) { countWrong(typed, ans); return; }
+    if (typed !== ans && typed !== st.q.answerAlt) { countWrong(typed, ans); return; }   // answerAlt: 2/3 as 0.666
     if (!fr) { accept(); return; }
     // Right numerator: it stays, and the denominator box takes over.
     inEl.readOnly = true; st.part = 'den';
@@ -186,14 +212,25 @@
     if (typed === ans) accept(); else countWrong(typed, ans);
   }
 
+  function zetamacInput(opts) {
+    var types = opts.settings.types || [];
+    inEl.setAttribute('inputmode', types.indexOf('frac') >= 0 || types.indexOf('fd') >= 0 ? 'decimal' : 'numeric');
+    inEl.oninput = onZetamacInput;
+    denEl.oninput = onDenInput;
+  }
+
   Game.startZetamac = function (opts) {
     // opts: { mode, settings, generator, duration, countdown, onEnd(round), onAbort() }
     start('zetamac', opts);
-    var types = opts.settings.types || [];
-    st.skip = types.length > 0;   // trick modes only; plain Zetamac has no skip, like zetamac.com
-    inEl.setAttribute('inputmode', types.indexOf('frac') >= 0 ? 'decimal' : 'numeric');
-    inEl.oninput = onZetamacInput;
-    denEl.oninput = onDenInput;
+    st.skip = (opts.settings.types || []).length > 0;   // trick modes only; plain Zetamac has no skip, like zetamac.com
+    zetamacInput(opts);
+  };
+
+  Game.startPractice = function (opts) {
+    // opts: { mode, settings, generator, count, advice(q) → text, onEnd(round), onAbort() }; no countdown.
+    opts.countdown = false;
+    start('practice', opts);
+    zetamacInput(opts);
   };
 
   // ---------- Interview ----------

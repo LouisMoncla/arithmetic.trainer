@@ -72,7 +72,7 @@ Rounds you enter from zetamac.com (Log screen) count too. Override the step in S
 
 ## Screens
 
-The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
+The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Settings**.
 
 - **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–9`, `0` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
@@ -82,6 +82,16 @@ The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
   of the clock, each operation vs your usual, time spread, freezes (over 3× your median, with a
   chunking hint), slowest questions, facts slower or faster than usual, and every question. Buttons
   and keys: `Enter` play again, `D` drill those slow questions, `A` today’s analysis, `H` home.
+- **Learn** (`N`): one lesson per trick (the 14 behind Squares, % and fractions and Mixed tricks), in four groups, each with
+  your status on it. A lesson (`#learn/x11`) gives the rule, why it works, 3 fresh worked examples and your numbers.
+  `Enter` **practises**: 10 questions, no clock, nothing saved; a wrong answer or `Tab` shows the method under the box,
+  then you type the answer to go on, and the end shows where you needed it. `F` plays a **timed round**: 60 s of that
+  trick, saved as mode `LEARN` and compared only with rounds of the same trick (shown as "Learn: × 11").
+  **Fractions by heart** (`#learn/fractions`): all 49 fractions with a denominator up to 12, plus 1/16, 3/16, 1/20 and 1/25,
+  both ways: 3/7 → type the decimal; 0.429… → type 3/7 in the two boxes. Repeating decimals take 3 places, rounded
+  or cut off (2/3: 0.667 or 0.666); a decimal with … repeats. A grid shows every pair: grey = not seen yet,
+  inverted = slow or often wrong. Practice and timed rounds pick slow and unseen pairs more often (the weighted-tables
+  formula), and the method uses the patterns (ninths, elevenths, sevenths, multiples of 1/d).
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
 - **Stats** (`A`): three big sections you open and close: Today, Progress and Log. Closed, each shows one line (today's rounds, your step's last average, how many rounds). The ones you leave open stay open in this browser. `E` `G` `L` jump to a section; links to the old pages (`#session/…`, `#log`, `#stats/review/…`) still work.
@@ -97,8 +107,8 @@ The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
 
 ## Keys
 
-`P` play · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
-Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start.
+`P` play · `N` learn · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
+Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start. Lesson: `Enter` practise, `F` timed round; in practice `Tab` shows the method.
 
 ## How weak facts are found
 
@@ -167,7 +177,7 @@ npm run test:e2e
 
 They cover: auto-accept, wrong-attempt counting, time-up saving, Esc, Enter to replay, Interview
 scoring, the home hero, Review views and their URLs, Session deep links and `A`, Stats sections and old links, the skip link,
-help, zetamac.com entry, export → reset → import, and account sync against a fake Supabase
+help, Learn (lessons, practice with the method on a miss, timed rounds saved as LEARN), zetamac.com entry, export → reset → import, and account sync against a fake Supabase
 (served over http by `tests/e2e/server.js`): first sign-in merge, push, tombstones, pull.
 
 ## Design docs
@@ -178,7 +188,7 @@ case, second person and plain; numbers are monospace with tabular figures.
 
 ## Files
 
-`js/generator.js` questions · `js/stats.js` sessions and weak facts · `js/progression.js` steps and summary ·
+`js/generator.js` questions · `js/lessons.js` Learn texts · `js/stats.js` sessions and weak facts · `js/progression.js` steps and summary ·
 `js/storage.js` save/load/export/import · `js/sync.js` account sync · `js/config.js` Supabase keys · `js/game.js` play loop · `js/charts.js` SVG · `js/ui.js` screens ·
 `js/app.js` bootstrap; `tests/` logic tests, `tests/e2e/` browser tests. Classic `<script>` tags on one global `window.AT` (ES modules fail on `file://`).
 

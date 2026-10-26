@@ -36,6 +36,12 @@
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
   var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
+  // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions").
+  function logModes() {
+    var played = {};
+    data.rounds.forEach(function (r) { if (r.mode === 'LEARN') played[S.effMode(r)] = 1; });
+    return LOG_MODES.concat(Object.keys(G.trickNames()).concat(['fractions']).map(function (t) { return 'LEARN-' + t; }).filter(function (m) { return played[m]; }));
+  }
   var THRESHOLDS = { P2: 18, P3: 25, NORMAL120: 60 };
   var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
   var OP_NAME = { add: 'Addition', sub: 'Subtraction', mul: 'Multiplication', div: 'Division' };
@@ -60,7 +66,7 @@
   function sec(ms) { return (ms / 1000).toFixed(1) + ' s'; }
   var f1 = P.f1;
   function signed(x) { return (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1); }
-  function label(mode) { return P.MODE_LABELS[mode] || mode; }
+  function label(mode) { return P.modeLabel(mode); }
   function seed() { return Date.now(); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
   // Dates through Intl, never hand-formatted.
@@ -102,7 +108,7 @@
 
   // ---------- routing ----------
 
-  var SCREENS = { play: renderPlay, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
+  var SCREENS = { play: renderPlay, learn: renderLearn, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
   // Stats sections, in page order.
   var PANES = { day: renderDay, progress: renderProgress, log: renderLog };
   var PANE_ORDER = ['day', 'progress', 'log'];
@@ -135,6 +141,7 @@
       if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (name === 'play') ui.sel = null; // fresh default selection each visit
+    if (name === 'learn') ui.lesson = parts[1] || null;
     if (name === 'review') ui.heatView = ['mul', 'div'].indexOf(parts[1]) >= 0 ? parts[1] : 'both';
     var pane = name === 'stats' && PANES[parts[1]] ? parts[1] : null;
     if (name === 'stats') {
@@ -166,7 +173,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SUMMARY')) return;
     if (screenKeys && screenKeys(e) === true) { e.preventDefault(); return; }
     // E G L were pages of their own; they now open their Stats section.
-    var map = { p: 'play', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
+    var map = { p: 'play', n: 'learn', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (map[k]) { e.preventDefault(); go(map[k]); }
     else if (panes[k]) { e.preventDefault(); go('stats', panes[k]); }
@@ -336,7 +343,7 @@
         save();
       }
     });
-    LOG_MODES.forEach(function (m) {
+    logModes().forEach(function (m) {
       var ss = S.sessionsForMode(rounds, m).filter(function (s) { return s.day === today; });
       if (ss.length && S.fatigue(ss[0].scores)) notes.push('<p class="notice strong">Your ' + label(m) + ' scores are dropping. Stop here or take a 10-minute break.</p>');
     });
@@ -518,7 +525,7 @@
   }
 
   function showEnd(round, again) {
-    var rounds = data.rounds, today = todayKey(), mode = round.mode;
+    var rounds = data.rounds, today = todayKey(), mode = S.effMode(round);
     var nToday = rounds.filter(function (r) { return S.dayKey(r.startedAt) === today; }).length;
     var rep = S.roundReport(rounds, round), rk = rep.rank, med = rep.median;
     var slowQs = rep.slowest.slice(0, 5).filter(function (q) { return q.op !== 'iv'; });
@@ -694,6 +701,189 @@
       if (e.key === 'm' || e.key === 'M') { playMistakes(); return true; }
       return false;
     };
+  }
+
+  // ---------- Learn: one lesson per trick, untimed practice, then a timed round ----------
+
+  var PRACTICE_COUNT = 10;
+
+  // The trick's fact (key "tr-<type>") from the weak-fact engine, by type.
+  function trickFacts() {
+    var out = {};
+    S.factStats(data.rounds).forEach(function (f) { if (f.cat === 'tr') out[f.key.slice(3)] = f; });
+    return out;
+  }
+  function trickStatus(f) {
+    if (!f) return 'Not started';
+    return { weak: 'Weak', improving: 'Improving', mastered: 'Mastered', ok: 'Practised' }[f.status] || f.status;
+  }
+
+  function renderLearn() {
+    if (ui.lesson === 'fractions') return renderFractions();
+    if (ui.lesson && AT.Lessons.LESSONS[ui.lesson]) return renderLesson(ui.lesson);
+    var names = G.trickNames(), tf = trickFacts();
+    var h = [pageHead('Learn', 'The shortcuts behind the trick modes. Read the rule, practise without a clock, then play a timed round.')];
+    AT.Lessons.GROUPS.forEach(function (g) {
+      h.push(section(g.name, '<ol class="modes">' + g.types.map(function (t) {
+        var f = tf[t];
+        return '<li><a class="mode lesson" href="#learn/' + t + '" data-testid="learn-lesson-' + t + '">' +
+          '<span class="nm">' + esc(names[t]) + '</span><span class="ds num">' + esc(AT.Lessons.LESSONS[t].short) + '</span>' +
+          '<span class="tag">' + esc(trickStatus(f)) + (f ? ', ' + sec(f.medianTime) : '') + '</span></a></li>';
+      }).join('') + '</ol>'));
+    });
+    var hc = S.fractionCells(data.rounds), hSeen = hc.filter(function (c) { return c.f; }).length;
+    var hSlow = hc.filter(function (c) { return c.slow; }).length, HT = AT.Lessons.HEART;
+    h.push(section(HT.name, '<ol class="modes"><li><a class="mode lesson" href="#learn/fractions" data-testid="learn-lesson-fractions">' +
+      '<span class="nm">All ' + hc.length + ' pairs</span><span class="ds num">' + esc(HT.short) + '</span>' +
+      '<span class="tag">' + (hSeen ? hSeen + ' of ' + hc.length + ' seen' + (hSlow ? ', ' + hSlow + ' slow' : '') : 'Not started') + '</span></a></li></ol>'));
+    h.push(keys([['↑ ↓', 'move'], ['Enter', 'open a lesson'], ['N', 'back here from a lesson']]));
+    main.innerHTML = h.join('');
+    screenKeys = function (e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return false;
+      var links = $$('a.lesson'), i = links.indexOf(document.activeElement);
+      var j = i < 0 ? 0 : (i + (e.key === 'ArrowDown' ? 1 : links.length - 1)) % links.length;
+      links[j].focus();
+      return true;
+    };
+  }
+
+  // Three different questions of this trick, each with its worked shortcut.
+  function examples(type) {
+    var rng = G.mulberry32(seed()), out = [], seen = {};
+    for (var i = 0; i < 50 && out.length < 3; i++) {
+      var q = G.trickQuestion(type, rng);
+      if (!seen[q.shown]) { seen[q.shown] = 1; out.push(q); }
+    }
+    return out;
+  }
+
+  function answerText(q) { return q.answerText || String(q.answer); }
+
+  function renderLesson(type) {
+    var lesson = AT.Lessons.LESSONS[type], name = G.trickNames()[type], f = trickFacts()[type];
+    var timed = data.rounds.filter(function (r) { return S.effMode(r) === 'LEARN-' + type; });
+    var group = AT.Lessons.GROUPS.filter(function (g) { return g.types.indexOf(type) >= 0; })[0];
+    var h = [pageHead(name, '<a href="#learn">Learn</a>, ' + esc(group.name.toLowerCase()),
+      '<button type="button" id="practise" class="primary" data-testid="learn-practise-button">Practise <kbd>Enter</kbd></button>' +
+      '<button type="button" id="timed" data-testid="learn-timed-button">Timed round <kbd>F</kbd></button>', 'learn-title')];
+    h.push(section('The rule', '<p class="lesson-rule">' + esc(lesson.rule) + '</p><p class="mid">Why it works: ' + esc(lesson.why) + '</p>'));
+    h.push(section('Worked examples', '<table class="compact" data-testid="learn-examples"><tr><th scope="col">Question</th><th scope="col">How to think it</th></tr>' +
+      examples(type).map(function (q) {
+        return '<tr><td class="num">' + esc(q.shown) + ' = ' + esc(answerText(q)) + '</td><td>' + esc(G.trickAdvice(q)) + '</td></tr>';
+      }).join('') + '</table>'));
+    var best = timed.length ? Math.max.apply(null, timed.map(function (r) { return r.score; })) : null;
+    h.push(section('Your numbers', f || timed.length ? facts([
+      ['Status', trickStatus(f)], ['Questions', f ? String(f.attempts) : '0'], ['Median time', f ? sec(f.medianTime) : '–'],
+      ['Timed rounds', String(timed.length)], ['Best timed round', best === null ? '–' : String(best)]
+    ]) : '<p class="mid">Nothing yet. Practise first: ' + PRACTICE_COUNT + ' questions, no clock, and the method appears whenever you miss or press Tab.</p>'));
+    h.push(keys([['Enter', 'practise'], ['F', 'timed round'], ['N', 'all lessons']]));
+    main.innerHTML = h.join('');
+    $('#practise').addEventListener('click', function () { playPractice(type); });
+    $('#timed').addEventListener('click', function () { playLearnRound(type); });
+    screenKeys = function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { playPractice(type); return true; }
+      if (e.key === 'f' || e.key === 'F') { playLearnRound(type); return true; }
+      return false;
+    };
+  }
+
+  // Fractions by heart: the rule, every pair in a grid (inverted = slow, grey = not seen yet), your numbers.
+  var HEART_DENS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 20, 25];
+
+  function renderFractions() {
+    var HT = AT.Lessons.HEART, cells = S.fractionCells(data.rounds), by = {};
+    cells.forEach(function (c) { by[c.n + '/' + c.d] = c; });
+    var timed = data.rounds.filter(function (r) { return S.effMode(r) === 'LEARN-fractions'; });
+    var seen = cells.filter(function (c) { return c.f; }), slow = cells.filter(function (c) { return c.slow; });
+    var h = [pageHead(HT.name, '<a href="#learn">Learn</a>',
+      '<button type="button" id="practise" class="primary" data-testid="learn-practise-button">Practise <kbd>Enter</kbd></button>' +
+      '<button type="button" id="timed" data-testid="learn-timed-button">Timed round <kbd>F</kbd></button>', 'learn-title')];
+    h.push(section('The rule', '<p class="lesson-rule">' + esc(HT.rule) + '</p><p class="mid">' + esc(HT.why) + '</p>'));
+    var g = ['<div class="tbl-scroll"><table class="fgrid" data-testid="fraction-grid"><tr><th scope="col"><span class="sr-only">Denominator</span></th>'];
+    for (var n = 1; n <= 11; n++) g.push('<th scope="col">' + n + '</th>');
+    g.push('</tr>');
+    HEART_DENS.forEach(function (d) {
+      g.push('<tr><th scope="row">' + d + '</th>');
+      for (var n = 1; n <= 11; n++) {
+        var c = by[n + '/' + d];
+        if (!c) { g.push('<td></td>'); continue; }
+        var hd = G.heartDecimal(n, d), dec = hd.text + (hd.repeating ? '…' : '');
+        var note = c.f ? plural(c.f.attempts, 'answer') + ', median ' + sec(c.f.medianTime) + (c.slow ? ', slow' : '') : 'not seen yet';
+        g.push('<td class="' + (c.slow ? 'slow' : c.f ? '' : 'un') + '" title="' + esc(n + '/' + d + ' = ' + dec + ', ' + note) + '">' +
+          '<span class="fr">' + n + '/' + d + '</span><span class="dc">' + esc(dec) + '</span></td>');
+      }
+      g.push('</tr>');
+    });
+    g.push('</table></div><p class="small">Rows are denominators, columns numerators. Grey: not seen yet. Inverted: slow or often wrong, so it comes up more in practice and timed rounds. ' +
+      'Hover a cell for your numbers.</p>');
+    h.push(section('All ' + cells.length + ' pairs', g.join('')));
+    var best = timed.length ? Math.max.apply(null, timed.map(function (r) { return r.score; })) : null;
+    h.push(section('Your numbers', facts([
+      ['Pairs seen', seen.length + ' of ' + cells.length], ['Slow pairs', String(slow.length)],
+      ['Timed rounds', String(timed.length)], ['Best timed round', best === null ? '–' : String(best)]
+    ])));
+    h.push(keys([['Enter', 'practise'], ['F', 'timed round'], ['N', 'all lessons']]));
+    main.innerHTML = h.join('');
+    $('#practise').addEventListener('click', function () { playPractice('fractions'); });
+    $('#timed').addEventListener('click', function () { playLearnRound('fractions'); });
+    screenKeys = function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { playPractice('fractions'); return true; }
+      if (e.key === 'f' || e.key === 'F') { playLearnRound('fractions'); return true; }
+      return false;
+    };
+  }
+
+  // A lesson is a trick type, or 'fractions' (fd + df, the pairs you are slow on or have not seen come up more).
+  function lessonName(id) { return id === 'fractions' ? AT.Lessons.HEART.name : G.trickNames()[id]; }
+  function lessonSettings(id) { return id === 'fractions' ? { types: ['fd', 'df'], lesson: 'fractions' } : { types: [id] }; }
+  function lessonGenerator(id, s) {
+    var rng = G.mulberry32(seed());
+    if (id !== 'fractions') return G.makeGenerator(s, rng);
+    return G.makeMixedGenerator({ pool: S.fractionPool(S.fractionCells(data.rounds)), share: 1, base: { types: s.types }, rng: rng });
+  }
+
+  // Untimed, not saved: the method shows after a miss or on Tab.
+  function playPractice(id) {
+    var s = lessonSettings(id);
+    Game.startPractice({
+      mode: 'LEARN', settings: s, count: PRACTICE_COUNT, advice: G.trickAdvice, generator: lessonGenerator(id, s),
+      onEnd: function (round) { showPracticeEnd(id, round); },
+      onAbort: function () { route(); }
+    });
+  }
+
+  // 60 s of one lesson, saved as mode LEARN and analysed like any round.
+  function playLearnRound(id) {
+    var s = lessonSettings(id); s.duration = 60;
+    launchZetamac('LEARN', s, function () { return lessonGenerator(id, s); }, function () { playLearnRound(id); });
+  }
+
+  function showPracticeEnd(type, round) {
+    var qs = round.questions, first = qs.filter(function (q) { return !q.wrongAttempts && !q.method; }).length;
+    var helped = qs.filter(function (q) { return q.method; });
+    var h = ['<div class="end">'];
+    h.push('<h1 class="sr-only">Practice finished</h1>');
+    h.push(endHead(first, lessonName(type), 'Of ' + qs.length + ' right first time, without the method'));
+    h.push(endButtons([['again', 'Practise again', 'Enter'], ['f', 'Timed round', 'F'], ['n', 'All lessons', 'N']]));
+    h.push('<p class="small mid end-more">Practice is not saved, so it does not change your stats.</p>');
+    h.push(section(helped.length ? 'Where you needed the method' : 'No method needed',
+      helped.length ? '<table class="compact" data-testid="practice-helped"><tr><th scope="col">Question</th><th scope="col">How to think it</th></tr>' + helped.map(function (q) {
+        return '<tr><td class="num">' + esc(q.shown) + ' = ' + esc(answerText(q)) + '</td><td>' + esc(G.trickAdvice(q)) + '</td></tr>';
+      }).join('') + '</table>' : '<p class="mid">Every answer came without the method. Try the timed round next.</p>'));
+    h.push(section('Every question', '<table class="compact"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col" class="n">Time</th><th scope="col">Note</th></tr>' +
+      qs.map(function (q, i) {
+        return '<tr><td class="n">' + (i + 1) + '</td><td class="num">' + esc(q.shown) + ' = ' + esc(answerText(q)) + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="mid">' +
+          (q.method ? 'Method shown' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
+      }).join('') + '</table>'));
+    h.push('</div>');
+    main.innerHTML = h.join('');
+    var actions = {
+      again: function () { playPractice(type); },
+      f: function () { playLearnRound(type); },
+      n: function () { go('learn'); }
+    };
+    bindEndButtons(actions);
+    endKeys(actions);
   }
 
   // ---------- Stats: Today, Progress and Log as sections you open ----------
@@ -1059,7 +1249,7 @@
     ]));
 
     var any = false;
-    LOG_MODES.forEach(function (m) {
+    logModes().forEach(function (m) {
       var ss = S.sessionsForMode(rounds, m);
       if (!ss.length) return;
       any = true;
@@ -1123,7 +1313,7 @@
       '<p id="ext-msg" class="small" aria-live="polite">They count toward your steps, without per-question data.</p>'));
 
     var any = false;
-    LOG_MODES.forEach(function (m) {
+    logModes().forEach(function (m) {
       var ss = S.sessionsForMode(rounds, m);
       if (!ss.length) return;
       any = true;

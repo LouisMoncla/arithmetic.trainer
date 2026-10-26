@@ -216,6 +216,17 @@ label { white-space: nowrap; }
 .mode.sel .k, .mode:hover .k { border-color: var(--bg); color: var(--bg); }
 .mode.sel .ds, .mode:hover .ds { color: var(--bg); }
 .panel { padding: 8px 10px 16px 56px; border-top: 1px solid var(--fg); }
+.mode.lesson { grid-template-columns: 12em 1fr auto; text-decoration: none; }   /* Learn: a link per lesson */
+.lesson-rule { font-size: var(--t-m); line-height: 1.5; max-width: 40em; }
+/* Fractions by heart: one cell per pair; grey = not seen, inverted = slow (emphasis by inversion, no colour). */
+.fgrid { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.fgrid th { font: var(--t-xs) var(--mono); color: var(--mid); font-weight: 400; padding: 4px 8px; text-align: center; }
+.fgrid td { border: 1px solid var(--line); padding: 4px 6px; min-width: 60px; text-align: center; font: 14px var(--mono); }
+.fgrid td:empty { border-color: transparent; }
+.fgrid .fr { display: block; font-size: var(--t-xs); color: var(--mid); }
+.fgrid td.un { color: var(--mid); }
+.fgrid td.slow { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.fgrid td.slow .fr { color: var(--bg); }
 
 /* ---------- tables ---------- */
 table { border-collapse: collapse; width: 100%; }
@@ -314,6 +325,7 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 .g-ans.frac .g-in { width: 4ch; }
 .g-bar { font-size: 56px; line-height: 1; color: var(--mid); }
 .g-hint { margin: 16px 0 0; font-size: 16px; color: var(--mid); }  /* fraction answers only */
+.g-method { margin: 24px 16px 0; max-width: 40em; font-size: 20px; line-height: 1.5; text-align: center; }  /* practice only */
 .g-in[readonly] { border-color: var(--line); }  /* a right numerator, kept while you type the denominator */
 .g-in {
   width: 7ch; height: auto; font-size: 44px; text-align: center; padding: 4px 8px;

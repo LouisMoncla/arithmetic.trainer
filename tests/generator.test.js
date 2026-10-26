@@ -147,7 +147,9 @@ const TRICK_RULES = {
   frac: (q) => q.a < q.b && /^0\.\d{1,4}$/.test(q.answerText),
   dec2frac: (q) => /^0\.\d{1,4}$/.test(q.shown) && q.frac[0] === q.a && q.frac[1] === q.b,
   fracadd: (q) => q.frac[1] > 1 && q.frac[1] <= 60,
-  fracsub: (q) => q.answer > 0 && q.frac[1] > 1 && q.frac[1] <= 60
+  fracsub: (q) => q.answer > 0 && q.frac[1] > 1 && q.frac[1] <= 60,
+  fd: (q) => q.a < q.b && gcd(q.a, q.b) === 1 && (q.b <= 12 || [16, 20, 25].includes(q.b)),
+  df: (q) => q.a < q.b && gcd(q.a, q.b) === 1 && q.frac[0] === q.a && q.frac[1] === q.b
 };
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
@@ -162,18 +164,27 @@ test('every trick type gives the right answer, in range, and clean', () => {
       assert.ok(TRICK_RULES[type](q), type + ': ' + q.shown);
       if (/^sq/.test(type)) { assert.strictEqual(q.shown, q.a + '²'); assert.strictEqual(q.answer, q.a * q.a); }
       else if (/^pct/.test(type)) { assert.strictEqual(q.shown, `${q.a}% of ${q.b}`); assert.strictEqual(q.answer, q.a * q.b / 100); }
+      else if (type === 'fd') {
+        // Exact when it terminates, else 3 places: rounded, with the cut-off form as answerAlt.
+        assert.strictEqual(q.shown, `${q.a}/${q.b}`);
+        assert.ok(Math.abs(Number(q.answerText) - q.a / q.b) <= 0.0005, q.shown + ' → ' + q.answerText);
+        if (q.answerAlt) assert.strictEqual(q.answerAlt, (Math.floor(q.a * 1000 / q.b) / 1000).toFixed(3));
+      }
       else if (type === 'frac') { assert.strictEqual(q.shown, `${q.a} ÷ ${q.b}`); assert.strictEqual(Number(q.answerText), q.a / q.b); }
       else if (q.frac) {
         // Fraction answers: lowest terms, and equal to the question's value.
         const [n, d] = q.frac;
         assert.strictEqual(gcd(n, d), 1, type + ': ' + q.answerText);
         assert.strictEqual(q.answerText, n + '/' + d);
-        const value = type === 'dec2frac' ? Number(q.shown) : q.a[0] / q.a[1] + (type === 'fracadd' ? 1 : -1) * q.b[0] / q.b[1];
+        const value = type === 'dec2frac' ? Number(q.shown) : type === 'df' ? q.a / q.b : q.a[0] / q.a[1] + (type === 'fracadd' ? 1 : -1) * q.b[0] / q.b[1];
         assert.ok(Math.abs(n / d - value) < 1e-9, type + ': ' + q.shown + ' = ' + q.answerText);
+        if (type === 'df') assert.ok(Math.abs(parseFloat(q.shown) - value) <= 0.0005, q.shown);
       }
       else { assert.strictEqual(q.shown, `${q.a} × ${q.b}`); assert.strictEqual(q.answer, q.a * q.b); }
       // The worked advice ends on the answer, so it can't drift from the question.
-      assert.ok(G.advice(q).endsWith('→ ' + (q.answerText || q.answer) + '.') || type === 'sqmem', type + ': ' + G.advice(q));
+      // By heart (fd, df) may name the answer without an arrow ("Know it by heart: 1/25 = 0.04.").
+      if (type === 'fd' || type === 'df') assert.ok(G.advice(q).includes(q.answerText), type + ': ' + G.advice(q));
+      else assert.ok(G.advice(q).endsWith('→ ' + (q.answerText || q.answer) + '.') || type === 'sqmem', type + ': ' + G.advice(q));
     }
   }
 });
@@ -217,4 +228,20 @@ test('trick fact keys and labels', () => {
   assert.strictEqual(G.advice(G.makeTrick('sq5', 65)), 'Ends in 5: 6 × 7 = 42, then 25 → 4225.');
   assert.strictEqual(G.advice(G.makeTrick('near100', 97, 96)), 'Near 100: 97 − 4 = 93 hundreds, plus 3 × 4 = 12 → 9312.');
   assert.strictEqual(G.advice(G.makeTrick('diff', 47, 53)), 'Difference of squares: 50² − 3² = 2500 − 9 → 2491.');
+});
+
+test('fractions by heart: 49 pairs, every decimal names one fraction, both answer forms', () => {
+  assert.strictEqual(G.HEART.length, 49);
+  const shown = G.HEART.map(([n, d]) => G.makeTrick('df', n, d).shown);
+  assert.strictEqual(new Set(shown).size, 49);                         // "0.429…" can only be 3/7
+  const t = G.makeTrick('fd', 2, 3);
+  assert.deepStrictEqual([t.answerText, t.answerAlt], ['0.667', '0.666']);
+  assert.strictEqual(G.makeTrick('fd', 3, 16).answerText, '0.1875');   // terminating: exact, no alternative
+  assert.strictEqual(G.makeTrick('fd', 3, 16).answerAlt, undefined);
+  assert.strictEqual(G.makeTrick('df', 1, 3).shown, '0.333…');
+  assert.strictEqual(G.makeTrick('df', 3, 8).shown, '0.375');
+  assert.deepStrictEqual(G.factKeys(G.makeTrick('df', 3, 7)), ['tr-df', 'fr-3/7']);
+  assert.strictEqual(G.keyLabel('fr-3/7'), '3/7 = 0.429…');
+  assert.match(G.trickAdvice(G.makeTrick('fd', 6, 7)), /0\.857142…/);  // cut off, so the 142857 cycle shows
+  assert.match(G.trickAdvice(G.makeTrick('fd', 3, 11)), /0\.2727…/);
 });

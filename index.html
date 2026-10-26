@@ -16,6 +16,7 @@
       <a class="brand" href="#play" translate="no">Arithmetic Trainer</a>
       <nav aria-label="Main">
         <a href="#play" title="Play (P)">Play</a>
+        <a href="#learn" title="Learn (N)">Learn</a>
         <a href="#review" title="Review (R)">Review</a>
         <a href="#stats" title="Stats (A)">Stats</a>
         <a href="#settings" title="Settings (S)">Settings</a>
@@ -45,7 +46,7 @@
       <div class="page-head"><h2 id="help-title">Keyboard shortcuts</h2><div class="actions"><button type="button" id="help-close">Close <kbd>Esc</kbd></button></div></div>
       <table>
         <tr><th scope="col">Keys</th><th scope="col">What they do</th></tr>
-        <tr><td class="num">P R A S</td><td>Go to Play, Review, Stats, Settings</td></tr>
+        <tr><td class="num">P N R A S</td><td>Go to Play, Learn, Review, Stats, Settings</td></tr>
         <tr><td class="num">E G L</td><td>Open Stats at Today, Progress, Log</td></tr>
         <tr><td class="num">D</td><td>Go to the weak-fact drill</td></tr>
         <tr><td class="num">?</td><td>Show this list (Esc closes it)</td></tr>
@@ -56,6 +57,8 @@
         <tr><td class="num">Enter  Tab</td><td>Interview: answer, skip</td></tr>
         <tr><td class="num">Tab</td><td>Squares, % and fractions, Mixed tricks: skip a question</td></tr>
         <tr><td class="num">Enter  D  A  H</td><td>After a round: play again, drill the slow questions, see today’s analysis, go home</td></tr>
+        <tr><td class="num">Enter  F</td><td>Learn, on a lesson: practise (no clock), timed round</td></tr>
+        <tr><td class="num">Tab</td><td>Practice: show the method for this question</td></tr>
         <tr><td class="num">M</td><td>Drill and Review: replay your mistakes</td></tr>
         <tr><td class="num">W</td><td>Review: play weighted tables</td></tr>
         <tr><td class="num">V</td><td>Review: switch heatmap view (combined, ×, ÷)</td></tr>
@@ -67,6 +70,7 @@
 
   <!-- Classic scripts in a fixed order (no ES modules: they fail on file://). -->
   <script src="js/generator.js"></script>
+  <script src="js/lessons.js"></script>
   <script src="js/stats.js"></script>
   <script src="js/progression.js"></script>
   <script src="js/storage.js"></script>
