@@ -1,7 +1,9 @@
 /*
  * game.js — the play screen: countdown, timer, input, per-question logging.
  * Two loops:
- *   startZetamac:  answers auto-accept the moment the typed value is correct.
+ *   startZetamac:  answers auto-accept the moment the typed value is correct. A fraction answer
+ *                  (q.frac) shows two boxes: the numerator first, then the denominator, each auto-accepted.
+ *                  Trick modes: Tab skips a question (stored unanswered + skipped, no point).
  *   startInterview: Enter submits, Tab skips, negative marking.
  * During a game only the question, input, timer and score are shown.
  */
@@ -10,7 +12,7 @@
   var AT = window.AT = window.AT || {};
   var Game = { active: false };
 
-  var root, qEl, inEl, timerEl, scoreEl, st;
+  var root, qEl, ansEl, inEl, barEl, denEl, curEl, timerEl, scoreEl, st;
 
   function now() { return performance.now(); }
 
@@ -19,15 +21,21 @@
     root.innerHTML =
       '<div class="g-top num"><span id="g-timer" data-testid="game-timer"></span>' + (extraTop || '') + '<span id="g-score" data-testid="game-score"></span></div>' +
       '<div class="g-center"><div id="g-q" class="g-q num" aria-live="off" data-testid="game-question"></div>' +
+      '<div id="g-ans" class="g-ans">' +
       '<input id="g-in" class="g-in num" name="answer" type="text" inputmode="decimal" autocomplete="off" autocorrect="off" ' +
-      'autocapitalize="off" spellcheck="false" aria-label="Answer"></div>';
-    qEl = document.getElementById('g-q'); inEl = document.getElementById('g-in');
+      'autocapitalize="off" spellcheck="false" aria-label="Answer">' +
+      '<span id="g-bar" class="g-bar num" aria-hidden="true" hidden>/</span>' +
+      '<input id="g-den" class="g-in num" name="denominator" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" ' +
+      'autocapitalize="off" spellcheck="false" aria-label="Denominator" hidden></div>' +
+      '<p id="g-hint" class="g-hint" data-testid="game-fraction-hint" hidden>In lowest terms</p></div>';
+    qEl = document.getElementById('g-q'); ansEl = document.getElementById('g-ans'); inEl = document.getElementById('g-in');
+    barEl = document.getElementById('g-bar'); denEl = document.getElementById('g-den'); curEl = inEl;
     timerEl = document.getElementById('g-timer'); scoreEl = document.getElementById('g-score');
     document.body.classList.add('playing');
     root.hidden = false;
-    // Keep focus in the input no matter where you click.
-    root.onmousedown = function (e) { if (e.target !== inEl) { e.preventDefault(); inEl.focus(); } };
-    inEl.onblur = function () { if (Game.active) setTimeout(function () { if (Game.active) inEl.focus(); }, 0); };
+    // Keep focus in the current box no matter where you click.
+    root.onmousedown = function (e) { if (e.target !== curEl) { e.preventDefault(); curEl.focus(); } };
+    inEl.onblur = denEl.onblur = function () { if (Game.active) setTimeout(function () { if (Game.active) curEl.focus(); }, 0); };
     Game.active = true;
   }
 
@@ -78,6 +86,8 @@
       // stopPropagation: the Enter that ends the round must not reach the end screen.
       if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submitInterview(); }
       else if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); answerInterview(null); }
+    } else if (st.kind === 'zetamac' && st.running && st.skip && e.key === 'Tab') {
+      e.preventDefault(); e.stopPropagation(); skipZetamac();
     }
   }
 
@@ -107,7 +117,14 @@
     st.wrongSeen = {};
     st.wrong = 0;
     qEl.textContent = st.q.shown;
-    inEl.value = '';
+    inEl.value = ''; denEl.value = '';
+    var fr = !!st.q.frac;
+    ansEl.classList.toggle('frac', fr);
+    barEl.hidden = denEl.hidden = document.getElementById('g-hint').hidden = !fr;
+    inEl.readOnly = false;
+    inEl.setAttribute('aria-label', fr ? 'Numerator' : 'Answer');
+    st.part = fr ? 'num' : null;
+    curEl = inEl; inEl.focus();
     if (st.kind === 'interview') {
       var c = document.getElementById('g-count');
       if (c) c.textContent = (st.questions.length + 1) + ' / ' + st.opts.count;
@@ -116,30 +133,67 @@
 
   // ---------- Zetamac ----------
 
+  // What a finished question stores. Tricks also keep their type (and decimal answer text).
+  function record(q, extra) {
+    var rec = { op: q.op, a: q.a, b: q.b, shown: q.shown, answer: q.answer };
+    if (q.op === 'tr') { rec.type = q.type; if (q.answerText) rec.answerText = q.answerText; }
+    for (var k in extra) rec[k] = extra[k];
+    return rec;
+  }
+
+  // Keep a box to digits, plus a point when `dot` (decimal answers). ".375" reads as "0.375".
+  function cleanInput(el, dot) {
+    var v = el.value, clean = v.replace(dot ? /[^0-9.]/g : /[^0-9]/g, '');
+    if (clean !== v) el.value = clean;
+    return clean.charAt(0) === '.' ? '0' + clean : clean;
+  }
+
+  // One wrong attempt per distinct full-length wrong value (per box, for fractions).
+  function countWrong(typed, target) {
+    var k = (st.part || '') + typed;
+    if (typed.length >= target.length && !st.wrongSeen[k]) { st.wrongSeen[k] = 1; st.wrong++; }
+  }
+
+  function accept() {
+    st.questions.push(record(st.q, { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong }));
+    st.score++;
+    scoreEl.textContent = 'Score: ' + st.score;
+    nextQuestion();
+  }
+
+  // No point, and it counts as a miss for that trick in Review.
+  function skipZetamac() {
+    st.questions.push(record(st.q, { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong, unanswered: true, skipped: true }));
+    nextQuestion();
+  }
+
   function onZetamacInput() {
     if (!st.running) { inEl.value = ''; return; }
-    var v = inEl.value, clean = v.replace(/[^0-9]/g, '');
-    if (clean !== v) inEl.value = clean;
-    if (!clean) return;
-    var ans = String(st.q.answer);
-    if (clean === ans) {
-      var q = st.q;
-      st.questions.push({ op: q.op, a: q.a, b: q.b, shown: q.shown, answer: q.answer, timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong });
-      st.score++;
-      scoreEl.textContent = 'Score: ' + st.score;
-      nextQuestion();
-    } else if (clean.length >= ans.length && !st.wrongSeen[clean]) {
-      // One wrong attempt per distinct full-length wrong value.
-      st.wrongSeen[clean] = 1;
-      st.wrong++;
-    }
+    var fr = st.q.frac, ans = fr ? String(fr[0]) : st.q.answerText || String(st.q.answer);
+    var typed = cleanInput(inEl, !fr && ans.indexOf('.') >= 0);
+    if (!typed) return;
+    if (typed !== ans) { countWrong(typed, ans); return; }
+    if (!fr) { accept(); return; }
+    // Right numerator: it stays, and the denominator box takes over.
+    inEl.readOnly = true; st.part = 'den';
+    curEl = denEl; denEl.focus();
+  }
+
+  function onDenInput() {
+    if (!st.running || st.part !== 'den') { denEl.value = ''; return; }
+    var typed = cleanInput(denEl, false), ans = String(st.q.frac[1]);
+    if (!typed) return;
+    if (typed === ans) accept(); else countWrong(typed, ans);
   }
 
   Game.startZetamac = function (opts) {
     // opts: { mode, settings, generator, duration, countdown, onEnd(round), onAbort() }
     start('zetamac', opts);
-    inEl.setAttribute('inputmode', 'numeric');
+    var types = opts.settings.types || [];
+    st.skip = types.length > 0;   // trick modes only; plain Zetamac has no skip, like zetamac.com
+    inEl.setAttribute('inputmode', types.indexOf('frac') >= 0 ? 'decimal' : 'numeric');
     inEl.oninput = onZetamacInput;
+    denEl.oninput = onDenInput;
   };
 
   // ---------- Interview ----------
@@ -181,9 +235,9 @@
     st.running = false;
     clearInterval(st.interval);
     if (timeUp && st.q) {
-      var q = st.q, rec = { op: q.op, shown: q.shown, answer: q.answer, timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong || 0, unanswered: true };
-      if (q.op === 'iv') { rec.type = q.type; rec.keys = q.keys; rec.answerText = q.answerText; }
-      else { rec.a = q.a; rec.b = q.b; }
+      var q = st.q, extra = { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong || 0, unanswered: true }, rec;
+      if (q.op === 'iv') { rec = { op: q.op, shown: q.shown, answer: q.answer, type: q.type, keys: q.keys, answerText: q.answerText }; for (var k in extra) rec[k] = extra[k]; }
+      else rec = record(q, extra);
       st.questions.push(rec);
     }
     var o = st.opts;

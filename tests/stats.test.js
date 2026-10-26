@@ -85,13 +85,30 @@ test('weak facts: slow fact is weak, fast facts are not', () => {
   assert.ok(pool.some(p => p.key === '6x12'), 'family member added');
 });
 
-test('a single > 4 s attempt in the last 2 sessions makes a fact weak', () => {
+test('a single stall (> 3× my op median) in the last 2 sessions makes a fact weak, and says so', () => {
   const qs = [];
   for (let i = 0; i < 20; i++) qs.push(q('div', 7, 10 + i, 1500));
   qs.push(q('div', 7, 91, 6000));
   const fs = S.factStats([round('P2', '2026-10-01', 21, qs)], new Date(2026, 9, 1, 20).getTime());
-  assert.strictEqual(fs.find(f => f.key === '7x91').status, 'weak');
+  const f = fs.find(f => f.key === '7x91');
+  assert.strictEqual(f.status, 'weak');
+  assert.strictEqual(f.froze, true);
   assert.strictEqual(fs.find(f => f.key === '7x90s').status, 'weak');
+  assert.strictEqual(fs.find(f => f.key === '7x10').froze, false);
+});
+
+test('the stall bar follows my pace, not a fixed 4 s', () => {
+  const now = new Date(2026, 9, 1, 20).getTime();
+  // Slow player (median 2 s): 4.5 s is only 2.25× usual, not a stall.
+  const slow = [];
+  for (let i = 0; i < 20; i++) slow.push(q('mul', 3, 2 + (i % 10), 2000));
+  slow.push(q('mul', 7, 8, 4500));
+  assert.strictEqual(S.factStats([round('TABLES', '2026-10-01', 21, slow)], now).find(f => f.key === '7x8').status, 'ok');
+  // Fast player (median 0.8 s): 3 s is a stall even though it is under 4 s.
+  const fast = [];
+  for (let i = 0; i < 20; i++) fast.push(q('mul', 3, 2 + (i % 10), 800));
+  fast.push(q('mul', 7, 8, 3000));
+  assert.strictEqual(S.factStats([round('TABLES', '2026-10-01', 21, fast)], now).find(f => f.key === '7x8').status, 'weak');
 });
 
 test('weak fact → improving → mastered after 3 good sessions', () => {
@@ -115,12 +132,13 @@ test('time decay: attempts older than 21 days count half', () => {
   assert.strictEqual(S.factStats(rs, now).find(f => f.key === '8x9').medianTime, 1000);
 });
 
-test('mistakes: wrong or > 4 s in last 3 sessions', () => {
+test('mistakes: wrong or stalled (> 3× my op median) in last 3 sessions', () => {
+  const filler = (ms) => { const a = []; for (let i = 0; i < 10; i++) a.push(q('mul', 3, 2 + (i % 10), ms)); return a; };
   const rs = [
-    round('P2', '2026-10-01', 1, [q('mul', 2, 2, 5000)]),
-    round('P2', '2026-10-02', 1, [q('mul', 3, 3, 1000, 1)]),
-    round('P2', '2026-10-03', 1, [q('mul', 4, 4, 1000)]),
-    round('P2', '2026-10-04', 1, [q('mul', 5, 5, 4500)])
+    round('P2', '2026-10-01', 1, [...filler(1000), q('mul', 2, 2, 5000)]),   // stalled, but too long ago
+    round('P2', '2026-10-02', 1, [...filler(1000), q('mul', 3, 3, 1000, 1)]),
+    round('P2', '2026-10-03', 1, [...filler(1000), q('mul', 4, 4, 2500)]),   // slow, not a stall
+    round('P2', '2026-10-04', 1, [...filler(1000), q('mul', 5, 5, 3500)])    // under 4 s, still a stall
   ];
   assert.deepStrictEqual(S.mistakes(rs).map(x => x.shown), ['3 × 3', '5 × 5']);
 });
@@ -284,4 +302,45 @@ test('roundReport: a first round and a round with no answers do not throw', () =
   assert.strictEqual(rep.firstTry, null);
   assert.strictEqual(rep.pace, null);
   assert.deepStrictEqual(rep.ops, []);
+});
+
+test('trick questions count as facts but stay out of Zetamac drills, mistakes and per-op times', () => {
+  const tq = (type, a, b, timeMs, wrongAttempts = 0) => ({ ...G.makeTrick(type, a, b), timeMs, wrongAttempts });
+  const rs = [];
+  for (let d = 1; d <= 3; d++) {
+    rs.push(round('SQUARES', `2026-10-0${d}`, 10, [tq('sq50', 47, undefined, 9000, 1), tq('sq5', 35, undefined, 1500), tq('sq5', 45, undefined, 1600), tq('sq5', 55, undefined, 1400)]));
+  }
+  rs.push(round('P2', '2026-10-03', 20, [q('mul', 7, 8, 1200), q('mul', 6, 9, 1100)]));
+  const fs = S.factStats(rs, new Date(2026, 9, 3, 20).getTime());
+  const sq50 = fs.find((f) => f.key === 'tr-sq50');
+  assert.strictEqual(sq50.cat, 'tr');
+  assert.strictEqual(sq50.status, 'weak');                       // slow against your trick median, and often wrong
+  assert.ok(S.drillTargets(fs).every((f) => f.cat !== 'tr'));     // the weak-fact drill stays Zetamac
+  assert.ok(S.mistakes(rs).every((x) => x.op !== 'tr'));
+  const t = S.timeByOp(rs);                                       // used to crash on an unknown op
+  assert.deepStrictEqual(Object.keys(t).sort(), ['add', 'div', 'mul', 'sub']);
+  const rep = S.sessionReport(rs, '2026-10-03');
+  assert.ok(rep.mistakes.some((m) => m.q.op === 'tr' && /Near 50/.test(m.advice)));
+  assert.ok(S.roundReport(rs, rs[2]).takeaways.length);
+});
+
+test('a skipped trick counts as a miss for its fact, but not as an answer or a freeze', () => {
+  const tq = (type, a, timeMs, extra = {}) => ({ ...G.makeTrick(type, a), timeMs, wrongAttempts: 0, ...extra });
+  const qs = [tq('sq5', 35, 1500), tq('sq5', 45, 1600), tq('sq5', 55, 1400), tq('sq50', 47, 9000, { unanswered: true, skipped: true })];
+  const r = round('SQUARES', '2026-10-01', 3, qs);
+  const fs = S.factStats([r], new Date(2026, 9, 1, 20).getTime());
+  const sq50 = fs.find(f => f.key === 'tr-sq50');
+  assert.strictEqual(sq50.attempts, 1);
+  assert.strictEqual(sq50.wrongRate, 1);
+  const rep = S.roundReport([r], r);
+  assert.strictEqual(rep.answered, 3);
+  assert.strictEqual(rep.skipped, 1);
+  assert.strictEqual(rep.freezes.length, 0);
+  const day = S.sessionReport([r], '2026-10-01');
+  assert.ok(day.mistakes.some(m => m.q.type === 'sq50' && m.wrong === 1));
+});
+
+test('time running out is still not an attempt', () => {
+  const r = round('TABLES', '2026-10-01', 1, [q('mul', 2, 3, 900), { ...q('mul', 7, 8, 9000), unanswered: true }]);
+  assert.ok(!S.factStats([r], new Date(2026, 9, 1, 20).getTime()).some(f => f.key === '7x8'));
 });

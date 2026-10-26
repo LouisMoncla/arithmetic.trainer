@@ -104,3 +104,13 @@ test('storage: export → reset → import round-trips; merge dedupes by id', ()
   assert.throws(() => Storage.parseBackup('{"foo":1}'));
   assert.throws(() => Storage.parseBackup('not json'));
 });
+
+test('storage: rounds with trick questions survive export and import', () => {
+  const G = require('../js/generator.js');
+  const data = Storage.defaults();
+  data.rounds = [{ id: 'r1', startedAt: '2026-10-20T10:00:00.000Z', mode: 'PERCENT', settings: G.modeSettings('PERCENT'), score: 1,
+    questions: [{ ...G.makeTrick('frac', 3, 8), timeMs: 2100, wrongAttempts: 0 }] }];
+  const back = Storage.parseBackup(Storage.serialize(data));
+  assert.deepStrictEqual(back.rounds[0].questions[0], data.rounds[0].questions[0]);
+  assert.match(P.summary(back, '2026-10-20'), /Percentages/);
+});

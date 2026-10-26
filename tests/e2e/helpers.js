@@ -25,13 +25,15 @@ async function openApp(page, hash, opts) {
   await page.clock.pauseAt(new Date(NOW.getTime() + 60000));
 }
 
-// Solve a Zetamac question as shown on screen ("56 ÷ 7", "132 − 47"…).
+// Solve a question as shown on screen ("56 ÷ 7", "132 − 47", "65²", "8% of 25"…).
 function solve(shown) {
   let m;
   if ((m = /^(\d+) \+ (\d+)$/.exec(shown))) return +m[1] + +m[2];
   if ((m = /^(\d+) − (\d+)$/.exec(shown))) return m[1] - m[2];
   if ((m = /^(\d+) × (\d+)$/.exec(shown))) return m[1] * m[2];
-  if ((m = /^(\d+) ÷ (\d+)$/.exec(shown))) return m[1] / m[2];
+  if ((m = /^(\d+) ÷ (\d+)$/.exec(shown))) return m[1] / m[2];   // tricks: 3 ÷ 8 → 0.375
+  if ((m = /^(\d+)²$/.exec(shown))) return m[1] * m[1];
+  if ((m = /^(\d+)% of (\d+)$/.exec(shown))) return m[1] * m[2] / 100;
   throw new Error('Cannot solve ' + shown);
 }
 
@@ -47,14 +49,32 @@ async function startSelected(page) {
 
 const answerBox = page => page.getByRole('textbox', { name: 'Answer' });
 
+// A question answered as a fraction in lowest terms ("0.375", "1/4 + 1/8"): [numerator, denominator], else null.
+function solveFraction(shown) {
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  let m, n, d;
+  if ((m = /^0\.(\d+)$/.exec(shown))) { n = +m[1]; d = 10 ** m[1].length; }
+  else if ((m = /^(\d+)\/(\d+) ([+−]) (\d+)\/(\d+)$/.exec(shown))) {
+    d = m[2] * m[5]; n = m[1] * m[5] + (m[3] === '+' ? 1 : -1) * m[4] * m[2];
+  } else return null;
+  const g = gcd(n, d);
+  return [n / g, d / g];
+}
+
 // Type the correct answer to the current question; returns the question text.
+// A fraction goes in two boxes: the numerator, then (focus moves by itself) the denominator.
 async function answerCurrent(page) {
   const shown = (await page.getByTestId('game-question').textContent()).trim();
-  await answerBox(page).pressSequentially(String(solve(shown)));
+  const fr = solveFraction(shown);
+  if (fr) {
+    await page.getByRole('textbox', { name: 'Numerator' }).pressSequentially(String(fr[0]));
+    await expect(page.getByRole('textbox', { name: 'Denominator' })).toBeFocused();
+    await page.keyboard.type(String(fr[1]));
+  } else await answerBox(page).pressSequentially(String(solve(shown)));
   return shown;
 }
 
 const rounds = page => page.evaluate(() => window.AT.data.rounds);
 const dayKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
-module.exports = { APP_URL, NOW, openApp, tick, solve, startSelected, answerBox, answerCurrent, rounds, dayKey };
+module.exports = { APP_URL, NOW, openApp, tick, solve, solveFraction, startSelected, answerBox, answerCurrent, rounds, dayKey };

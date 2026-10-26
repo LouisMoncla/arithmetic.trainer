@@ -36,7 +36,7 @@ Every round is saved automatically on this computer, inside the browser's own st
 - Another browser, another browser profile or a private window starts empty. Export, then Import there.
 - Firefox may tie storage to the exact file path, so export before moving the folder if you use it.
 
-## Modes (Play screen, keys 1–7)
+## Modes (Play screen, keys 1–9 and 0)
 
 | # | Mode | What it's for |
 |---|------|---------------|
@@ -48,6 +48,13 @@ Every round is saved automatically on this computer, inside the browser's own st
 | 5 | **Weak-fact drill** | Shows your top 10 weak facts, then 60 s: ~70% from them (weighted by slowness, with their fact families), ~30% normal Foundations. |
 | 6 | **Interview sim** | Optiver-style: 80 questions in 8 min. Integers, decimals, fractions, percentages, estimates. Type and press Enter (`0.5`, `.5`, `1/2` all accepted); Tab skips; +1 / −1 (penalty set in Settings) / 0. |
 | 7 | **Custom** | Every Zetamac setting: operations, 4 ranges, 30/60/120/300 s. Save named presets. |
+| 8 | **Squares** | 60 s of squares: 11² to 30² by heart, ending in 5 (65²), near 50 (47²), near 100 (97², 104²). Tab skips a question (no point; it counts as a miss in Review). |
+| 9 | **% and fractions** | 60 s: percent of a number (15% of 80), swapped percentages (8% of 25 = 25% of 8), fractions as decimals (3 ÷ 8 = 0.375; `.375` works too), decimals as fractions (0.375 → 3/8) and adding or subtracting fractions (1/4 + 1/8 → 3/8). A fraction answer gets two boxes: type the numerator, and once it is right the cursor moves to the denominator; no Enter. Answers are in lowest terms (the screen says so under the boxes). Tab skips. |
+| 0 | **Mixed tricks** | 60 s mixing the shortcuts: squares, × 11, × 25, products near 100 (97 × 96), difference of squares (47 × 53 = 50² − 3²). Tab skips. |
+
+Modes 8, 9 and 0 are training only: they don't count toward the steps. Each question records which trick it
+trains (fact key `tr-sq5`, `tr-x11`…), so slow tricks show in Review, and a freeze shows the shortcut
+worked on that exact question ("Ends in 5: 6 × 7 = 42, then 25 → 4225").
 
 In Zetamac modes the answer is accepted the moment it's right; no Enter. A full-length wrong
 value counts as one wrong attempt (Backspace and keep going). `Esc` aborts (not saved).
@@ -67,7 +74,7 @@ Rounds you enter from zetamac.com (Log screen) count too. Override the step in S
 
 The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
 
-- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–7` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
+- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–9`, `0` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
   median time vs usual, first-try accuracy, rank among all your rounds in that mode, and up to 3
   takeaways (personal best, the operation that cost you most, freezes, a slowdown, wrong attempts).
@@ -75,7 +82,7 @@ The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
   of the clock, each operation vs your usual, time spread, freezes (over 3× your median, with a
   chunking hint), slowest questions, facts slower or faster than usual, and every question. Buttons
   and keys: `Enter` play again, `D` drill those slow questions, `A` today’s analysis, `H` home.
-- **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong or > 4 s, last 3 days).
+- **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
 - **Stats** (`A`): three big sections you open and close: Today, Progress and Log. Closed, each shows one line (today's rounds, your step's last average, how many rounds). The ones you leave open stay open in this browser. `E` `G` `L` jump to a section; links to the old pages (`#session/…`, `#log`, `#stats/review/…`) still work.
   - **Today** (`E`): one day analysed. Scores round by round against your threshold and your last 7 days played, pace inside rounds (answers and median time per third of the clock), mistakes and freezes with how to think them, each operation today vs usual, and the facts that got faster or slower. `←` `→` move between days; `A` on any end screen jumps here.
@@ -91,15 +98,16 @@ The top bar has four tabs: **Play**, **Review**, **Stats** and **Settings**.
 ## Keys
 
 `P` play · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
-Play: `1–7` or `↑ ↓` select, `Enter`/`Space` start.
+Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start.
 
 ## How weak facts are found
 
 Each question maps to fact keys: `7x8` for tables (× and ÷ share it), `8x30s` and `8x36` for larger
 ×÷, and `add-carry`, `sub-borrow`, `add-2d+2d`… for + and −.
 Slowness = median of (time ÷ your median for that operation) × (1 + wrong rate). Attempts older
-than 21 days count half. A fact is **weak** with slowness ≥ 1.5 over ≥ 3 attempts, or any attempt
-over 4 s in the last 2 days. After a good day (every attempt at or under your median) it is
+than 21 days count half. A fact is **weak** with slowness ≥ 1.5 over ≥ 3 attempts, or a stall in the last 2 days:
+an attempt over 3× your median for that operation (and over 1.5 s), so the bar follows your own pace.
+Review says "after a freeze" when that stall is the only reason. After a good day (every attempt at or under your median) it is
 **improving**. After 3 good days it is **mastered**. A bad day sends it back to weak.
 
 ## Develop

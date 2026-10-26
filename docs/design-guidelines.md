@@ -45,7 +45,7 @@ Everything works without a mouse.
 | D | Weak-fact drill |
 | ? / Esc | Open / close the shortcut list |
 | T | Switch light and dark |
-| 1–7, ↑ ↓ | Home: choose a mode |
+| 1–9, 0, ↑ ↓ | Home: choose a mode (0 is the tenth) |
 | Enter / Space | Home: start the chosen mode |
 | Esc | In a round: stop without saving |
 | Enter, Tab | Interview: answer, skip |

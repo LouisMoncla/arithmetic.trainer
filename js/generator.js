@@ -8,6 +8,8 @@
  *   mul: a ∈ [M1], b ∈ [M2]           shown "a × b"         answer a*b
  *   div: multiplication in reverse    shown "(a*b) ÷ a"     answer b   (always an exact integer)
  * The operation is chosen uniformly among the enabled ones.
+ *
+ * Trick modes (Squares, Percentages, Mixed tricks) use op "tr" instead: see Tricks below.
  */
 (function () {
   'use strict';
@@ -36,13 +38,18 @@
     TABLES:    { label: 'Tables',       ops: ['mul', 'div'],               ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 12] } },  duration: 60 },
     P2:        { label: 'Foundations',         ops: ['mul', 'div'],               ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 60 },
     P3:        { label: 'Speed',         ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 60 },
-    NORMAL120: { label: 'Interview-ready', ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 120 }
+    NORMAL120: { label: 'Interview-ready', ops: ['add', 'sub', 'mul', 'div'], ranges: { add: { a: [2, 100], b: [2, 100] }, mul: { a: [2, 12], b: [2, 100] } }, duration: 120 },
+    // Trick modes: training only, outside the steps.
+    SQUARES:   { label: 'Squares',      types: ['sqmem', 'sq5', 'sq50', 'sq100'], duration: 60 },
+    PERCENT:   { label: '% and fractions', types: ['pct', 'pctswap', 'frac', 'dec2frac', 'fracadd', 'fracsub'], duration: 60 },
+    TRICKS:    { label: 'Mixed tricks', types: ['sq5', 'sq50', 'sq100', 'diff', 'x11', 'x25', 'near100', 'pctswap'], duration: 60 }
   };
 
   // Fresh copy of a mode's settings (callers may mutate it).
   function modeSettings(mode) {
     var m = MODES[mode] || MODES.P3;
-    return JSON.parse(JSON.stringify({ ops: m.ops, ranges: m.ranges, duration: m.duration }));
+    var s = m.types ? { types: m.types, duration: m.duration } : { ops: m.ops, ranges: m.ranges, duration: m.duration };
+    return JSON.parse(JSON.stringify(s));
   }
 
   // ---------- Zetamac questions ----------
@@ -58,6 +65,7 @@
   }
 
   function generate(settings, rng) {
+    if (settings.types) return trickQuestion(settings.types[randInt(rng, 0, settings.types.length - 1)], rng);
     var op = settings.ops[randInt(rng, 0, settings.ops.length - 1)];
     var r = (op === 'add' || op === 'sub') ? settings.ranges.add : settings.ranges.mul;
     return makeQuestion(op, randInt(rng, r.a[0], r.a[1]), randInt(rng, r.b[0], r.b[1]));
@@ -108,9 +116,11 @@
    *   + / −:                      "add-carry" / "add-nocarry" / "sub-borrow" / "sub-noborrow"
    *                               plus a size key, e.g. "add-2d+2d", "sub-3d-2d"
    *   interview:                  q.keys (e.g. "iv-frac")
+   *   tricks:                     "tr-<type>" (e.g. "tr-sq5")
    */
   function factKeys(q) {
     if (q.keys) return q.keys;
+    if (q.op === 'tr') return ['tr-' + q.type];
     if (q.op === 'mul' || q.op === 'div') {
       var s = Math.min(q.a, q.b), l = Math.max(q.a, q.b), pair = s + 'x' + l;
       if (l <= 12) return [pair];
@@ -138,6 +148,7 @@
   // Build a fresh question matching a fact key. Returns null for keys we can't build (interview).
   function fromKey(key, rng) {
     var m;
+    if ((m = /^tr-(\w+)$/.exec(key)) && TRICKS[m[1]]) return trickQuestion(m[1], rng);
     if ((m = /^(\d+)x(\d+)$/.exec(key))) return pairQuestion(+m[1], +m[2], rng);
     if ((m = /^(\d+)x(\d+)s$/.exec(key))) {
       var lo = +m[2], l = lo >= 100 ? lo : lo + randInt(rng, 0, 9);
@@ -171,10 +182,8 @@
   // Human-readable label for a fact key.
   function keyLabel(key) {
     var m;
-    if ((m = /^(\d+)x(\d+)$/.exec(key))) {
-      var s = +m[1], l = +m[2];
-      return l <= 12 ? familyText(s * l) : s + '×' + l + ' = ' + s * l;
-    }
+    // The pair itself: 2x12, 3x8 and 4x6 are separate facts, so they need separate labels.
+    if ((m = /^(\d+)x(\d+)$/.exec(key))) return m[1] + '×' + m[2] + ' = ' + m[1] * m[2];
     if ((m = /^(\d+)x(\d+)s$/.exec(key))) return m[1] + ' × ' + m[2] + 's';
     var names = {
       'add-carry': '+ with carry', 'add-nocarry': '+ no carry',
@@ -182,6 +191,7 @@
       'iv-int': 'interview sim: integer', 'iv-dec': 'interview sim: decimal', 'iv-frac': 'interview sim: fraction',
       'iv-pct': 'interview sim: percent', 'iv-mag': 'interview sim: estimate'
     };
+    if ((m = /^tr-(\w+)$/.exec(key)) && TRICKS[m[1]]) return TRICKS[m[1]].name;
     if (names[key]) return names[key];
     if ((m = /^add-(\d)d\+(\d)d$/.exec(key))) return m[1] + '-digit + ' + m[2] + '-digit';
     if ((m = /^sub-(\d)d-(\d)d$/.exec(key))) return m[1] + '-digit − ' + m[2] + '-digit';
@@ -200,7 +210,7 @@
   /*
    * Mixed generator for drills: with probability `share`, take an item from `pool`
    * (weighted), otherwise a normal question from `base` settings.
-   * Pool items: { key, weight } (fresh question for that fact) or { q: {op,a,b}, weight } (exact replay).
+   * Pool items: { key, weight } (fresh question for that fact) or { q: {op,a,b,type}, weight } (exact replay).
    */
   function makeMixedGenerator(opts) {
     var pool = opts.pool || [], rng = opts.rng, share = opts.share;
@@ -208,7 +218,7 @@
       next: noRepeat(function () {
         if (pool.length && rng() < share) {
           var item = weightedPick(pool, rng);
-          var q = item.q ? makeQuestion(item.q.op, item.q.a, item.q.b) : fromKey(item.key, rng);
+          var q = item.q ? (item.q.op === 'tr' ? makeTrick(item.q.type, item.q.a, item.q.b) : makeQuestion(item.q.op, item.q.a, item.q.b)) : fromKey(item.key, rng);
           if (q) return q;
         }
         return generate(opts.base, rng);
@@ -247,6 +257,7 @@
       if (!tens || !ones) return 'Count up from ' + q.a + ' to ' + m + '.';
       return 'Tens then ones: ' + m + ' − ' + tens + ' = ' + (m - tens) + ', − ' + ones + ' → ' + q.b + '.';
     }
+    if (q.op === 'tr') return trickAdvice(q);
     var iv = {
       int: 'Split one factor: 47×36 = 47×30 + 47×6.',
       dec: 'Drop the decimals, compute with integers, then place the point.',
@@ -259,6 +270,7 @@
 
   // ---------- Interview (Optiver-style) ----------
 
+  function lcm(a, b) { return a / gcd(a, b) * b; }
   function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = a % b; a = b; b = t; } return a; }
 
   // Denominator has only factors 2 and 5 → finite decimal.
@@ -332,6 +344,157 @@
     return { next: noRepeat(function () { return interviewQuestion(rng); }) };
   }
 
+  // ---------- Tricks (Squares, Percentages, Mixed tricks) ----------
+
+  /*
+   * op "tr", with a `type` naming the trick it trains (fact key "tr-<type>"):
+   *   sqmem    n², n 11–30, to know by heart      sq5      n5², 15–95
+   *   sq50     (50 ± d)², d 1–9                    sq100    (100 ± d)², d 1–12
+   *   diff     (m − d)(m + d), m a multiple of 10  x11      11 × n, n 12–99
+   *   x25      25 × n, n 12–99                     near100  a × b, both 88–99
+   *   pct      p% of n, whole answer               pctswap  a% of b where b% of a is easy (8% of 25)
+   *   frac     a ÷ b with a finite decimal answer (3 ÷ 8 = 0.375)
+   *   dec2frac a decimal, answered as a fraction in lowest terms (0.375 = 3/8)
+   *   fracadd  n1/d1 + n2/d2, answered as a fraction in lowest terms; a and b are [n, d] pairs
+   *   fracsub  n1/d1 − n2/d2, the same, never below zero
+   * Fraction answers carry q.frac = [numerator, denominator]: the game asks for one, then the other.
+   * makeTrick(type, a, b) rebuilds a question from its numbers, so rounds can be replayed exactly.
+   */
+  var TRICKS = {
+    sqmem:   { name: 'Squares 11–30' },
+    sq5:     { name: 'Squares ending in 5' },
+    sq50:    { name: 'Squares near 50' },
+    sq100:   { name: 'Squares near 100' },
+    diff:    { name: 'Difference of squares' },
+    x11:     { name: '× 11' },
+    x25:     { name: '× 25' },
+    near100: { name: 'Products near 100' },
+    pct:     { name: 'Percent of a number' },
+    pctswap: { name: 'Swapped percentages' },
+    frac:    { name: 'Fractions as decimals' },
+    dec2frac: { name: 'Decimals as fractions' },
+    fracadd: { name: 'Adding fractions' },
+    fracsub: { name: 'Subtracting fractions' }
+  };
+  var SUM_DENS = [2, 3, 4, 5, 6, 8, 10, 12];
+  var FRAC_DENS = [4, 5, 8, 16, 20, 25, 40];
+  var SWAP_BASES = [[25, 4], [50, 2], [20, 5]];   // [b, a must be a multiple of this] so a% of b is whole
+
+  // Shortest decimal for a finite fraction: 3/8 → "0.375", 1/16 → "0.0625".
+  function decimalText(a, b) { return String(Number((a / b).toFixed(6))); }
+
+  function makeTrick(type, a, b) {
+    var q = { op: 'tr', type: type, a: a, b: b };
+    if (/^sq/.test(type)) { q.shown = a + '²'; q.answer = a * a; }
+    else if (type === 'pct' || type === 'pctswap') { q.shown = a + '% of ' + b; q.answer = a * b / 100; }
+    else if (type === 'frac') { q.shown = a + ' ÷ ' + b; q.answer = a / b; q.answerText = decimalText(a, b); }
+    else if (type === 'dec2frac') { q.shown = decimalText(a, b); setFrac(q, a, b); }
+    else if (type === 'fracadd' || type === 'fracsub') {
+      var plus = type === 'fracadd';
+      q.shown = a[0] + '/' + a[1] + (plus ? ' + ' : ' − ') + b[0] + '/' + b[1];
+      setFrac(q, a[0] * b[1] + (plus ? 1 : -1) * b[0] * a[1], a[1] * b[1]);
+    }
+    else { q.shown = a + ' × ' + b; q.answer = a * b; }
+    if (q.b === undefined) delete q.b;
+    return q;
+  }
+
+  // A fraction answer, reduced: q.frac = [n, d], q.answerText "n/d".
+  function setFrac(q, n, d) {
+    var g = gcd(n, d);
+    q.frac = [n / g, d / g]; q.answer = n / d; q.answerText = n / g + '/' + d / g;
+  }
+
+  function either(rng, x, y) { return rng() < 0.5 ? [x, y] : [y, x]; }
+
+  function properFrac(rng) {
+    var d = SUM_DENS[randInt(rng, 0, SUM_DENS.length - 1)], n;
+    do { n = randInt(rng, 1, d - 1); } while (gcd(n, d) !== 1);
+    return [n, d];
+  }
+
+  function trickQuestion(type, rng) {
+    var d = randInt(rng, 1, 9), n, ab;
+    switch (type) {
+      case 'sqmem': return makeTrick(type, randInt(rng, 11, 30));
+      case 'sq5': return makeTrick(type, 10 * randInt(rng, 1, 9) + 5);
+      case 'sq50': return makeTrick(type, rng() < 0.5 ? 50 - d : 50 + d);
+      case 'sq100': d = randInt(rng, 1, 12); return makeTrick(type, rng() < 0.5 ? 100 - d : 100 + d);
+      case 'diff': n = 10 * randInt(rng, 2, 9); return makeTrick(type, n - d, n + d);
+      case 'x11': ab = either(rng, 11, randInt(rng, 12, 99)); return makeTrick(type, ab[0], ab[1]);
+      case 'x25': ab = either(rng, 25, randInt(rng, 12, 99)); return makeTrick(type, ab[0], ab[1]);
+      case 'near100': return makeTrick(type, randInt(rng, 88, 99), randInt(rng, 88, 99));
+      case 'pct': return makeTrick(type, PCTS[randInt(rng, 0, PCTS.length - 1)], 20 * randInt(rng, 1, 25));
+      case 'pctswap':
+        var sb = SWAP_BASES[randInt(rng, 0, SWAP_BASES.length - 1)];
+        return makeTrick(type, sb[1] * randInt(rng, 1, Math.floor(99 / sb[1])), sb[0]);
+      case 'frac':
+        var den = FRAC_DENS[randInt(rng, 0, FRAC_DENS.length - 1)], num;
+        do { num = randInt(rng, 1, den - 1); } while (gcd(num, den) !== 1);
+        return makeTrick(type, num, den);
+      case 'dec2frac':
+        den = FRAC_DENS[randInt(rng, 0, FRAC_DENS.length - 1)];
+        do { num = randInt(rng, 1, den - 1); } while (gcd(num, den) !== 1);
+        return makeTrick(type, num, den);
+      case 'fracadd':
+      case 'fracsub':
+        // Two different proper fractions whose result is a fraction (not 0, not a whole number), denominator ≤ 60.
+        for (;;) {
+          var x = properFrac(rng), y = properFrac(rng);
+          if (type === 'fracsub' && x[0] * y[1] < y[0] * x[1]) { var t = x; x = y; y = t; }
+          var q = makeTrick(type, x, y);
+          if (q.answer > 0 && q.frac[1] > 1 && q.frac[1] <= 60 && x[1] !== y[1]) return q;
+        }
+    }
+    throw new Error('Unknown trick ' + type);
+  }
+
+  // How to think it, worked on this exact question (also shown for freezes).
+  function trickAdvice(q) {
+    var a = q.a, b = q.b, d, hi, lo, n;
+    switch (q.type) {
+      case 'sqmem': return 'Know it by heart: ' + a + '² = ' + a * a + '.';
+      case 'sq5':
+        hi = Math.floor(a / 10);
+        return 'Ends in 5: ' + hi + ' × ' + (hi + 1) + ' = ' + hi * (hi + 1) + ', then 25 → ' + a * a + '.';
+      case 'sq50':
+        d = a - 50;
+        return 'Near 50: 25 ' + (d > 0 ? '+ ' : '− ') + Math.abs(d) + ' = ' + (25 + d) + ' hundreds, plus ' + Math.abs(d) + '² = ' + d * d + ' → ' + a * a + '.';
+      case 'sq100':
+        d = a - 100;
+        return 'Near 100: ' + a + ' ' + (d > 0 ? '+ ' : '− ') + Math.abs(d) + ' = ' + (a + d) + ' hundreds, plus ' + Math.abs(d) + '² = ' + d * d + ' → ' + a * a + '.';
+      case 'diff':
+        var m = (a + b) / 2; d = Math.abs(b - a) / 2;
+        return 'Difference of squares: ' + m + '² − ' + d + '² = ' + m * m + ' − ' + d * d + ' → ' + a * b + '.';
+      case 'x11':
+        n = a === 11 ? b : a;
+        var t = Math.floor(n / 10), o = n % 10;
+        return 'Times 11: put ' + t + ' + ' + o + ' = ' + (t + o) + ' between ' + t + ' and ' + o + (t + o >= 10 ? ', carry the 1' : '') + ' → ' + 11 * n + '.';
+      case 'x25':
+        n = a === 25 ? b : a;
+        return 'Times 25: ' + n + ' ÷ 4 = ' + Number((n / 4).toFixed(2)) + ', × 100 → ' + 25 * n + '.';
+      case 'near100':
+        hi = 100 - a; lo = 100 - b;
+        return 'Near 100: ' + a + ' − ' + lo + ' = ' + (a - lo) + ' hundreds, plus ' + hi + ' × ' + lo + ' = ' + hi * lo + ' → ' + a * b + '.';
+      case 'pct': return 'Find 10% first: ' + b / 10 + ', then scale to ' + a + '% → ' + a * b / 100 + '.';
+      case 'pctswap': return 'Swap them: ' + a + '% of ' + b + ' = ' + b + '% of ' + a + ' → ' + a * b / 100 + '.';
+      case 'frac': return 'From 1 ÷ ' + b + ' = ' + decimalText(1, b) + ': ' + a + ' × ' + decimalText(1, b) + ' → ' + decimalText(a, b) + '.';
+      case 'dec2frac': return '1/' + b + ' = ' + decimalText(1, b) + ', and ' + q.shown + ' is ' + a + ' of those → ' + q.answerText + '.';
+      case 'fracadd':
+      case 'fracsub':
+        var l = lcm(a[1], b[1]), x = a[0] * l / a[1], y = b[0] * l / b[1], sign = q.type === 'fracadd' ? ' + ' : ' − ';
+        return 'Over ' + l + ': ' + x + '/' + l + sign + y + '/' + l + ' = ' + (q.type === 'fracadd' ? x + y : x - y) + '/' + l +
+          (q.frac[1] !== l ? ', reduce' : '') + ' → ' + q.answerText + '.';
+    }
+    return 'Skip earlier: move on after 5 seconds.';
+  }
+
+  function trickNames() {
+    var out = {};
+    for (var k in TRICKS) out[k] = TRICKS[k].name;
+    return out;
+  }
+
   // Parse "12", "-3", "0.5", ".5", "1/2", "3.6/0.9". Returns a number or null.
   function parseAnswer(str) {
     var s = String(str).replace(/\s+/g, '');
@@ -360,7 +523,8 @@
     factKeys: factKeys, fromKey: fromKey, family: family, familyText: familyText, keyLabel: keyLabel,
     makeMixedGenerator: makeMixedGenerator, advice: advice,
     interviewQuestion: interviewQuestion, makeInterviewGenerator: makeInterviewGenerator,
-    parseAnswer: parseAnswer, checkInterview: checkInterview, hasCarry: hasCarry, hasBorrow: hasBorrow
+    parseAnswer: parseAnswer, checkInterview: checkInterview, hasCarry: hasCarry, hasBorrow: hasBorrow,
+    makeTrick: makeTrick, trickQuestion: trickQuestion, trickAdvice: trickAdvice, trickNames: trickNames
   };
   AT.Generator = api;
   if (typeof module !== 'undefined') module.exports = api;
