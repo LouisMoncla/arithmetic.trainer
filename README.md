@@ -72,7 +72,7 @@ Rounds you enter from zetamac.com (Log screen) count too. Override the step in S
 
 ## Screens
 
-The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Settings**.
+The top bar has six tabs: **Play**, **Learn**, **Matrices**, **Review**, **Stats** and **Settings**.
 
 - **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–9`, `0` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
@@ -92,6 +92,13 @@ The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Sett
   or cut off (2/3: 0.667 or 0.666); a decimal with … repeats. A grid shows every pair: grey = not seen yet,
   inverted = slow or often wrong. Practice and timed rounds pick slow and unseen pairs more often (the weighted-tables
   formula), and the method uses the patterns (ninths, elevenths, sevenths, multiples of 1/d).
+- **Matrices** (`X`): 2 × 2 matrix products. Choose the entries (ℤ, integers, or ℕ, natural numbers), the range
+  (−9 to 9 by default, −12 to 12, or **Custom**: your own From and To, between −99 and 99) and the length (60 or 120 s);
+  the choice is remembered. A round shows A × B and four answer boxes:
+  `Space` goes to the next box (row by row, wrapping), the arrows move anywhere in the grid, and the next matrix comes
+  as soon as all four entries are right. `Enter` outlines the wrong entries (until you edit them), `Tab` skips, `Esc` stops.
+  Each combination of options counts as its own mode ("Matrices, −9 to 9, 60 s") in Log, Progress and the report,
+  so scores are only compared with rounds of the same kind. Saved as mode `MATRIX`, questions as op `mx`.
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
 - **Stats** (`A`): three big sections you open and close: Today, Progress and Log. Closed, each shows one line (today's rounds, your step's last average, how many rounds). The ones you leave open stay open in this browser. `E` `G` `L` jump to a section; links to the old pages (`#session/…`, `#log`, `#stats/review/…`) still work.
@@ -107,8 +114,9 @@ The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Sett
 
 ## Keys
 
-`P` play · `N` learn · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
+`P` play · `N` learn · `X` matrices · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
 Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start. Lesson: `Enter` practise, `F` timed round; in practice `Tab` shows the method.
+Matrices: `Enter` start; in a round `Space` next entry, arrows move, `Enter` outline wrong entries, `Tab` skip.
 
 ## How weak facts are found
 

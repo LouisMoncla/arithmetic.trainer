@@ -24,13 +24,15 @@
   var MODE_LABELS = {
     TABLES: 'Tables', WTABLES: 'Weighted tables', P2: 'Foundations', P3: 'Speed', NORMAL120: 'Interview-ready', DRILL: 'Drill',
     INTERVIEW: 'Interview sim', CUSTOM: 'Custom',
-    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks'
+    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks', MATRIX: 'Matrices'
   };
 
   // Name of a mode as S.effMode gives it, Learn rounds included ("LEARN-x11" → "Learn: × 11").
   function modeLabel(m) {
     var t = /^LEARN-(\w+)$/.exec(m || '');
     if (t) return 'Learn: ' + (t[1] === 'fractions' ? 'fractions by heart' : G.trickNames()[t[1]] || t[1]);
+    var x = /^MATRIX-(m?\d+)_(m?\d+)-(\d+)$/.exec(m || '');   // "MATRIX-m9_9-60" → "Matrices, −9 to 9, 60 s"
+    if (x) return 'Matrices, ' + x[1].replace('m', '−') + ' to ' + x[2].replace('m', '−') + ', ' + x[3] + ' s';
     return MODE_LABELS[m] || m;
   }
 
@@ -79,7 +81,13 @@
   function pct(x) { return x === null || x === undefined ? '–' : Math.round(x * 100) + '%'; }
 
   var REPORT_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
-  var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview sim', tr: 'tricks' };
+  // REPORT_MODES plus every matrix variant played ("MATRIX-N9-60", …), in a stable order.
+  function reportModes(rounds) {
+    var mx = {};
+    rounds.forEach(function (r) { if (r.mode === 'MATRIX') mx[S.effMode(r)] = 1; });
+    return REPORT_MODES.concat(Object.keys(mx).sort());
+  }
+  var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview sim', tr: 'tricks', mx: 'matrices' };
 
   /*
    * Plain-text coaching report to paste into a chat. Self-explanatory: it states the rules
@@ -149,7 +157,7 @@
   function rSessions(ctx, L) {
     L.push('## Every day per mode (last 30 each)');
     var any = false;
-    REPORT_MODES.forEach(function (m) {
+    reportModes(ctx.rounds).forEach(function (m) {
       var ss = S.sessionsForMode(ctx.rounds, m);
       if (!ss.length) return;
       any = true;
@@ -166,7 +174,7 @@
   function rRoundIndex(ctx, L) {
     L.push('## Average score by round number within a day');
     var any = false;
-    REPORT_MODES.forEach(function (m) {
+    reportModes(ctx.rounds).forEach(function (m) {
       var b = S.roundIndexAverages(ctx.rounds, m).slice(0, 12);
       if (b.length < 2) return;
       any = true;

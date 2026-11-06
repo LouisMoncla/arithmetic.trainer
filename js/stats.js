@@ -61,7 +61,14 @@
   function effMode(r) {
     if (r.mode === 'EXTERNAL') return r.linkedMode;
     if (r.mode === 'LEARN') return 'LEARN-' + (r.settings.lesson || (r.settings.types || [])[0]);   // lesson: 'fractions' (fd + df)
+    if (r.mode === 'MATRIX') return matrixMode(r.settings);
     return r.mode;
+  }
+
+  // A matrix round counts per entry range and length, e.g. "MATRIX-m9_9-60" (−9 to 9, 60 s; "m" = minus).
+  function matrixMode(s) {
+    var r = G.matrixRange(s), n = function (x) { return x < 0 ? 'm' + (-x) : String(x); };
+    return 'MATRIX-' + n(r.lo) + '_' + n(r.hi) + '-' + ((s && s.duration) || 60);
   }
 
   function sessionDays(rounds) {
@@ -373,7 +380,7 @@
     return Object.keys(map).map(function (k) {
       var e = map[k], list = e.list;
       var sw = slownessOf(list);
-      var untimed = e.cat === 'iv' || e.cat === 'tr';   // interview and tricks: no stall rule, they are slower by nature
+      var untimed = e.cat === 'iv' || e.cat === 'tr' || e.cat === 'mx';   // interview, tricks, matrices: no stall rule, they are slower by nature
 
       // Walk sessions in order.
       var sessDays = [], bySess = {};
@@ -411,10 +418,10 @@
     });
   }
 
-  // Facts to drill: weak first, then improving; by slowness. Interview and trick keys excluded (not Zetamac-style).
+  // Facts to drill: weak first, then improving; by slowness. Interview, trick and matrix keys excluded (not Zetamac-style).
   function drillTargets(stats) {
     var rank = { weak: 0, improving: 1 };
-    return stats.filter(function (f) { return rank[f.status] !== undefined && f.cat !== 'iv' && f.cat !== 'tr'; })
+    return stats.filter(function (f) { return rank[f.status] !== undefined && f.cat !== 'iv' && f.cat !== 'tr' && f.cat !== 'mx'; })
       .sort(function (a, b) { return rank[a.status] - rank[b.status] || b.slowness - a.slowness; });
   }
 

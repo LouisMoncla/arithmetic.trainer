@@ -334,6 +334,32 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 .g-in:focus-visible { outline: none; border-width: 2px; padding: 3px 7px; }  /* the box itself is the focus indicator */
 #game.wrong .g-in { outline: 3px solid var(--fg); outline-offset: 0; }
 
+/* Matrix rounds: A × B as two bracketed grids, then "=" and a 2 × 2 grid of answer boxes. */
+.mx-q { display: flex; align-items: center; gap: 24px; font-size: clamp(32px, 6vw, 56px); }
+.mx {
+  position: relative; display: inline-grid; grid-template-columns: repeat(2, auto); gap: 4px 24px; padding: 6px 18px;
+  text-align: right;
+}
+.mx-op { color: var(--mid); }
+.g-mx-ans { display: flex; align-items: center; gap: 24px; margin-top: 36px; }
+.mx-eq { font-size: clamp(32px, 6vw, 56px); color: var(--mid); }
+.g-grid { position: relative; display: grid; grid-template-columns: repeat(2, auto); gap: 12px; padding: 6px 16px; }
+/* Square brackets, not bars (bars would read as a determinant). */
+.mx::before, .mx::after, .g-grid::before, .g-grid::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 8px;
+  border: 2px solid var(--fg); pointer-events: none;
+}
+.mx::before, .g-grid::before { left: 0; border-right: 0; }
+.mx::after, .g-grid::after { right: 0; border-left: 0; }
+.g-cell { width: 4ch; font-size: 36px; }
+.g-cell.bad { outline: 3px solid var(--fg); outline-offset: 0; }   /* Enter showed it is wrong; clears when you edit it */
+.mx-start { margin: 24px 0 0; }
+.mx-custom { margin: 0; flex-basis: 100%; }
+.mx-custom input[type="number"] { width: 6em; }
+.fc .err { flex-basis: 100%; margin: 0; }
+.fc .err:empty { display: none; }
+.mx-start .hero-start { margin-top: 0; }
+
 /* ---------- help ---------- */
 #help { position: fixed; inset: 0; background: var(--bg); overflow: auto; overscroll-behavior: contain; }
 #help[hidden] { display: none; }

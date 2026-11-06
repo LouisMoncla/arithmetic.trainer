@@ -36,11 +36,13 @@
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
   var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
-  // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions").
+  // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions"),
   function logModes() {
     var played = {};
-    data.rounds.forEach(function (r) { if (r.mode === 'LEARN') played[S.effMode(r)] = 1; });
-    return LOG_MODES.concat(Object.keys(G.trickNames()).concat(['fractions']).map(function (t) { return 'LEARN-' + t; }).filter(function (m) { return played[m]; }));
+    var mx = {};   // and one per matrix variant played ("MATRIX-Z9-60")
+    data.rounds.forEach(function (r) { if (r.mode === 'LEARN') played[S.effMode(r)] = 1; if (r.mode === 'MATRIX') mx[S.effMode(r)] = 1; });
+    return LOG_MODES.concat(Object.keys(G.trickNames()).concat(['fractions']).map(function (t) { return 'LEARN-' + t; }).filter(function (m) { return played[m]; }))
+      .concat(Object.keys(mx).sort());
   }
   var THRESHOLDS = { P2: 18, P3: 25, NORMAL120: 60 };
   var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
@@ -108,7 +110,7 @@
 
   // ---------- routing ----------
 
-  var SCREENS = { play: renderPlay, learn: renderLearn, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
+  var SCREENS = { play: renderPlay, learn: renderLearn, matrices: renderMatrices, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
   // Stats sections, in page order.
   var PANES = { day: renderDay, progress: renderProgress, log: renderLog };
   var PANE_ORDER = ['day', 'progress', 'log'];
@@ -173,7 +175,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SUMMARY')) return;
     if (screenKeys && screenKeys(e) === true) { e.preventDefault(); return; }
     // E G L were pages of their own; they now open their Stats section.
-    var map = { p: 'play', n: 'learn', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
+    var map = { p: 'play', n: 'learn', x: 'matrices', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (map[k]) { e.preventDefault(); go(map[k]); }
     else if (panes[k]) { e.preventDefault(); go('stats', panes[k]); }
@@ -273,6 +275,21 @@
     o.generator = G.makeInterviewGenerator(G.mulberry32(seed()));
     o.count = 80; o.negMark = neg;
     Game.startInterview(o);
+  }
+
+  // 2 × 2 matrices. With `replay` (slow questions from an end screen), about 70% of matrices come from it.
+  function playMatrix(settings, replay) {
+    // Rounds store the resolved range: { lo, hi, duration } (custom: true when chosen by hand).
+    var r = G.matrixRange(settings), s = { lo: r.lo, hi: r.hi, duration: settings.duration || 60 };
+    if (settings.custom) s.custom = true;
+    if (replay) s.source = 'slow';
+    var rng = G.mulberry32(seed()), fresh = G.makeMatrixGenerator(s, rng);
+    var o = baseOpts('MATRIX', s, function (round) { showEnd(round, function () { playMatrix(settings, replay); }); });
+    o.generator = replay ? { next: function () {
+      if (rng() < 0.7) { var q = replay[Math.floor(rng() * replay.length)]; return G.makeMatrix(q.a, q.b); }
+      return fresh.next();
+    } } : fresh;
+    Game.startMatrix(o);
   }
 
   function startMode(id) {
@@ -617,7 +634,11 @@
     main.innerHTML = h.join('');
     var actions = {
       again: again,
-      d: function () { if (slowQs.length) playPool(slowQs, 0.7, round.settings.ops || round.settings.types ? round.settings : G.modeSettings('P2'), 'slow'); },
+      d: function () {
+        if (!slowQs.length) return;
+        if (round.mode === 'MATRIX') playMatrix(round.settings, slowQs);
+        else playPool(slowQs, 0.7, round.settings.ops || round.settings.types ? round.settings : G.modeSettings('P2'), 'slow');
+      },
       a: function () { go('stats', 'day/' + todayKey()); },
       h: function () { go('play'); }
     };
@@ -718,6 +739,94 @@
     return { weak: 'Weak', improving: 'Improving', mastered: 'Mastered', ok: 'Practised' }[f.status] || f.status;
   }
 
+  // ---------- Matrices ----------
+
+  // Last-used options, read with defaults (older saves have none; no migration needed).
+  // set: 'N' | 'Z'; max: 9 | 12 | 'custom'; customLo / customHi: the custom range; duration: 60 | 120.
+  function matrixSettings() {
+    var m = data.settings.matrix || {};
+    return {
+      set: m.set === 'N' ? 'N' : 'Z',
+      max: m.max === 12 || m.max === 'custom' ? m.max : 9,
+      customLo: typeof m.customLo === 'number' ? m.customLo : -9,
+      customHi: typeof m.customHi === 'number' ? m.customHi : 9,
+      duration: m.duration === 120 ? 120 : 60
+    };
+  }
+  function validRange(lo, hi) { return Number.isInteger(lo) && Number.isInteger(hi) && lo >= -99 && hi <= 99 && lo < hi; }
+  // What a round stores and plays: the entry range and the length.
+  function matrixRun(s) {
+    var custom = s.max === 'custom';
+    return { lo: custom ? s.customLo : (s.set === 'Z' ? -s.max : 0), hi: custom ? s.customHi : s.max, duration: s.duration, custom: custom };
+  }
+
+  function renderMatrices() {
+    var s = matrixSettings(), run = matrixRun(s), mode = S.effMode({ mode: 'MATRIX', settings: run }), today = todayKey();
+    var custom = s.max === 'custom', ok = validRange(run.lo, run.hi), z = s.set === 'Z';
+    // Segmented toggle: one group of joined buttons, the chosen one filled.
+    function seg(key, name, opts) {
+      return '<div class="seg" role="group" aria-label="' + name + '">' + opts.map(function (o) {
+        var on = s[key] === o[0];
+        return '<button type="button" data-mx="' + key + '" data-v="' + o[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') +
+          ' data-testid="matrix-' + key + '-' + o[0] + '">' + o[1] + '</button>';
+      }).join('') + '</div>';
+    }
+    function numIn(id, lbl, v) {
+      return '<label class="field" for="' + id + '">' + lbl + '<input type="number" id="' + id + '" name="' + id + '" min="-99" max="99" step="1" ' +
+        'autocomplete="off" value="' + v + '" data-testid="matrix-' + id + '"></label>';
+    }
+    var h = [pageHead('Matrices', 'Multiply two 2 × 2 matrices: type the four entries of A × B, row by row.')];
+    // Range labels follow the entry set (0 to 9, or −9 to 9). Custom: your own From and To; the range then says it all.
+    h.push('<div class="form">' +
+      (custom ? '' : frow('Entries', seg('set', 'Entries', [['Z', 'ℤ, integers'], ['N', 'ℕ, natural numbers']]))) +
+      frow('Range', seg('max', 'Range', [[9, (z ? '−9' : '0') + ' to 9'], [12, (z ? '−12' : '0') + ' to 12'], ['custom', 'Custom']]) +
+        (custom ? '<div class="inline-form mx-custom">' + numIn('mx-lo', 'From', s.customLo) + numIn('mx-hi', 'To', s.customHi) + '</div>' +
+          '<p class="err" id="mx-err" aria-live="polite">' + (ok ? '' : 'Choose From below To, both between −99 and 99.') + '</p>' : '')) +
+      frow('Length', seg('duration', 'Length', [[60, '60 seconds'], [120, '120 seconds']])) + '</div>');
+    h.push('<div class="row mx-start"><button type="button" class="primary hero-start" id="mx-start" data-testid="matrix-start-button"' + (ok ? '' : ' disabled') +
+      '>Start matrices <kbd>Enter</kbd></button></div>');
+    h.push(keys([['Space', 'next entry'], ['← → ↑ ↓', 'move between entries'], ['Enter', 'show wrong entries'], ['Tab', 'skip'], ['Esc', 'stop']]));
+    h.push('<p class="sec-intro">Each entry is a row of A times a column of B. The next matrix comes as soon as all four entries are right.</p>');
+
+    var ss = ok ? S.sessionsForMode(data.rounds, mode) : [], todayS = ss.filter(function (d) { return d.day === today; })[0];
+    var scores = []; ss.forEach(function (d) { scores = scores.concat(d.scores); });
+    var last7 = ss.slice(-7).map(function (d) { return d.stats.avg; });
+    h.push(section('Your rounds', scores.length ? stats([
+      { label: 'Today', value: todayS ? f1(todayS.stats.avg) : '–', note: todayS ? 'Average of ' + plural(todayS.scores.length, 'round') : 'No rounds yet today', key: 'mx-today' },
+      { label: 'Best', value: String(Math.max.apply(null, scores)), note: 'Of ' + plural(scores.length, 'round'), key: 'mx-best' },
+      { label: 'Average', value: f1(S.mean(last7)), note: 'Last ' + plural(last7.length, 'day') + ' played', key: 'mx-avg' },
+      { label: 'Days played', value: String(ss.length), key: 'mx-days' }
+    ]) : '<p class="mid">No rounds yet with these options. Press Enter and play one.</p>', ok ? esc(label(mode)) : null, 'matrix-rounds'));
+    main.innerHTML = h.join('');
+
+    function store(next) { data.settings.matrix = next; save(); }
+    $$('[data-mx]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-mx'), v = b.getAttribute('data-v'), next = matrixSettings();
+        next[k] = k === 'set' || v === 'custom' ? v : Number(v);
+        store(next);
+        renderMatrices();
+        var again = $('[data-mx="' + k + '"][data-v="' + v + '"]'); if (again) again.focus();
+      });
+    });
+    // Custom range: saved on each change, the page redrawn so the button, error and "Your rounds" follow.
+    ['mx-lo', 'mx-hi'].forEach(function (id) {
+      var el = $('#' + id); if (!el) return;
+      el.addEventListener('change', function () {
+        var next = matrixSettings(), v = el.value === '' ? NaN : Number(el.value);
+        next[id === 'mx-lo' ? 'customLo' : 'customHi'] = v;
+        store(next);
+        renderMatrices();
+        var back = $('#' + id); if (back) back.focus();
+      });
+    });
+    function startIfValid() { var r = matrixRun(matrixSettings()); if (validRange(r.lo, r.hi)) playMatrix(r); }
+    $('#mx-start').addEventListener('click', startIfValid);
+    screenKeys = function (e) {
+      if (e.key === 'Enter') { startIfValid(); return true; }
+      return false;
+    };
+  }
   function renderLearn() {
     if (ui.lesson === 'fractions') return renderFractions();
     if (ui.lesson && AT.Lessons.LESSONS[ui.lesson]) return renderLesson(ui.lesson);

@@ -245,3 +245,54 @@ test('fractions by heart: 49 pairs, every decimal names one fraction, both answe
   assert.match(G.trickAdvice(G.makeTrick('fd', 6, 7)), /0\.857142…/);  // cut off, so the 142857 cycle shows
   assert.match(G.trickAdvice(G.makeTrick('fd', 3, 11)), /0\.2727…/);
 });
+
+// ---------- 2 × 2 matrices ----------
+
+test('Matrix product, text and fact key', () => {
+  const q = G.makeMatrix([1, 2, 3, 4], [5, 6, 7, 8]);
+  assert.deepStrictEqual(q.cells, [19, 22, 43, 50]);
+  assert.strictEqual(q.op, 'mx');
+  assert.strictEqual(q.shown, '(1 2; 3 4) × (5 6; 7 8)');
+  assert.strictEqual(q.answer, '(19 22; 43 50)');
+  assert.deepStrictEqual(G.factKeys(q), ['mx']);
+  assert.strictEqual(G.keyLabel('mx'), '2 × 2 matrix product');
+  const neg = G.makeMatrix([-1, 0, 2, -3], [4, -5, 6, 7]);
+  assert.deepStrictEqual(neg.cells, [-4, 5, -10, -31]);
+  assert.strictEqual(neg.shown, '(−1 0; 2 −3) × (4 −5; 6 7)');   // typographic minus
+  assert.match(G.advice(neg), /^Row times column: −1·4 \+ 0·6 = −4; /);
+});
+
+test('Matrix entries follow the set and range', () => {
+  for (const [opts, lo, max] of [[{ set: 'N', max: 9 }, 0, 9], [{ set: 'Z', max: 9 }, -9, 9], [{ set: 'N', max: 12 }, 0, 12],
+    [{ lo: -9, hi: 9 }, -9, 9], [{ lo: -3, hi: 5 }, -3, 5], [{ lo: 2, hi: 4 }, 2, 4]]) {
+    const set = JSON.stringify(opts), rng = G.mulberry32(7), seen = new Set();
+    for (let i = 0; i < 3000; i++) {
+      const q = G.matrixQuestion(opts, rng);
+      q.a.concat(q.b).forEach((v) => { assert.ok(v >= lo && v <= max, `${set}${max}: ${v}`); seen.add(v); });
+      assert.deepStrictEqual(q.cells, G.matProduct(q.a, q.b));
+    }
+    assert.strictEqual(seen.size, max - lo + 1, `${set}${max} reaches every value`);
+  }
+});
+
+test('Matrix generator never repeats a matrix twice in a row, and replays rebuild matrices', () => {
+  const gen = G.makeMatrixGenerator({ set: 'N', max: 9 }, G.mulberry32(3));
+  let last = null;
+  for (let i = 0; i < 500; i++) { const q = gen.next(); assert.notStrictEqual(q.shown, last); last = q.shown; }
+  const mixed = G.makeMixedGenerator({ pool: [{ q: { op: 'mx', a: [1, 2, 3, 4], b: [5, 6, 7, 8] }, weight: 1 }], share: 1, base: G.modeSettings('P2'), rng: G.mulberry32(1) });
+  assert.strictEqual(mixed.next().answer, '(19 22; 43 50)');
+});
+
+test('Matrix rounds count per variant and stay out of the weak-fact drill', () => {
+  const S = require('../js/stats.js');
+  const P = require('../js/progression.js');
+  const r = (settings) => ({ mode: 'MATRIX', settings });
+  assert.strictEqual(S.effMode(r({ lo: -9, hi: 9, duration: 60 })), 'MATRIX-m9_9-60');
+  assert.strictEqual(S.effMode(r({ set: 'Z', max: 9, duration: 60 })), 'MATRIX-m9_9-60');    // older form, same mode
+  assert.strictEqual(S.effMode(r({ set: 'N', max: 12, duration: 120 })), 'MATRIX-0_12-120');
+  assert.strictEqual(S.effMode(r({ lo: -3, hi: 5, duration: 60, custom: true })), 'MATRIX-m3_5-60');
+  assert.strictEqual(P.modeLabel('MATRIX-m9_9-60'), 'Matrices, −9 to 9, 60 s');
+  assert.strictEqual(P.modeLabel('MATRIX-0_12-120'), 'Matrices, 0 to 12, 120 s');
+  assert.strictEqual(P.modeLabel('MATRIX-m12_m2-60'), 'Matrices, −12 to −2, 60 s');
+  assert.deepStrictEqual(S.drillTargets([{ key: 'mx', cat: 'mx', status: 'weak', slowness: 3 }]), []);
+});

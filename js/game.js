@@ -8,6 +8,9 @@
  *                  A wrong full-length answer, or Tab, shows the method under the box; typing the
  *                  right answer then moves on. Nothing is saved (ui.js decides), so timing stats stay clean.
  *   startInterview: Enter submits, Tab skips, negative marking.
+ *   startMatrix:   2 × 2 products. Four answer boxes in a grid: Space goes to the next box, arrows move
+ *                  anywhere, the matrix is accepted the moment all four entries are right. Enter outlines
+ *                  the wrong entries (until you edit them), Tab skips.
  * During a game only the question, input, timer and score are shown.
  */
 (function () {
@@ -16,6 +19,7 @@
   var Game = { active: false };
 
   var root, qEl, ansEl, inEl, barEl, denEl, curEl, timerEl, scoreEl, st;
+  var gridEl, cells = [];   // matrix rounds: the 2 × 2 answer grid, row-major
 
   function now() { return performance.now(); }
 
@@ -43,6 +47,38 @@
     Game.active = true;
   }
 
+  // Matrix rounds: the question is two bracketed grids, the answer a 2 × 2 grid of boxes.
+  function mountMatrix(settings) {
+    root = document.getElementById('game');
+    // A minus sign is only possible when entries can be negative; boxes fit the longest possible product.
+    var r = AT.Generator.matrixRange(settings), neg = r.lo < 0, big = Math.max(Math.abs(r.lo), Math.abs(r.hi));
+    var width = String(2 * big * big).length + (neg ? 1 : 0) + 1;
+    var box = function (i) {
+      return '<input class="g-in g-cell num" data-testid="game-cell-' + i + '" name="cell-' + i + '" type="text" inputmode="' +
+        (neg ? 'text' : 'numeric') + '" style="width:' + Math.max(4, width) + 'ch" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ' +
+        'aria-label="Row ' + (i < 2 ? 1 : 2) + ', column ' + (i % 2 + 1) + '">';
+    };
+    root.innerHTML =
+      '<div class="g-top num"><span id="g-timer" data-testid="game-timer"></span><span id="g-score" data-testid="game-score"></span></div>' +
+      '<div class="g-center"><div id="g-q" class="g-q mx-q num" aria-live="off" data-testid="game-question"></div>' +
+      '<div class="g-mx-ans"><span class="mx-eq num" aria-hidden="true">=</span><div id="g-grid" class="g-grid">' + [0, 1, 2, 3].map(box).join('') + '</div></div>' +
+      '<p id="g-method" class="g-method" hidden></p></div>';
+    qEl = document.getElementById('g-q'); gridEl = document.getElementById('g-grid');
+    cells = Array.prototype.slice.call(gridEl.querySelectorAll('input'));
+    inEl = curEl = cells[0];
+    timerEl = document.getElementById('g-timer'); scoreEl = document.getElementById('g-score');
+    document.body.classList.add('playing');
+    root.hidden = false;
+    // Clicking a box focuses it; clicking anywhere else keeps the current box.
+    root.onmousedown = function (e) { if (cells.indexOf(e.target) < 0) { e.preventDefault(); curEl.focus(); } };
+    cells.forEach(function (c, i) {
+      c.onfocus = function () { curEl = c; };
+      c.onblur = function () { if (Game.active) setTimeout(function () { if (Game.active && cells.indexOf(document.activeElement) < 0) curEl.focus(); }, 0); };
+      c.oninput = function () { onCellInput(i); };
+    });
+    Game.active = true;
+  }
+
   function unmount() {
     Game.active = false;
     clearInterval(st && st.interval);
@@ -61,13 +97,14 @@
 
   function countdown(then) {
     if (!st.opts.countdown) { then(); return; }
-    inEl.style.opacity = '0'; // stays focusable; typing is ignored until the round starts
+    var hide = st.kind === 'matrix' ? gridEl : inEl;
+    hide.style.opacity = '0'; // stays focusable; typing is ignored until the round starts
     var n = 3;
     qEl.textContent = '3';
     function stepFn() {
       n--;
       if (n > 0) { qEl.textContent = String(n); st.timeouts.push(setTimeout(stepFn, 1000)); }
-      else { inEl.style.opacity = ''; then(); }
+      else { hide.style.opacity = ''; then(); }
     }
     st.timeouts.push(setTimeout(stepFn, 1000));
   }
@@ -94,11 +131,13 @@
       e.preventDefault(); e.stopPropagation(); skipZetamac();
     } else if (st.kind === 'practice' && st.running && e.key === 'Tab') {
       e.preventDefault(); e.stopPropagation(); showMethod();
+    } else if (st.kind === 'matrix' && st.running) {
+      matrixKey(e);
     }
   }
 
   function start(kind, opts, extraTop) {
-    mount(extraTop);
+    if (kind === 'matrix') mountMatrix(opts.settings); else mount(extraTop);
     st = { kind: kind, opts: opts, score: 0, questions: [], timeouts: [], running: false, duration: opts.duration };
     document.addEventListener('keydown', onKey, true);
     inEl.focus();
@@ -119,6 +158,7 @@
   }
 
   function nextQuestion() {
+    if (st.kind === 'matrix') { nextMatrix(); return; }
     st.q = st.opts.generator.next();
     st.qStart = now();
     st.wrongSeen = {};
@@ -231,6 +271,76 @@
     opts.countdown = false;
     start('practice', opts);
     zetamacInput(opts);
+  };
+
+  // ---------- Matrices ----------
+
+  function matHtml(m, testid) {
+    return '<span class="mx" data-testid="' + testid + '">' + m.map(function (v) {
+      return '<span>' + (v < 0 ? '−' + (-v) : v) + '</span>';
+    }).join('') + '</span>';
+  }
+
+  function nextMatrix() {
+    st.q = st.opts.generator.next();
+    st.qStart = now();
+    st.wrongSeen = {};
+    st.wrong = 0;
+    qEl.innerHTML = matHtml(st.q.a, 'game-matrix-a') + '<span class="mx-op">×</span>' + matHtml(st.q.b, 'game-matrix-b');
+    cells.forEach(function (c) { c.value = ''; c.classList.remove('bad'); });
+    focusCell(0);
+  }
+
+  function focusCell(i) {
+    curEl = cells[i];
+    curEl.focus();
+    curEl.select();   // typing replaces what is there
+  }
+
+  // Space: next box (row-major, wraps). Arrows: the neighbour in the grid (wraps in its row or column).
+  // Enter: outline the filled boxes that are wrong. Tab: skip.
+  function matrixKey(e) {
+    var i = cells.indexOf(curEl), r = i >> 1, c = i & 1, to = -1;
+    if (e.key === ' ') to = (i + 1) % 4;
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') to = r * 2 + (1 - c);
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') to = (1 - r) * 2 + c;
+    if (to >= 0) { e.preventDefault(); e.stopPropagation(); focusCell(to); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault(); e.stopPropagation();
+      cells.forEach(function (cell, j) {
+        if (cell.value === '' || cell.value === '-') return;
+        if (Number(cell.value) !== st.q.cells[j]) { cell.classList.add('bad'); cellWrong(j, cell.value, true); }
+      });
+    } else if (e.key === 'Tab') {
+      e.preventDefault(); e.stopPropagation(); skipZetamac();
+    }
+  }
+
+  // One wrong attempt per distinct wrong value in a box: when it reaches the answer's length, or when Enter shows it.
+  function cellWrong(j, value, shown) {
+    var target = String(st.q.cells[j]);
+    if (!shown && value.length < target.length) return;
+    var k = 'c' + j + ':' + value;
+    if (!st.wrongSeen[k]) { st.wrongSeen[k] = 1; st.wrong++; }
+  }
+
+  function onCellInput(i) {
+    var cell = cells[i];
+    if (!st.running) { cell.value = ''; return; }
+    // Digits only, plus one leading minus for entries in Z ("−" from a phone keyboard counts too).
+    var neg = AT.Generator.matrixRange(st.opts.settings).lo < 0;
+    var v = cell.value.replace(/−/g, '-'), clean = v.replace(/[^0-9-]/g, '');
+    clean = (neg && clean.charAt(0) === '-' ? '-' : '') + clean.replace(/-/g, '');
+    if (clean !== cell.value) cell.value = clean;
+    cell.classList.remove('bad');
+    if (clean && clean !== '-' && Number(clean) !== st.q.cells[i]) cellWrong(i, clean, false);
+    var done = cells.every(function (c, j) { return c.value !== '' && c.value !== '-' && Number(c.value) === st.q.cells[j]; });
+    if (done) accept();
+  }
+
+  Game.startMatrix = function (opts) {
+    // opts: { mode: 'MATRIX', settings: { lo, hi, duration, set, max }, generator, duration, countdown, onEnd(round), onAbort() }
+    start('matrix', opts);
   };
 
   // ---------- Interview ----------

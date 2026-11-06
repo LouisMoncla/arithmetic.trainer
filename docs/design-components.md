@@ -58,6 +58,14 @@ Height 36px, 1px ink border, square, mono face (all inputs hold numbers or codes
 
 7ch wide, 44px mono, centred, 1px ink border. Focus indicator is the box itself (2px border). Digits only in Zetamac rounds (`inputmode="numeric"`), digits `. - /` in Interview. Always focused during a round; clicks anywhere refocus it. A wrong Interview answer shows a 3px outline for 150 ms.
 
+### Matrix answer grid (game)
+
+Matrix rounds only. The question is A × B as two 2 × 2 grids in square brackets (2px ink strokes with 8px top and bottom
+serifs, so they never read as determinant bars), mono, `clamp(32px, 6vw, 56px)`. Below, "=" and the same brackets around
+four answer boxes (`.g-in.g-cell`, 4ch, 36px, 12px gaps), labelled "Row 1, column 1"… Space moves to the next box, arrows
+to the neighbour; focus selects the box's text so typing replaces it. A wrong filled box shown by Enter gets a 3px ink
+outline (`.bad`) until it is edited. `data-testid`: `game-matrix-a`, `game-matrix-b`, `game-cell-0`…`game-cell-3`.
+
 ---
 
 ### Select
@@ -95,7 +103,7 @@ Three-zone grid `1fr auto 1fr`: brand left (`translate="no"`), tabs centred, too
 | Tab | 17px/15px vertical padding, secondary ink; hover ink |
 | Active tab | `aria-current="page"`, ink, 600, 2px ink underline sitting on the bar's rule |
 | Compact | Brand row, then tabs on their own row |
-| Tabs | Play · Review · Stats · Settings (Learn joins later). Stats sections are not tabs. |
+| Tabs | Play · Learn · Matrices · Review · Stats · Settings. Stats sections are not tabs. |
 
 ---
 

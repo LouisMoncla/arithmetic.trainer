@@ -48,7 +48,7 @@ js/storage.js     localStorage load/save (key arithmeticTrainer.v1), migrate, ex
 js/config.js      Supabase URL + anon key (empty = no accounts)
 js/sync.js        optional account sync (Supabase); pure diff/applyRemote exported for tests
 js/charts.js      inline-SVG line/bar charts, legend, tooltip, keyboard, "Show as table"
-js/game.js        the round loop (timer, input, auto-accept, interview scoring)
+js/game.js        the round loop (timer, input, auto-accept, interview scoring, the 2 × 2 matrix answer grid)
 js/ui.js          every screen, routing, keys, settings, account UI (largest file); Stats sections render via fill()
 js/app.js         bootstrap: load data, UI.init
 supabase/schema.sql  tables, row-level security, delete_my_account()
@@ -63,13 +63,14 @@ Script order matters: generator → lessons → stats → progression → storag
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
 ```js
-{ schemaVersion: 1, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom },
+{ schemaVersion: 1, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
-             questions: [{ op /*add sub mul div iv tr*/, a, b, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
+             questions: [{ op /*add sub mul div iv tr mx*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
-  (one trick from the Learn tab, `settings.types = [type]`; `S.effMode` gives `LEARN-<type>`, `P.modeLabel` names it), or EXTERNAL
+  (one trick from the Learn tab, `settings.types = [type]`; `S.effMode` gives `LEARN-<type>`, `P.modeLabel` names it), MATRIX
+  (Matrices tab, `settings: { lo, hi, duration: 60|120, custom? }`; `S.effMode` gives `MATRIX-m9_9-60` etc., m = minus), or EXTERNAL
   (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as).
 - A **session = one local calendar day**. Session numbers count days with any round.
 - Rounds are immutable once saved and identified by `id`. Merge/sync rely on this.
@@ -170,6 +171,18 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     accepted as `q.answerAlt` (not saved). Fact keys add `fr-n/d` per pair (both directions share it);
     `S.fractionCells` weights pairs like weighted tables, `S.fractionPool` feeds `makeMixedGenerator`.
     Its rounds store `settings: { types: ['fd', 'df'], lesson: 'fractions' }`, so `S.effMode` gives LEARN-fractions.
+
+15. Matrices tab (key X, `#matrices`): 2 × 2 matrix products. Options as segmented toggles, remembered in
+    `settings.matrix` (added to `defaultSettings`, so `migrate` keeps it): `set` ℤ/ℕ, `max` 9 | 12 | 'custom' with `customLo`/`customHi`
+    (−99 to 99, From < To, else Start is disabled), `duration` 60 | 120. Default ℤ −9 to 9. Rounds store the resolved `{ lo, hi, duration }`;
+    `G.matrixRange` also reads the first form `{ set, max }`.
+    Questions are op `mx`: `a`, `b`, `cells` row-major 4-arrays, `shown`/`answer` as text ("(1 2; 3 4) × (5 6; 7 8)",
+    "(19 22; 43 50)", typographic minus) so every existing table renders them. `G.makeMatrix`, `G.matrixQuestion`,
+    `G.makeMatrixGenerator`, `G.matrixAdvice` (row times column, used for freezes). Fact key `mx`; like `tr`/`iv` it is out
+    of the stall rule, the weak-fact drill and per-op timing. `Game.startMatrix`: four boxes in a bracketed grid; Space =
+    next box (wraps), arrows = neighbour, auto-accept when all four are right, Enter outlines wrong filled boxes (`.bad`,
+    cleared on edit), Tab skips. Each option combination is its own mode in Log/Progress/report (`logModes()`,
+    `reportModes()`); "Drill these slow questions" on a matrix end screen replays matrices (`playMatrix(settings, replay)`).
 
 ## Working conventions
 
