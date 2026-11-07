@@ -170,6 +170,22 @@ label { white-space: nowrap; }
 .hero-note { color: var(--mid); margin: 6px 0 0; }
 .hero-start { height: 52px; padding: 0 22px; font-size: var(--t-m); margin-top: 22px; }
 
+/* Road to 60: today's blocks as a checklist, the milestone line, drills with a multiplier picker. */
+.road-plan { list-style: none; padding: 0; margin: 18px 0 0; max-width: 34em; }
+.road-plan li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line); color: var(--mid); }
+.road-plan li.cur { color: var(--fg); font-weight: 600; }
+.road-plan li.done { color: var(--fg); }
+.road-plan .tick { font-family: var(--mono); }
+.milestones { font: var(--t-m) var(--mono); margin: 0 0 8px; color: var(--soft); }
+.road-gap { list-style: none; padding: 0; margin: 12px 0 0; }
+.road-gap li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.road-gap .f { font-weight: 600; }
+.road-gap .m { color: var(--mid); font-size: var(--t-s); }
+.milestones .on { color: var(--fg); font-weight: 700; }
+.road-drill { display: flex; align-items: center; gap: 8px; }
+.road-drill .mode { flex: 1; }
+.road-drill select { margin-right: 10px; }
+
 /* Step block: one line (step, streak, count) that opens to the rule and today's count. */
 .step { margin: 48px 0 0; padding: 18px 0; border-top: 1px solid var(--fg); border-bottom: 1px solid var(--line); }
 .step > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; cursor: pointer; list-style: none; }
@@ -326,6 +342,7 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 .g-bar { font-size: 56px; line-height: 1; color: var(--mid); }
 .g-hint { margin: 16px 0 0; font-size: 16px; color: var(--mid); }  /* fraction answers only */
 .g-method { margin: 24px 16px 0; max-width: 40em; font-size: 20px; line-height: 1.5; text-align: center; }  /* practice only */
+.g-method.hint { color: var(--mid); font-family: var(--mono); }  /* Road to 60 drills: the method after 5 s */
 .g-in[readonly] { border-color: var(--line); }  /* a right numerator, kept while you type the denominator */
 .g-in {
   width: 7ch; height: auto; font-size: 44px; text-align: center; padding: 4px 8px;

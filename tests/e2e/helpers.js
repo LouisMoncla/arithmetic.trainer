@@ -35,6 +35,7 @@ function solve(shown) {
   if ((m = /^(\d+) ÷ (\d+)$/.exec(shown))) return m[1] / m[2];   // tricks: 3 ÷ 8 → 0.375
   if ((m = /^(\d+)²$/.exec(shown))) return m[1] * m[1];
   if ((m = /^(\d+)% of (\d+)$/.exec(shown))) return m[1] * m[2] / 100;
+  if ((m = /^(\d+) → (\d+)$/.exec(shown))) return m[2] - m[1];   // Road to 60 complements: 37 → 100
   throw new Error('Cannot solve ' + shown);
 }
 

@@ -16,7 +16,7 @@
 (function () {
   'use strict';
   var AT = window.AT;
-  var G = AT.Generator, S = AT.Stats, P = AT.Progression, Store = AT.Storage, C = AT.Charts, Game = AT.Game;
+  var G = AT.Generator, S = AT.Stats, P = AT.Progression, Store = AT.Storage, C = AT.Charts, Game = AT.Game, CO = AT.Coach;
 
   var data, main, screenKeys = null, endShownAt = 0, leaveHook = null;
   var ui = { sel: null, sort: { col: 'slowness', dir: -1 }, filter: 'all', importPending: null, customError: null };
@@ -117,7 +117,7 @@
 
   // ---------- routing ----------
 
-  var SCREENS = { play: renderPlay, learn: renderLearn, matrices: renderMatrices, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
+  var SCREENS = { play: renderPlay, road: renderRoad, learn: renderLearn, matrices: renderMatrices, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
   // Stats sections, in page order.
   var PANES = { day: renderDay, progress: renderProgress, log: renderLog };
   var PANE_ORDER = ['day', 'progress', 'log'];
@@ -185,7 +185,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SUMMARY')) return;
     if (screenKeys && screenKeys(e) === true) { e.preventDefault(); return; }
     // E G L were pages of their own; they now open their Stats section.
-    var map = { p: 'play', n: 'learn', x: 'matrices', q: 'finance', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
+    var map = { p: 'play', c: 'road', n: 'learn', x: 'matrices', q: 'finance', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (map[k]) { e.preventDefault(); go(map[k]); }
     else if (panes[k]) { e.preventDefault(); go('stats', panes[k]); }
@@ -220,17 +220,22 @@
 
   // ---------- launching rounds ----------
 
-  function baseOpts(mode, settings, onEnd) {
+  // `tag` marks a Road to 60 session round ({ block, test }); any other round finished once today's session is done is extra.
+  function baseOpts(mode, settings, onEnd, tag) {
     return {
       mode: mode, settings: settings, duration: settings.duration, countdown: data.settings.countdown,
-      onEnd: function (round) { data.rounds.push(round); save(); onEnd(round); },
+      onEnd: function (round) {
+        if (tag) round.coach = tag;
+        else if (CO.isExtraNow(data.rounds, S.dayKey(round.startedAt))) round.extra = true;
+        data.rounds.push(round); save(); onEnd(round);
+      },
       onAbort: function () { route(); }
     };
   }
 
   // `again` is what "Play again" runs (same settings, fresh questions).
-  function launchZetamac(mode, settings, makeGen, again) {
-    var o = baseOpts(mode, settings, function (round) { showEnd(round, again); });
+  function launchZetamac(mode, settings, makeGen, again, tag) {
+    var o = baseOpts(mode, settings, function (round) { showEnd(round, again); }, tag);
     o.generator = makeGen();
     Game.startZetamac(o);
   }
@@ -255,12 +260,46 @@
   }
 
   // Weighted tables: every × and ÷ table fact (each division direction apart), picked in proportion to (your time on it)².
-  function playWeightedTables() {
+  function playWeightedTables(tag) {
     var pool = S.tableWeights(S.tableCells(data.rounds));
     var s = G.modeSettings('TABLES'); s.source = 'weighted';
     launchZetamac('WTABLES', s, function () {
       return G.makeMixedGenerator({ pool: pool, share: 1, base: G.modeSettings('TABLES'), rng: G.mulberry32(seed()) });
-    }, playWeightedTables);
+    }, tag ? playCoach : function () { playWeightedTables(); }, tag);
+  }
+
+  // ---------- Road to 60: drills and today's session ----------
+
+  // A Road to 60 drill (60 s, auto-accept). The method shows after 5 s unless hints are off in Settings.
+  function playDrill(drill, n, tag) {
+    var s = { drill: drill, duration: 60 };
+    if (drill === 'mult') s.n = n;
+    var o = baseOpts('R60', s, function (round) { showEnd(round, tag ? playCoach : function () { playDrill(drill, n); }); }, tag);
+    o.generator = G.makeDrillGenerator(drill, n, G.mulberry32(seed()));
+    if (data.settings.coach.hints) o.hint = G.hint;
+    Game.startZetamac(o);
+  }
+
+  // The next round of today's session, or the Road to 60 page once it is done.
+  function playCoach() {
+    var p = CO.plan(data.rounds, todayKey());
+    if (p.done) { go('road'); return; }
+    var b = p.next, tag = { block: b.block, test: p.test };
+    if (b.drill) { playDrill(b.drill, b.n, tag); return; }
+    if (b.mode === 'WTABLES') { playWeightedTables(tag); return; }
+    var s = G.modeSettings(b.mode);
+    launchZetamac(b.mode, s, function () { return G.makeGenerator(s, G.mulberry32(seed())); }, playCoach, tag);
+  }
+
+  // After a session round: what comes next, in one line.
+  function coachNext(round) {
+    var p = CO.plan(data.rounds, todayKey());
+    if (p.done) return { label: 'Done for today', line: 'That was the last benchmark round. Today’s session is done: Enter shows the summary.' };
+    var b = p.next, same = b.block === round.coach.block;
+    return {
+      label: 'Next round',
+      line: (same ? 'Next: ' : 'Block done. Next: ') + CO.blockLabel(b) + ', round ' + (b.done + 1) + ' of ' + b.rounds + '.'
+    };
   }
 
   // Replay exact questions: `share` of them from the list, the rest from `base` settings.
@@ -431,6 +470,147 @@
 
   function modeKey(i) { return String((i + 1) % 10); }   // 1–9, then 0
 
+  // ---------- Road to 60 ----------
+
+  var ROAD_DRILLS = ['comp', 'carry', 'borrow', 'cross', 'mult'];
+  var TOD_NAMES = { morning: 'Morning (5–12)', afternoon: 'Afternoon (12–18)', evening: 'Evening (18–23)', late: 'Late (after 23)' };
+
+  // The × ÷ drill to suggest: the multiplier losing the most time, else 7.
+  function worstN(est) {
+    var r = est.lost.filter(function (x) { return /-big-/.test(x.key) && x.lostMs > 0; })[0];
+    return r ? +r.key.split('-')[2] : 7;
+  }
+
+  function roadSummary(rounds, today, p, prog) {
+    var sess = CO.sessions(rounds), s = sess.filter(function (x) { return x.day === today; })[0];
+    if (!s) return '';
+    var before = sess.filter(function (x) { return x.day < today && x.complete; }).slice(-3).map(function (x) { return x.avg; });
+    var est = CO.estimate(CO.categoryStats(rounds));
+    var was = CO.categoryStats(rounds, { before: today });
+    var todays = rounds.filter(function (r) { return S.dayKey(r.startedAt) === today; });
+    var rows = p.blocks.filter(function (b) { return b.key; }).map(function (b) {
+      var comp = /^comp/.test(b.key);
+      var bef = comp ? CO.categoryStats(rounds, { before: today, filter: function (r) { return CO.isDrill(r, 'comp'); } })[b.key] : was[b.key];
+      var now = (comp ? CO.categoryStats(todays, { filter: function (r) { return CO.isDrill(r, 'comp'); } }) : CO.categoryStats(todays))[b.key];
+      return [CO.catName(b.key) + ' (' + G.drillLabel(b.drill, b.n) + ')',
+        (bef && bef.median ? sec(bef.median) : '–') + ' → ' + (now && now.median ? sec(now.median) + ' today (' + plural(now.n, 'answer') + ')' : 'no answers today')];
+    });
+    var pairs = [
+      ['Benchmark today', s.bench.length ? s.bench.join(', ') + (s.avg !== null ? ', average ' + f1(s.avg) : '') : '–'],
+      ['Last 3 sessions', before.length ? 'average ' + f1(S.mean(before)) : 'first session'],
+      ['Estimated score', est.score + (s.avg !== null ? ' (real ' + f1(s.avg) + ')' : '')]
+    ].concat(rows).concat([[
+      'Next milestone', prog.next ? prog.next.m + ': ' + prog.towards + ' of 2 sessions in a row' : prog.gatePassed ? 'All reached, 60 passed' : 'All reached; the gate needs 3 sessions in a row at 60'
+    ]]);
+    return section('Today’s summary', facts(pairs), null, 'road-summary');
+  }
+
+  function renderRoad() {
+    var rounds = data.rounds, today = todayKey(), cs = data.settings.coach;
+    var p = CO.plan(rounds, today), prog = CO.progress(rounds);
+    var est = CO.estimate(CO.categoryStats(rounds));
+    var h = [];
+
+    // One-time messages: mastered categories and the 60 gate.
+    var notes = [], mastered = CO.mastered(rounds);
+    Object.keys(mastered).forEach(function (k) {
+      if (cs.announced.indexOf('mastered:' + k) >= 0) return;
+      notes.push('<p class="notice strong">Mastered: ' + esc(CO.catName(k)) + '. At its target 3 sessions in a row, so it leaves the focus pool.</p>');
+      cs.announced.push('mastered:' + k);
+    });
+    if (prog.gatePassed && cs.announced.indexOf('gate60') < 0) {
+      notes.push('<p class="notice strong" data-testid="road-gate-message">60 reached. Next: squares to 25, fractions, percentages, Optiver-style.</p>');
+      cs.announced.push('gate60');
+    }
+    if (notes.length) save();
+
+    // Hero: today's plan and the one button.
+    var start = p.done ? 'Extra Normal 120 s (does not count)' : (p.started ? 'Continue today’s session' : 'Start today’s session');
+    h.push('<section class="hero" aria-labelledby="road-title">' +
+      '<p class="hero-why">Road to 60 · session ' + p.n + (p.test ? ' · test day: no drills, 4 benchmark rounds' : '') + '</p>' +
+      '<h1 class="hero-mode" id="road-title" data-testid="road-title">' + (p.done ? 'Done for today' : 'Today’s session') + '</h1>' +
+      '<ol class="road-plan" data-testid="road-plan">' + p.blocks.map(function (b) {
+        var full = b.done >= b.rounds, cur = p.next === b;
+        return '<li class="' + (full ? 'done' : cur ? 'cur' : '') + '" data-block="' + b.block + '"><span class="tick" aria-hidden="true">' + (full ? '■' : cur ? '▶' : '□') + '</span>' +
+          '<span class="nm">' + esc(CO.blockLabel(b)) + '</span><span class="ds num">' + Math.min(b.done, b.rounds) + ' / ' + b.rounds + '</span></li>';
+      }).join('') + '</ol>' +
+      (p.done ? '<p class="hero-note">Extra rounds are saved as extra: they never count for benchmarks or milestones.</p>' : '') +
+      '<button type="button" class="' + (p.done ? '' : 'primary ') + 'hero-start" id="road-start" data-testid="road-start">' + esc(start) + ' <kbd>Enter</kbd></button>' +
+      '</section>');
+    if (notes.length) h.push('<div class="notices">' + notes.join('') + '</div>');
+    if (p.done) h.push(roadSummary(rounds, today, p, prog));
+
+    // Gap to 60.
+    var done = prog.sessions, real = done.slice(-3).map(function (s) { return s.avg; });
+    var firstCoach = CO.sessions(rounds)[0];
+    var pre = S.sessionsForMode(rounds.filter(function (r) { return !firstCoach || S.dayKey(r.startedAt) < firstCoach.day; }), 'NORMAL120').slice(-3);
+    var top = est.lost.filter(function (r) { return r.lostMs > 0; }).slice(0, 5);
+    h.push(section('Gap to 60', stats([
+      { label: 'Estimated score', value: String(est.score), note: 'From your median per category', key: 'road-estimate' },
+      { label: 'Benchmark', value: real.length ? f1(S.mean(real)) : '–', note: real.length ? 'Last ' + plural(real.length, 'session') : 'No session finished yet', key: 'road-benchmark' },
+      { label: 'Before coach', value: pre.length ? f1(S.mean(pre.map(function (s) { return s.stats.avg; }))) : '–', note: 'Normal 120 s, last ' + plural(pre.length, 'day'), key: 'road-before' }
+    ]) + (top.length ? '<ol class="road-gap" data-testid="road-gap">' + top.map(function (r) {
+      return '<li><span class="f">' + esc(CO.catName(r.key)) + '</span><span class="m">' + sec(r.median) + ' vs ' + sec(r.target) + ' target → costs ~' + Math.max(1, Math.round(r.points)) + ' ' + (Math.round(r.points) > 1 ? 'points' : 'point') + '</span></li>';
+    }).join('') + '</ol>' : '<p class="mid" data-testid="road-gap">Every category with enough data is at its target.</p>'), null, 'road-gap-sec'));
+
+    // Milestones and the gate.
+    h.push(section('Milestones', '<p class="milestones" data-testid="road-milestones">' + prog.milestones.map(function (m) {
+      return '<span class="' + (m.day ? 'on' : '') + '">' + (m.day ? '■ ' : '□ ') + m.m + '</span>';
+    }).join(' <span class="mid">·</span> ') + '</p>' +
+      '<p class="small">A milestone counts when your benchmark average reaches it 2 sessions in a row. 60 is passed at 3 in a row: ' +
+      '<span class="streak" aria-label="' + prog.gateRun + ' of 3">' + P.boxes(prog.gateRun) + '</span></p>'));
+
+    // Drills.
+    var n = cs.multN || worstN(est);
+    h.push(section('Drills', '<p class="sec-intro">60 seconds each, answers go in by themselves. ' + (cs.hints ? 'The method shows after 5 seconds.' : 'Method hints are off (Settings).') + '</p>' +
+      '<ol class="modes">' + ROAD_DRILLS.map(function (d, i) {
+        var pick = d === 'mult' ? ' <select id="mult-n" aria-label="Multiplier">' + [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (x) {
+          return '<option value="' + x + '"' + (x === n ? ' selected' : '') + '>× ÷ ' + x + '</option>';
+        }).join('') + '</select>' : '';
+        return '<li class="road-drill"><button type="button" class="mode" data-drill="' + d + '" data-testid="road-drill-' + d + '"><span class="k">' + (i + 1) + '</span>' +
+          '<span class="nm">' + esc(G.DRILLS[d].label) + '</span><span class="ds">' + esc(G.DRILLS[d].desc) + '</span><span class="tag"></span></button>' + pick + '</li>';
+      }).join('') + '</ol>'));
+
+    // Every category.
+    var all = est.lost.slice().sort(function (a, b) { return b.lostMs - a.lostMs || b.freq - a.freq; });
+    h.push(section('All categories', '<p class="sec-intro">Median over your last 3 days of Foundations, Speed and Normal 120 s (more days when a category has under ' + CO.MIN_N + ' answers). ' +
+      'Share is how often Normal asks it.</p><div class="tbl-scroll"><table class="compact" data-testid="road-categories"><tr><th scope="col">Category</th><th scope="col" class="n">Share</th>' +
+      '<th scope="col" class="n">Answers</th><th scope="col" class="n">Median</th><th scope="col" class="n">Target</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Costs</th><th scope="col">Note</th></tr>' +
+      all.map(function (r) {
+        return '<tr><td>' + esc(CO.catName(r.key)) + '</td><td class="n">' + (r.freq * 100).toFixed(1) + '%</td><td class="n">' + r.n + '</td><td class="n">' + (r.median ? sec(r.median) : '–') +
+          '</td><td class="n">' + sec(r.target) + '</td><td class="n">' + pct(r.wrong) + '</td><td class="n">' + (r.lostMs > 0 ? '~' + f1(r.points) : '') + '</td><td class="mid">' +
+          (r.flagged ? 'Not enough data: target used' : mastered[r.key] ? 'Mastered' : '') + '</td></tr>';
+      }).join('') + '</table></div>'));
+
+    // Time of day and the warm-up curve.
+    var tod = CO.benchByTime(rounds);
+    h.push(section('Benchmark by time of day', '<table class="compact" data-testid="road-tod"><tr><th scope="col">Time</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Average</th></tr>' +
+      tod.map(function (x) { return '<tr><td>' + TOD_NAMES[x.tod] + '</td><td class="n">' + x.n + '</td><td class="n">' + (x.n ? f1(x.avg) : '–') + '</td></tr>'; }).join('') + '</table>'));
+    var curve = CO.warmupCurve(rounds);
+    h.push(section('Warm-up curve', curve.length ? '<p class="sec-intro">Average Speed score by round number within a day. A flatter start means a shorter warm-up.</p>' +
+      '<p class="chart-cap">Speed score by round of the day</p>' + C.bars({
+        values: curve.map(function (x) { return Math.round(x.avg * 10) / 10; }), labels: curve.map(function (_, i) { return String(i + 1); }), h: 120, w: 420, label: 'Average Speed score by round of the day',
+        tips: curve.map(function (x, i) { return { t: 'Round ' + (i + 1), rows: [{ v: f1(x.avg), l: 'average' }, { v: String(x.n), l: x.n === 1 ? 'day' : 'days' }] }; })
+      }) : '<p class="mid">Play Speed rounds to see it.</p>', null, 'road-warmup'));
+
+    h.push(keys([['Enter', p.done ? 'extra round' : 'today’s session'], ['1–5', 'drills']]));
+    main.innerHTML = h.join('');
+
+    function enter() {
+      if (!p.done) { playCoach(); return; }
+      var s = G.modeSettings('NORMAL120');
+      launchZetamac('NORMAL120', s, function () { return G.makeGenerator(s, G.mulberry32(seed())); }, function () { go('road'); });
+    }
+    function drill(d) { if (d === 'mult') { cs.multN = +$('#mult-n').value; save(); } playDrill(d, d === 'mult' ? cs.multN : 0); }
+    $('#road-start').addEventListener('click', enter);
+    $$('[data-drill]').forEach(function (b) { b.addEventListener('click', function () { drill(b.getAttribute('data-drill')); }); });
+    screenKeys = function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { enter(); return true; }
+      if (/^[1-5]$/.test(e.key)) { drill(ROAD_DRILLS[+e.key - 1]); return true; }
+      return false;
+    };
+  }
+
   // ---------- Custom ----------
 
   function customPanel() {
@@ -565,8 +745,10 @@
     var slowQs = rep.slowest.slice(0, 5).filter(function (q) { return q.op !== 'iv'; });
     var h = ['<div class="end">'];
     h.push('<h1 class="sr-only">Round finished</h1>');
-    h.push(endHead(round.score, label(mode), 'Round ' + nToday + ' today'));
-    h.push(endButtons([['again', 'Play again', 'Enter']].concat(slowQs.length ? [['d', 'Drill these slow questions', 'D']] : [])
+    var cn = round.coach ? coachNext(round) : null;
+    h.push(endHead(round.score, label(mode), round.coach ? 'Road to 60, block ' + round.coach.block : 'Round ' + nToday + ' today' + (round.extra ? ', extra' : '')));
+    if (cn) h.push('<p class="notice strong coach-next" data-testid="coach-next">' + esc(cn.line) + '</p>');
+    h.push(endButtons([['again', cn ? cn.label : 'Play again', 'Enter']].concat(slowQs.length && !cn ? [['d', 'Drill these slow questions', 'D']] : [])
       .concat([['a', 'See today’s analysis', 'A'], ['h', 'Home', 'H']])));
 
     // Summary: what you read at a glance.
@@ -619,7 +801,7 @@
       ])));
     }
     if (rep.freezes.length) {
-      h.push(section('Freezes', '<p class="sec-intro">Questions that took more than 3 times your median.</p>' + rep.freezes.map(function (f) {
+      h.push(section('Freezes', '<p class="sec-intro">Questions that took more than 3 times your median, or over 8 seconds.</p>' + rep.freezes.map(function (f) {
         return '<p class="freeze"><b>' + esc(f.q.shown) + '</b> took <b class="num">' + sec(f.q.timeMs) + '</b>. ' + esc(f.advice) + '</p>';
       }).join('')));
     }
@@ -1207,7 +1389,7 @@
       });
     });
     $('#mis').addEventListener('click', playMistakes);
-    $('#wtables').addEventListener('click', playWeightedTables);
+    $('#wtables').addEventListener('click', function () { playWeightedTables(); });
     // The view lives in the URL (#review/div) so it can be linked and survives a reload.
     function viewHash(v) { setHash('review', v === 'both' ? null : v); }
     function setView(v) {
@@ -1517,6 +1699,7 @@
 
     h.push(section('Rounds', '<div class="form">' +
       frow('Countdown', '<label><input type="checkbox" id="cd" name="countdown"' + (st.countdown ? ' checked' : '') + '>Count 3, 2, 1 before each round</label>') +
+      frow('Road to 60 hints', '<label><input type="checkbox" id="hints" name="hints"' + (st.coach.hints ? ' checked' : '') + '>Show the method after 5 seconds in Road to 60 drills</label>') +
       frow('Current step', '<select id="step" name="step"><option value="">Automatic</option>' + P.STEPS.map(function (s) {
         return '<option value="' + s.id + '"' + (st.stepOverride === s.id ? ' selected' : '') + '>Step ' + s.n + ': ' + esc(s.name) + ', ' + esc(s.desc) + '</option>';
       }).join('') + '</select>', 'Automatic moves you on after 3 qualifying days in a row.', 'step') +
@@ -1543,6 +1726,7 @@
       r.addEventListener('change', function () { st.theme = r.value; applyTheme(); save(); });
     });
     $('#cd').addEventListener('change', function () { st.countdown = this.checked; save(); });
+    $('#hints').addEventListener('change', function () { st.coach.hints = this.checked; save(); });
     $('#step').addEventListener('change', function () { st.stepOverride = this.value || null; save(); });
     $('#neg').addEventListener('change', function () { var v = parseFloat(this.value); st.negMark = isFinite(v) && v >= 0 ? v : 1; save(); });
 

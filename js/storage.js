@@ -8,7 +8,8 @@
   var AT = typeof window !== 'undefined' ? (window.AT = window.AT || {}) : {};
 
   var KEY = 'arithmeticTrainer.v1';
-  var SCHEMA = 1;
+  // 2: Road to 60 (settings.coach; rounds may carry coach: {block, test} and extra: true, both optional).
+  var SCHEMA = 2;
 
   function uuid() {
     var b = new Uint8Array(16), i;
@@ -28,8 +29,14 @@
       announced: [],        // step ids whose completion message was shown
       custom: null,         // last-used custom settings
       matrix: null,         // last-used Matrices options { set: 'N'|'Z', max: 9|12|'custom', customLo, customHi, duration: 60|120 }
-      finance: null         // last-used Finance options { mode, fams, cat, diff, duration, answer, weak }
+      finance: null,        // last-used Finance options { mode, fams, cat, diff, duration, answer, weak }
+      coach: defaultCoach() // Road to 60
     };
+  }
+
+  // hints: method hints in Road to 60 drills; announced: one-time messages already shown ("mastered:sub-borrow", "gate60").
+  function defaultCoach() {
+    return { hints: true, announced: [], multN: null };
   }
 
   function defaults() {
@@ -46,7 +53,12 @@
     out.seeded = v === 0 ? true : !!obj.seeded;
     var s = obj.settings || {};
     for (var k in out.settings) if (s[k] !== undefined) out.settings[k] = s[k];
-    // (future) if (v < 2) { ...transform... }
+    if (v < 2 || !out.settings.coach || typeof out.settings.coach !== 'object') out.settings.coach = defaultCoach();
+    else {
+      var c = defaultCoach();
+      for (var ck in c) if (out.settings.coach[ck] === undefined) out.settings.coach[ck] = c[ck];
+      if (!Array.isArray(out.settings.coach.announced)) out.settings.coach.announced = [];
+    }
     out.schemaVersion = SCHEMA;
     out.rounds.sort(byStart);
     return out;

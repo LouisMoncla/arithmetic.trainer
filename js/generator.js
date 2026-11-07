@@ -122,6 +122,7 @@
     if (q.keys) return q.keys;
     if (q.op === 'mx') return ['mx'];
     if (q.op === 'fin') return [];   // Finance questions have their own stats (S.financeStats), not fact keys
+    if (q.op === 'cp') return [q.type === 'cten' ? 'comp-ten' : 'comp-100'];   // Road to 60 complements
     if (q.op === 'tr') return q.type === 'fd' || q.type === 'df' ? ['tr-' + q.type, 'fr-' + q.a + '/' + q.b] : ['tr-' + q.type];
     if (q.op === 'mul' || q.op === 'div') {
       var s = Math.min(q.a, q.b), l = Math.max(q.a, q.b), pair = s + 'x' + l;
@@ -272,6 +273,118 @@
       mag: 'Round both to 2 significant figures and multiply.'
     };
     return iv[q.type] || 'Skip earlier: move on after 5 seconds.';
+  }
+
+  // ---------- Road to 60: categories, drills, method hints ----------
+
+  /*
+   * One category per question, for the coach (js/coach.js). Units-only rules, unlike factKeys' any-column carry:
+   *   add-carry / add-nocarry          a%10 + b%10 ≥ 10 or not
+   *   sub (shown (a+b) − a, m = a+b):  sub-cross100 if m ≥ 100, else sub-borrow if m%10 < a%10, else sub-noborrow
+   *   mul/div:                         mul-table / div-table when both factors ≤ 12, else mul-big-N / div-big-N (N = the 2–12 factor)
+   *   complements (op cp):             comp-100 / comp-ten
+   * Anything else → null.
+   */
+  function classify(q) {
+    if (!q) return null;
+    if (q.op === 'add') return q.a % 10 + q.b % 10 >= 10 ? 'add-carry' : 'add-nocarry';
+    if (q.op === 'sub') {
+      var m = q.a + q.b;
+      return m >= 100 ? 'sub-cross100' : m % 10 < q.a % 10 ? 'sub-borrow' : 'sub-noborrow';
+    }
+    if (q.op === 'mul' || q.op === 'div') {
+      if (q.a <= 12 && q.b <= 12) return q.op + '-table';
+      var n = q.op === 'div' ? (q.a <= 12 ? q.a : q.b <= 12 ? q.b : 0) : Math.min(q.a, q.b);   // div: (a×b) ÷ a, a is the divisor
+      return n >= 2 && n <= 12 ? q.op + '-big-' + n : null;
+    }
+    if (q.op === 'cp') return q.type === 'cten' ? 'comp-ten' : 'comp-100';
+    return null;
+  }
+
+  var DRILLS = {
+    comp:   { label: 'Complements', desc: '37 → 100, and 237 → 240 three times in ten' },
+    carry:  { label: 'Carry addition', desc: 'Normal addition where the units always carry' },
+    borrow: { label: 'Borrow subtraction', desc: 'Two-digit subtraction where the units always borrow' },
+    cross:  { label: 'Cross-100 subtraction', desc: 'Subtraction from 100 or more' },
+    mult:   { label: 'Multiplier drill', desc: '× and ÷ by one number, the other 2–100' }
+  };
+  function drillLabel(drill, n) { return drill === 'mult' ? '× ÷ ' + n + ' drill' : (DRILLS[drill] || { label: drill }).label; }
+
+  function complement(rng) {
+    if (rng() < 0.3) {   // to the next ten, on a 3-digit number
+      var x; do { x = randInt(rng, 101, 999); } while (x % 10 === 0);
+      var t = Math.ceil(x / 10) * 10;
+      return { op: 'cp', type: 'cten', a: x, b: t, shown: x + ' → ' + t, answer: t - x };
+    }
+    var y = randInt(rng, 2, 98);
+    return { op: 'cp', type: 'c100', a: y, b: 100, shown: y + ' → 100', answer: 100 - y };
+  }
+
+  // A Road to 60 drill: comp | carry | borrow | cross | mult (n = 2–12). Normal's ranges, rejection-sampled to one category.
+  function drillQuestion(drill, n, rng) {
+    if (drill === 'comp') return complement(rng);
+    if (drill === 'mult') return makeQuestion(rng() < 0.5 ? 'mul' : 'div', n, randInt(rng, 2, 100));
+    var want = { carry: ['add', 'add-carry'], borrow: ['sub', 'sub-borrow'], cross: ['sub', 'sub-cross100'] }[drill];
+    if (!want) throw new Error('Unknown drill ' + drill);
+    for (;;) {
+      var q = makeQuestion(want[0], randInt(rng, 2, 100), randInt(rng, 2, 100));
+      if (classify(q) === want[1]) return q;
+    }
+  }
+  function makeDrillGenerator(drill, n, rng) {
+    return { next: noRepeat(function () { return drillQuestion(drill, n, rng); }) };
+  }
+
+  /*
+   * The method in one grey line (never the answer), shown after 5 s in drills and for 8 s freezes.
+   * null when there is none (tables facts keep their own advice).
+   */
+  function hint(q) {
+    var c = classify(q), a, b, m, t, n, big, x;
+    if (!c || /table$/.test(c)) return null;
+    if (c === 'add-carry') {
+      // Round up whichever number is closer to its next ten: 45 + 29 → 45 + 30 − 1.
+      a = q.a; b = q.b;
+      if (a % 10 > b % 10) { x = a; a = b; b = x; }
+      t = Math.ceil(b / 10) * 10;
+      return a + ' + ' + b + ' → ' + a + ' + ' + t + ' − ' + (t - b);
+    }
+    if (c === 'add-nocarry') {
+      t = Math.floor(q.b / 10) * 10;
+      return t && q.b % 10 ? q.a + ' + ' + q.b + ' → ' + q.a + ' + ' + t + ' + ' + q.b % 10 : null;
+    }
+    if (c === 'sub-noborrow') {
+      m = q.a + q.b; t = Math.floor(q.a / 10) * 10;
+      return t && q.a % 10 ? m + ' − ' + q.a + ' → ' + m + ' − ' + t + ' − ' + q.a % 10 : null;
+    }
+    if (c === 'sub-borrow' || c === 'sub-cross100') {
+      m = q.a + q.b; t = Math.ceil(q.a / 10) * 10;   // count up from the number taken away
+      return m + ' − ' + q.a + ' → ' + q.a + (t !== q.a && t < m ? ' → ' + t : '') + ' → ' + m;
+    }
+    if (c === 'comp-100') { t = Math.ceil(q.a / 10) * 10; return q.a + (t !== q.a && t < 100 ? ' → ' + t : '') + ' → 100'; }
+    if (c === 'comp-ten') return 'Units only: ' + q.a % 10 + ' → 10';
+    n = +c.split('-')[2];
+    if (/^mul-big/.test(c)) {
+      big = q.a === n ? q.b : q.a;
+      var p = n + ' × ' + big + ' → ';
+      if (n === 5) return p + big * 10 + ' ÷ 2';
+      if (n === 9) return p + big * 10 + ' − ' + big;
+      if (n === 12) return p + big * 10 + ' + ' + big * 2;
+      if (n === 8) return p + 'double three times: ' + big * 2 + ', …';
+      if (n === 4) return p + 'double twice: ' + big * 2 + ', …';
+      if (n === 11 && big >= 10 && big < 100) return p + Math.floor(big / 10) + ', ' + Math.floor(big / 10) + ' + ' + big % 10 + ', ' + big % 10;
+      t = Math.floor(big / 10) * 10;
+      return t && big % 10 ? p + n * t + ' + ' + n * (big % 10) : null;
+    }
+    // div-big: (a×b) ÷ a
+    m = q.a * q.b; b = q.a === n ? q.b : q.a;
+    var d = m + ' ÷ ' + n + ' → ';
+    if (n === 4) return d + 'halve twice: ' + m / 2 + ', …';
+    if (n === 8) return d + 'halve three times: ' + m / 2 + ', …';
+    if (n === 12) return d + 'halve twice, then ÷ 3: ' + m / 2 + ', …';
+    if (n === 5) return d + '× 2, then ÷ 10: ' + m * 2 + ', …';
+    t = Math.floor(b / 10) * 10;
+    return t && b % 10 ? d + n + ' × ' + t + ' = ' + n * t + ', ' + (m - n * t) + ' left' : null;
   }
 
   // ---------- Interview (Optiver-style) ----------
@@ -627,7 +740,8 @@
     parseAnswer: parseAnswer, checkInterview: checkInterview, hasCarry: hasCarry, hasBorrow: hasBorrow,
     makeTrick: makeTrick, trickQuestion: trickQuestion, trickAdvice: trickAdvice, trickNames: trickNames,
     makeMatrix: makeMatrix, matrixRange: matrixRange, matrixQuestion: matrixQuestion, makeMatrixGenerator: makeMatrixGenerator,
-    matProduct: matProduct, matrixAdvice: matrixAdvice
+    matProduct: matProduct, matrixAdvice: matrixAdvice,
+    classify: classify, DRILLS: DRILLS, drillLabel: drillLabel, drillQuestion: drillQuestion, makeDrillGenerator: makeDrillGenerator, hint: hint
   };
   AT.Generator = api;
   if (typeof module !== 'undefined') module.exports = api;

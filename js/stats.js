@@ -63,6 +63,7 @@
     if (r.mode === 'LEARN') return 'LEARN-' + (r.settings.lesson || (r.settings.types || [])[0]);   // lesson: 'fractions' (fd + df)
     if (r.mode === 'MATRIX') return matrixMode(r.settings);
     if (r.mode === 'FINANCE') return financeMode(r.settings);
+    if (r.mode === 'R60') return 'R60-' + ((r.settings && r.settings.drill) || 'drill') + (r.settings && r.settings.n ? '-' + r.settings.n : '');   // Road to 60 drills
     return r.mode;
   }
   // Finance rounds count per kind, and sprints per length: "FINANCE-sprint-120", "FINANCE-practice".
@@ -213,13 +214,22 @@ ef = my median time per
     return (round.questions || []).slice().sort(function (a, b) { return b.timeMs - a.timeMs; }).slice(0, n || 5);
   }
 
-  // Questions that took more than 3× the round's median answer time.
+  // Questions that took more than 3× the round's median answer time (with the usual advice), and, for + − × ÷ and
+  // complements, any answer over 8 s (Road to 60's freeze rule) with its one-line method where there is one.
+  var FREEZE_MS = 8000;
   function freezes(round) {
     var qs = round.questions || [];
     var med = median(qs.filter(function (q) { return !q.unanswered; }).map(function (q) { return q.timeMs; }));
-    if (!med) return [];
-    return qs.filter(function (q) { return !q.skipped && q.timeMs > 3 * med && q.timeMs > 1500; })
-      .map(function (q) { return { q: q, advice: G.advice(q) }; });
+    var out = [];
+    qs.forEach(function (q) {
+      if (q.skipped) return;
+      if (med && q.timeMs > 3 * med && q.timeMs > 1500) out.push({ q: q, advice: G.advice(q) });
+      else if (!q.unanswered && (ZETAMAC_OP[q.op] || q.op === 'cp') && q.timeMs > FREEZE_MS) {
+        var h = G.hint(q);
+        out.push({ q: q, advice: h ? 'Method: ' + h + '.' : G.advice(q), over8: true });
+      }
+    });
+    return out;
   }
 
   /*
