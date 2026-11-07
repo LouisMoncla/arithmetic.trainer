@@ -27,7 +27,8 @@
       lastExport: null,     // ISO timestamp
       announced: [],        // step ids whose completion message was shown
       custom: null,         // last-used custom settings
-      matrix: null          // last-used Matrices options { set: 'N'|'Z', max: 9|12, duration: 60|120 }
+      matrix: null,         // last-used Matrices options { set: 'N'|'Z', max: 9|12|'custom', customLo, customHi, duration: 60|120 }
+      finance: null         // last-used Finance options { mode, fams, cat, diff, duration, answer, weak }
     };
   }
 

@@ -65,9 +65,42 @@ test('manual override', () => {
 test('recommendation asks for warm-up when no Tables round today', () => {
   const rs = session('P2', '2026-10-05', [10]);
   const info = P.current(rs, null);
-  assert.deepStrictEqual(P.recommend(rs, info, '2026-10-05'), { mode: 'P2', warmup: true });
+  const rec = P.recommend(rs, info, '2026-10-05');
+  assert.strictEqual(rec.mode, 'P2');
+  assert.strictEqual(rec.warmup, true);
+  assert.strictEqual(rec.warmMode, 'TABLES');
   rs.push(...session('TABLES', '2026-10-05', [35]));
   assert.strictEqual(P.recommend(rs, info, '2026-10-05').warmup, false);
+});
+
+// A round answering the given table facts twice each: [op, a, b].
+function tablesRound(day, facts) {
+  const [y, m, d] = day.split('-').map(Number);
+  const questions = [];
+  facts.forEach(([op, a, b]) => { for (let k = 0; k < 2; k++) questions.push({ op, a, b, timeMs: 1500, wrongAttempts: 0 }); });
+  return { id: 'r' + (n++), startedAt: new Date(y, m - 1, d, 9).toISOString(), mode: 'TABLES', score: 30, settings: {}, questions };
+}
+function gridFacts(count) {
+  const all = [];
+  for (let a = 2; a <= 12; a++) for (let b = a; b <= 12; b++) all.push(['mul', a, b]);
+  for (let a = 2; a <= 12; a++) for (let b = 2; b <= 12; b++) all.push(['div', a, b]);
+  return all.slice(0, count);
+}
+
+test('the warm-up becomes Weighted tables once 150 of the 187 table facts are measured', () => {
+  const below = [tablesRound('2026-10-01', gridFacts(149))];
+  const info = P.current(below, null);
+  assert.strictEqual(P.recommend(below, info, '2026-10-05').warmMode, 'TABLES');
+  assert.strictEqual(P.recommend(below, info, '2026-10-05').coverage.measured, 149);
+  const ready = [tablesRound('2026-10-01', gridFacts(150))];
+  const rec = P.recommend(ready, info, '2026-10-05');
+  assert.strictEqual(rec.warmMode, 'WTABLES');
+  assert.strictEqual(rec.warmup, true);
+  // a Weighted tables round today is the warm-up done
+  ready.push(...session('WTABLES', '2026-10-05', [30]));
+  assert.strictEqual(P.recommend(ready, info, '2026-10-05').warmup, false);
+  const data = Storage.defaults(); data.rounds = ready;
+  assert.match(P.summary(data, new Date(2026, 9, 6, 20).getTime()), /Recommended: warm up with Weighted tables, then Foundations/);
 });
 
 test('report has every section, every session, and stays bounded', () => {

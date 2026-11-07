@@ -362,3 +362,16 @@ test('fractions by heart: unseen pairs weigh most, a slow pair weighs more than 
   assert.deepStrictEqual(pool.slice(0, 2).map((p) => p.q.type), ['fd', 'df']);
   assert.strictEqual(S.effMode({ mode: 'LEARN', settings: { types: ['fd', 'df'], lesson: 'fractions' } }), 'LEARN-fractions');
 });
+
+test('tableCoverage: × pairs once, ÷ directions apart, 2 answers to count, ready at 150 of 187', () => {
+  const q = (op, a, b) => ({ op, a, b, timeMs: 1500, wrongAttempts: 0 });
+  const day = new Date(2026, 9, 1, 10).toISOString();
+  const rs = [{ id: 'x', startedAt: day, mode: 'TABLES', score: 1, settings: {},
+    questions: [q('mul', 7, 8), q('mul', 8, 7), q('div', 7, 8), q('div', 8, 7), q('div', 3, 4), q('div', 3, 4), q('mul', 5, 6)] }];
+  const c = S.tableCoverage(S.tableCells(rs, new Date(2026, 9, 1, 20).getTime()));
+  assert.strictEqual(c.total, 187);
+  assert.strictEqual(c.measured, 2);            // 7×8 (both orders) and 3/4; 7/8, 8/7 and 5×6 have one answer each
+  assert.strictEqual(c.ready, false);
+  const empty = S.tableCoverage({ mul: {}, div: {} });
+  assert.deepStrictEqual([empty.measured, empty.total, empty.need, empty.ready], [0, 187, 150, false]);
+});

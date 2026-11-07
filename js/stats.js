@@ -62,7 +62,45 @@
     if (r.mode === 'EXTERNAL') return r.linkedMode;
     if (r.mode === 'LEARN') return 'LEARN-' + (r.settings.lesson || (r.settings.types || [])[0]);   // lesson: 'fractions' (fd + df)
     if (r.mode === 'MATRIX') return matrixMode(r.settings);
+    if (r.mode === 'FINANCE') return financeMode(r.settings);
     return r.mode;
+  }
+  // Finance rounds count per kind, and sprints per length: "FINANCE-sprint-120", "FINANCE-practice".
+  function financeMode(s) {
+    s = s || {};
+    var kind = ['practice', 'intuition', 'mixed'].indexOf(s.kind) >= 0 ? s.kind : 'sprint';
+    return 'FINANCE-' + kind + (kind === 'sprint' ? '-' + (s.duration || 120) : '');
+  }
+
+  /*
+   * Finance tab: per template and per category, attempts, first-try accuracy and median time, from every
+   * FINANCE round (sprints and practice alike). A question counts as right when answered right on the first
+   * try; skipped and paused-to-learn count as wrong; unanswered (time ran out) does not count, unless you paused on it. 
+ef = my median time per
+   * family, so slowness compares a template with its own kind (reading a concept question takes longer).
+   */
+  function financeStats(rounds) {
+    var tpl = {}, cat = {}, fam = {}, sprints = [], n = 0, right = 0;
+    rounds.forEach(function (r) {
+      if (r.mode !== 'FINANCE') return;
+      if (!r.settings || !r.settings.kind || r.settings.kind === 'sprint') sprints.push({ startedAt: r.startedAt, score: r.score, duration: (r.settings && r.settings.duration) || 120 });
+      (r.questions || []).forEach(function (q) {
+        if (q.op !== 'fin' || (q.unanswered && !q.learned)) return;   // cut off by the clock: no answer, unless you paused to learn it
+        var ok = !!q.correct && !q.wrongAttempts && !q.skipped;
+        [[tpl, q.tpl], [cat, q.cat], [fam, q.fam]].forEach(function (p) {
+          var e = p[0][p[1]] = p[0][p[1]] || { n: 0, right: 0, times: [], fam: q.fam, cat: q.cat };
+          e.n++; if (ok) e.right++;
+          if (!q.skipped && q.timeMs > 0) e.times.push(q.timeMs);
+        });
+        n++; if (ok) right++;
+      });
+    });
+    [tpl, cat, fam].forEach(function (m) {
+      Object.keys(m).forEach(function (k) { var e = m[k]; e.acc = e.right / e.n; e.med = median(e.times); delete e.times; });
+    });
+    var ref = {};
+    Object.keys(fam).forEach(function (k) { ref[k] = fam[k].med; });
+    return { tpl: tpl, cat: cat, fam: fam, ref: ref, sprints: sprints, n: n, right: right, acc: n ? right / n : null };
   }
 
   // A matrix round counts per entry range and length, e.g. "MATRIX-m9_9-60" (−9 to 9, 60 s; "m" = minus).
@@ -569,6 +607,21 @@
     return items.map(function (it) { return { q: it.q, cell: it.cell, weight: it.weight, share: it.weight / total * 100 }; });
   }
 
+  /*
+   * How much of the tables grid is measured: 66 × pairs (7×8 = 8×7) plus 121 ÷ facts (56 ÷ 7 and 56 ÷ 8 apart),
+   * all 2–12. A fact is measured with 2 answers or more. `ready` (150 of 187, 80%) makes Weighted tables the warm-up:
+   * its weights mean something by then, and it gives the unseen rest the top weight anyway.
+   */
+  var COVER_MIN = 2, COVER_READY = 150;
+  function tableCoverage(cells) {
+    var measured = 0, total = 0, a, b;
+    for (a = 2; a <= 12; a++) for (b = 2; b <= 12; b++) {
+      if (a <= b) { total++; if (cells.mul[a + 'x' + b] && cells.mul[a + 'x' + b].attempts >= COVER_MIN) measured++; }
+      total++; if (cells.div[a + '/' + b] && cells.div[a + '/' + b].attempts >= COVER_MIN) measured++;
+    }
+    return { measured: measured, total: total, need: COVER_READY, ready: measured >= COVER_READY };
+  }
+
   // Exact questions answered wrong or stalled on in the last 3 sessions. A stall is the same as in
   // factStats: > 3× my median for that op (over every round) and > 1.5 s.
   function mistakes(rounds) {
@@ -707,12 +760,12 @@
 
   var api = {
     mean: mean, median: median, stdev: stdev, weightedMedian: weightedMedian, slope: slope,
-    dayKey: dayKey, effMode: effMode, sessionDays: sessionDays, sessionNumber: sessionNumber,
+    dayKey: dayKey, effMode: effMode, financeMode: financeMode, financeStats: financeStats, sessionDays: sessionDays, sessionNumber: sessionNumber,
     summarize: summarize, sessionsForMode: sessionsForMode, recentAverage: recentAverage, trend: trend,
     roundIndexAverages: roundIndexAverages, fatigue: fatigue, estimate120: estimate120, timeByOp: timeByOp,
     fractionCells: fractionCells, fractionPool: fractionPool,
     slowest: slowest, freezes: freezes, paceThirds: paceThirds, roundReport: roundReport, factStats: factStats, drillTargets: drillTargets,
-    weakLines: weakLines, drillPool: drillPool, tableCells: tableCells, tableWeights: tableWeights, mistakes: mistakes, wrongRateByOp: wrongRateByOp, sessionReport: sessionReport
+    weakLines: weakLines, drillPool: drillPool, tableCells: tableCells, tableWeights: tableWeights, tableCoverage: tableCoverage, mistakes: mistakes, wrongRateByOp: wrongRateByOp, sessionReport: sessionReport
   };
   AT.Stats = api;
   if (typeof module !== 'undefined') module.exports = api;

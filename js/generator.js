@@ -121,6 +121,7 @@
   function factKeys(q) {
     if (q.keys) return q.keys;
     if (q.op === 'mx') return ['mx'];
+    if (q.op === 'fin') return [];   // Finance questions have their own stats (S.financeStats), not fact keys
     if (q.op === 'tr') return q.type === 'fd' || q.type === 'df' ? ['tr-' + q.type, 'fr-' + q.a + '/' + q.b] : ['tr-' + q.type];
     if (q.op === 'mul' || q.op === 'div') {
       var s = Math.min(q.a, q.b), l = Math.max(q.a, q.b), pair = s + 'x' + l;

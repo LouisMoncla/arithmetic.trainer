@@ -8,6 +8,11 @@
  *                  A wrong full-length answer, or Tab, shows the method under the box; typing the
  *                  right answer then moves on. Nothing is saved (ui.js decides), so timing stats stay clean.
  *   startInterview: Enter submits, Tab skips, negative marking.
+ *   startFinance:  the Finance tab's sprint. Questions from AT.Finance (template + seed), the unit beside the box and
+ *                  the answer instruction under it. Accepted the moment the typed value equals the displayed answer;
+ *                  estimates (no single spelling) need Enter, checked against their tolerance. Tab skips.
+ *                  H pauses to learn: the clock stops and the formula and worked solution show; after it, the same
+ *                  question comes back and typing the answer moves on, with no point (saved as learned).
  *   startMatrix:   2 × 2 products. Four answer boxes in a grid: Space goes to the next box, arrows move
  *                  anywhere, the matrix is accepted the moment all four entries are right. Enter outlines
  *                  the wrong entries (until you edit them), Tab skips.
@@ -33,7 +38,8 @@
       'autocapitalize="off" spellcheck="false" aria-label="Answer">' +
       '<span id="g-bar" class="g-bar num" aria-hidden="true" hidden>/</span>' +
       '<input id="g-den" class="g-in num" name="denominator" type="text" inputmode="numeric" autocomplete="off" autocorrect="off" ' +
-      'autocapitalize="off" spellcheck="false" aria-label="Denominator" hidden></div>' +
+      'autocapitalize="off" spellcheck="false" aria-label="Denominator" hidden>' +
+      '<span id="g-unit" class="g-unit num" data-testid="game-unit" hidden></span></div>' +
       '<p id="g-hint" class="g-hint" data-testid="game-fraction-hint" hidden>In lowest terms</p>' +
       '<p id="g-method" class="g-method" data-testid="game-method" aria-live="polite" hidden></p></div>';
     qEl = document.getElementById('g-q'); ansEl = document.getElementById('g-ans'); inEl = document.getElementById('g-in');
@@ -42,7 +48,8 @@
     document.body.classList.add('playing');
     root.hidden = false;
     // Keep focus in the current box no matter where you click.
-    root.onmousedown = function (e) { if (e.target !== curEl) { e.preventDefault(); curEl.focus(); } };
+    // Paused to learn (Finance), clicks work normally: scroll the solution, select text, press Back.
+    root.onmousedown = function (e) { if (st && st.paused) return; if (e.target !== curEl) { e.preventDefault(); curEl.focus(); } };
     inEl.onblur = denEl.onblur = function () { if (Game.active) setTimeout(function () { if (Game.active) curEl.focus(); }, 0); };
     Game.active = true;
   }
@@ -85,6 +92,7 @@
     (st && st.timeouts || []).forEach(clearTimeout);
     document.removeEventListener('keydown', onKey, true);
     document.body.classList.remove('playing');
+    root.classList.remove('fin');
     root.hidden = true;
     root.innerHTML = '';
   }
@@ -115,6 +123,7 @@
   }
 
   function tick() {
+    if (st.paused) return;   // Finance: pausing to learn stops the clock
     var left = st.duration - (now() - st.t0) / 1000;
     timerEl.textContent = fmtClock(Math.max(0, Math.ceil(left)));
     if (left <= 0) finish(true);
@@ -133,11 +142,22 @@
       e.preventDefault(); e.stopPropagation(); showMethod();
     } else if (st.kind === 'matrix' && st.running) {
       matrixKey(e);
+    } else if (st.kind === 'finance' && st.running) {
+      if (st.paused) {
+        // Only Enter or H (back to the round) and Esc (stop) work while paused.
+        if (e.key === 'Enter' || e.key === 'h' || e.key === 'H') { e.preventDefault(); e.stopPropagation(); resumeLearn(); }
+        else if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); }
+        return;
+      }
+      if (e.key === 'h' || e.key === 'H') { e.preventDefault(); e.stopPropagation(); pauseLearn(); }   // H: help, never part of an answer
+      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); submitFinance(); }
+      else if (e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); skipFinance(); }
     }
   }
 
   function start(kind, opts, extraTop) {
     if (kind === 'matrix') mountMatrix(opts.settings); else mount(extraTop);
+    root.classList.toggle('fin', kind === 'finance');
     st = { kind: kind, opts: opts, score: 0, questions: [], timeouts: [], running: false, duration: opts.duration };
     document.addEventListener('keydown', onKey, true);
     inEl.focus();
@@ -159,6 +179,7 @@
 
   function nextQuestion() {
     if (st.kind === 'matrix') { nextMatrix(); return; }
+    if (st.kind === 'finance') { nextFinance(); return; }
     st.q = st.opts.generator.next();
     st.qStart = now();
     st.wrongSeen = {};
@@ -343,6 +364,126 @@
     start('matrix', opts);
   };
 
+  // ---------- Finance sprint ----------
+
+  // What a Finance question stores: enough to rebuild it (tpl + seed) and to group it (family, category).
+  function finRecord(q, extra) {
+    var rec = { op: 'fin', tpl: q.tpl, seed: q.seed, fam: q.family, cat: q.category, shown: q.promptText, answer: q.answerText };
+    for (var k in extra) rec[k] = extra[k];
+    return rec;
+  }
+
+  function nextFinance() {
+    var p = st.opts.source(), hint = document.getElementById('g-hint'), unit = document.getElementById('g-unit');
+    st.q = AT.Finance.make(p.tpl, p.seed);
+    st.qStart = now();
+    st.wrongSeen = {};
+    st.wrong = 0;
+    st.learned = false; st.pausedMs = 0;
+    var m = document.getElementById('g-method'); m.hidden = true; m.textContent = '';
+    qEl.innerHTML = AT.TeX.rich(st.q.prompt);   // maths drawn as maths; the plain text is each formula's alttext
+    hint.textContent = st.q.ask; hint.hidden = !st.q.ask;
+    unit.textContent = st.q.unit; unit.hidden = !st.q.unit;
+    inEl.value = '';
+    inEl.setAttribute('inputmode', st.q.kind === 'fraction' ? 'text' : 'decimal');
+    curEl = inEl; inEl.focus();
+  }
+
+  function onFinanceInput() {
+    if (!st.running) { inEl.value = ''; return; }
+    if (AT.Finance.autoOk(st.q, inEl.value)) acceptFinance(inEl.value);
+  }
+
+  // Enter: right within tolerance moves on; wrong counts once per distinct value and outlines the box.
+  function submitFinance() {
+    var v = inEl.value.trim();
+    if (!v) return;
+    if (AT.Finance.check(st.q, v).ok) { acceptFinance(v); return; }
+    if (!st.wrongSeen[v]) { st.wrongSeen[v] = 1; st.wrong++; }
+    markWrong();
+    var m = document.getElementById('g-method');
+    m.textContent = 'Not right. Press H to pause and learn.'; m.hidden = false;
+    inEl.select();
+  }
+
+  // ---- Pause and learn: the clock stops, the worked solution shows; Enter brings the question back. ----
+
+  function escHtml(x) {
+    return String(x).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+  // The button and the (hidden) solution panel, under the answer box.
+  function learnMount() {
+    var c = root.querySelector('.g-center');
+    var b = document.createElement('button');
+    b.type = 'button'; b.id = 'g-learn-btn'; b.className = 'g-learn-btn'; b.setAttribute('data-testid', 'game-learn');
+    b.innerHTML = 'Pause and learn <kbd>H</kbd>';
+    b.onclick = function () { pauseLearn(); };
+    var p = document.createElement('div');
+    p.id = 'g-learn'; p.className = 'g-learn'; p.hidden = true; p.setAttribute('data-testid', 'game-learn-panel');
+    c.appendChild(b); c.appendChild(p);
+  }
+
+  function pauseLearn() {
+    if (!st.running || st.paused || !st.q) return;
+    var q = st.q, p = document.getElementById('g-learn');
+    st.paused = true; st.pauseAt = now(); st.learned = true;
+    p.innerHTML = '<p class="g-learn-ans" role="status">The answer is <b class="num">' + escHtml(q.answerText) + '</b></p>' +
+      (q.formula ? '<p class="fq-formula"><span class="mid">Formula</span> ' + AT.TeX.render(q.tex, q.formula) + '</p>' : '') +
+      '<ol>' + q.steps.map(function (s) { return '<li>' + AT.TeX.rich(s) + '</li>'; }).join('') + '</ol>' +
+      (q.why ? '<p>' + AT.TeX.rich(q.why) + '</p>' : '') +
+      '<p><button type="button" class="primary" id="g-resume" data-testid="game-resume">Back to the round <kbd>Enter</kbd></button></p>';
+    document.getElementById('g-resume').onclick = resumeLearn;
+    p.hidden = false;
+    document.getElementById('g-learn-btn').hidden = true;
+    document.getElementById('g-method').hidden = true;
+    document.getElementById('g-hint').hidden = true;
+    timerEl.textContent = 'Paused';
+    inEl.readOnly = true;
+    root.classList.add('paused');
+    root.querySelector('.g-center').scrollTop = 0;   // the question first, then the solution under it
+  }
+
+  function resumeLearn() {
+    if (!st.paused) return;
+    var d = now() - st.pauseAt;
+    st.t0 += d; st.qStart += d; st.pausedMs += d;   // the pause counts neither for the round nor for the question
+    st.paused = false;
+    root.classList.remove('paused');
+    document.getElementById('g-learn').hidden = true;
+    document.getElementById('g-learn-btn').hidden = false;
+    var hint = document.getElementById('g-hint'); hint.hidden = !st.q.ask;
+    var m = document.getElementById('g-method');
+    m.textContent = 'Type the answer to go on. No point for this one.'; m.hidden = false;
+    inEl.readOnly = false; inEl.value = '';
+    tick();
+    curEl = inEl; inEl.focus();
+  }
+
+  // A question you paused on is saved as learned: no point, a miss for its template.
+  function learnedExtra(extra) {
+    if (st.learned) { extra.learned = true; extra.pausedMs = Math.round(st.pausedMs); extra.correct = false; }
+    return extra;
+  }
+
+  function acceptFinance(given) {
+    st.questions.push(finRecord(st.q, learnedExtra({ given: given.trim(), correct: true, timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong })));
+    if (!st.learned) { st.score++; scoreEl.textContent = 'Score: ' + st.score; }
+    nextQuestion();
+  }
+
+  // Skipped: no point, and a miss for that template (unlike a question the clock cut off).
+  function skipFinance() {
+    st.questions.push(finRecord(st.q, learnedExtra({ given: null, correct: false, skipped: true, timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong })));
+    nextQuestion();
+  }
+
+  Game.startFinance = function (opts) {
+    // opts: { mode: 'FINANCE', settings: { kind: 'sprint', duration, … }, source() → { tpl, seed }, duration, countdown, onEnd(round), onAbort() }
+    start('finance', opts);
+    learnMount();
+    inEl.oninput = onFinanceInput;
+  };
+
   // ---------- Interview ----------
 
   function answerInterview(given) {
@@ -383,7 +524,8 @@
     clearInterval(st.interval);
     if (timeUp && st.q) {
       var q = st.q, extra = { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong || 0, unanswered: true }, rec;
-      if (q.op === 'iv') { rec = { op: q.op, shown: q.shown, answer: q.answer, type: q.type, keys: q.keys, answerText: q.answerText }; for (var k in extra) rec[k] = extra[k]; }
+      if (st.kind === 'finance') { extra.correct = false; rec = finRecord(q, learnedExtra(extra)); }
+      else if (q.op === 'iv') { rec = { op: q.op, shown: q.shown, answer: q.answer, type: q.type, keys: q.keys, answerText: q.answerText }; for (var k in extra) rec[k] = extra[k]; }
       else rec = record(q, extra);
       st.questions.push(rec);
     }

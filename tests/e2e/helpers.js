@@ -14,11 +14,12 @@ const NOW = new Date('2026-10-21T10:00:00');
 // time so it only moves when a test says so (tick). Natural flow raced with fastForward and made a test flaky.
 async function openApp(page, hash, opts) {
   await page.clock.install({ time: NOW });
-  if (opts && opts.history) {
+  if (opts && (opts.history || opts.rounds)) {
     // Written before the app loads, and only into an empty store, so reloads keep what the test did.
+    // `rounds` seeds those rounds instead of the zetamac.com session.
     await page.addInitScript(({ key, rounds }) => {
       if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, rounds, presets: [], settings: {} }));
-    }, { key: 'arithmeticTrainer.v1', rounds: zetamacSession(NOW.getTime()) });
+    }, { key: 'arithmeticTrainer.v1', rounds: opts.rounds || zetamacSession(NOW.getTime()) });
   }
   await page.goto(APP_URL + (hash ? '#' + hash : ''));
   await expect(page.locator('main')).not.toBeEmpty();
