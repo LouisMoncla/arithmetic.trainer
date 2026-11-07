@@ -58,6 +58,47 @@ Height 36px, 1px ink border, square, mono face (all inputs hold numbers or codes
 
 7ch wide, 44px mono, centred, 1px ink border. Focus indicator is the box itself (2px border). Digits only in Zetamac rounds (`inputmode="numeric"`), digits `. - /` in Interview. Always focused during a round; clicks anywhere refocus it. A wrong Interview answer shows a 3px outline for 150 ms.
 
+### Matrix answer grid (game)
+
+Matrix rounds only. The question is A × B as two 2 × 2 grids in square brackets (2px ink strokes with 8px top and bottom
+serifs, so they never read as determinant bars), mono, `clamp(32px, 6vw, 56px)`. Below, "=" and the same brackets around
+four answer boxes (`.g-in.g-cell`, 4ch, 36px, 12px gaps), labelled "Row 1, column 1"… Space moves to the next box, arrows
+to the neighbour; focus selects the box's text so typing replaces it. A wrong filled box shown by Enter gets a 3px ink
+outline (`.bad`) until it is edited. `data-testid`: `game-matrix-a`, `game-matrix-b`, `game-cell-0`…`game-cell-3`.
+
+### Finance sprint (game)
+
+The overlay with `#game.fin`: the question is a sentence, so it is set in the text face (`clamp(20px, 3.2vw, 30px)`, line height
+1.4, centred, max 34em) instead of the big mono figures. The answer box is 8ch; the unit (`€`, `%`, `bp`…) sits beside it in
+32px `--mid` (`.g-unit`, `game-unit`); the answer instruction ("Answer in %, one decimal.") is the `g-hint` line under it.
+A wrong Enter shows the 150 ms 3px outline, as in Interview, and the `g-method` line says "Not right. Press H to pause and learn."
+A quiet outline button under it (`.g-learn-btn`, 32px, 13px `--mid`, `--line` border) reads "Pause and learn H". Paused
+(`#game.paused`): the timer reads "Paused" in ink and bold, the box goes read-only with a `--line` border, and the panel
+(`.g-learn`, text face 18px, max 40em, 1px ink rule above) shows "The answer is X" (24px), the formula in mono, numbered
+steps, the why paragraph and a primary "Back to the round Enter" button. On resume the line says "Type the answer to go on.
+No point for this one." When the solution is taller than the window the round screen scrolls: `.g-center` starts at the top
+with auto margins (centred while it fits), so the question is never pushed out of reach. `data-testid`: `game-learn`, `game-learn-panel`, `game-resume`.
+
+### Formula line (maths)
+
+"Formula" in `--mid`, then the formula drawn by the browser as MathML (`.tex`): a maths font stack (Cambria Math, STIX Two
+Math, Latin Modern Math, `math`), 1.2em, ink colour, display-size fractions (`math-style: normal`), `alttext` = the plain
+formula for screen readers. It scrolls sideways inside its box on a narrow screen instead of overflowing. Used in Practice
+results, end-screen worked answers and the sprint pause panel. The same maths appears inside sentences (questions, steps,
+explanations, options): on the text baseline at 1.1em, a formula and the punctuation after it never split across lines, and
+a step list too wide for a phone scrolls sideways as a whole. Without TeX (arithmetic templates) it is the plain formula in mono.
+
+### Finance question card (page)
+
+Practice, Intuition and Interview mix, on the page (max 46em): topic and difficulty in 13px `--mid`, the prompt at 18px,
+the instruction line, then either the answer field (44px, 20px text, unit beside it, Check button; an unreadable entry shows
+an `.err` line and is not counted) or 4 option buttons (full width, ≥ 44px tall, key cap 1–4). After answering, options are
+disabled: the right one inverted (ink fill) and tagged "Right answer", a wrong pick keeps a 3px border and "Your answer".
+The result block under a 1px ink rule: verdict (bold "Right." / "Not quite."), formula in mono, numbered steps, one "why"
+paragraph, then Next (primary, focused), Same type with new numbers, Practise the calculation, and the question code
+(`template #seed`) in small `--mid`. End screens list every question as a `<details>` row (result on its own small line,
+then the prompt) that opens on the worked answer.
+
 ---
 
 ### Select
@@ -95,7 +136,7 @@ Three-zone grid `1fr auto 1fr`: brand left (`translate="no"`), tabs centred, too
 | Tab | 17px/15px vertical padding, secondary ink; hover ink |
 | Active tab | `aria-current="page"`, ink, 600, 2px ink underline sitting on the bar's rule |
 | Compact | Brand row, then tabs on their own row |
-| Tabs | Play · Review · Stats · Settings (Learn joins later). Stats sections are not tabs. |
+| Tabs | Play · Learn · Matrices · Finance · Review · Stats · Settings. Stats sections are not tabs. |
 
 ---
 
@@ -122,7 +163,7 @@ Selected row: inverted, `aria-pressed="true"`. Clicking a row selects it; clicki
 
 ### Segmented toggle
 
-Joined outline buttons (30px, 13px); the active one filled, `aria-pressed`. Used for heatmap views (Combined | Multiplication | Division). The choice is mirrored in the URL (`#review/div`).
+Joined outline buttons (30px, 13px); the active one filled, `aria-pressed`. Used for heatmap views (Combined | Multiplication | Division), the Matrices and Finance options. The choice is mirrored in the URL (`#review/div`) or remembered in settings. Groups wrap on narrow screens. A multi-select group (Finance families) uses the same look; two adjacent chosen buttons keep a `--bg` hairline between them.
 
 ---
 

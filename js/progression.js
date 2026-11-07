@@ -24,13 +24,18 @@
   var MODE_LABELS = {
     TABLES: 'Tables', WTABLES: 'Weighted tables', P2: 'Foundations', P3: 'Speed', NORMAL120: 'Interview-ready', DRILL: 'Drill',
     INTERVIEW: 'Interview sim', CUSTOM: 'Custom',
-    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks'
+    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks', MATRIX: 'Matrices', FINANCE: 'Finance'
   };
+  var FIN_KIND = { practice: 'Finance practice', intuition: 'Finance intuition', mixed: 'Finance interview mix' };
 
   // Name of a mode as S.effMode gives it, Learn rounds included ("LEARN-x11" → "Learn: × 11").
   function modeLabel(m) {
     var t = /^LEARN-(\w+)$/.exec(m || '');
     if (t) return 'Learn: ' + (t[1] === 'fractions' ? 'fractions by heart' : G.trickNames()[t[1]] || t[1]);
+    var x = /^MATRIX-(m?\d+)_(m?\d+)-(\d+)$/.exec(m || '');   // "MATRIX-m9_9-60" → "Matrices, −9 to 9, 60 s"
+    if (x) return 'Matrices, ' + x[1].replace('m', '−') + ' to ' + x[2].replace('m', '−') + ', ' + x[3] + ' s';
+    var f = /^FINANCE-(sprint|practice|intuition|mixed)(?:-(\d+))?$/.exec(m || '');   // "FINANCE-sprint-120" → "Finance sprint, 120 s"
+    if (f) return f[1] === 'sprint' ? 'Finance sprint, ' + (f[2] || 120) + ' s' : FIN_KIND[f[1]];
     return MODE_LABELS[m] || m;
   }
 
@@ -62,9 +67,11 @@
   }
 
   // Recommended mode for today: the current step's mode, with "warm-up first" if no Tables round today.
+  // The warm-up is plain Tables until 150 of the 187 table facts are measured, then Weighted tables (S.tableCoverage).
   function recommend(rounds, info, todayKey) {
     var warm = rounds.some(function (r) { var m = S.effMode(r); return (m === 'TABLES' || m === 'WTABLES') && S.dayKey(r.startedAt) === todayKey; });
-    return { mode: info.current.step.mode, warmup: !warm };
+    var cover = S.tableCoverage(S.tableCells(rounds));
+    return { mode: info.current.step.mode, warmup: !warm, warmMode: cover.ready ? 'WTABLES' : 'TABLES', coverage: cover };
   }
 
   function boxes(n) {
@@ -79,7 +86,13 @@
   function pct(x) { return x === null || x === undefined ? '–' : Math.round(x * 100) + '%'; }
 
   var REPORT_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
-  var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview sim', tr: 'tricks' };
+  // REPORT_MODES plus every matrix variant played ("MATRIX-N9-60", …), in a stable order.
+  function reportModes(rounds) {
+    var mx = {}, fin = {};
+    rounds.forEach(function (r) { if (r.mode === 'MATRIX') mx[S.effMode(r)] = 1; if (r.mode === 'FINANCE') fin[S.effMode(r)] = 1; });
+    return REPORT_MODES.concat(Object.keys(mx).sort()).concat(Object.keys(fin).sort());
+  }
+  var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview sim', tr: 'tricks', mx: 'matrices', fin: 'finance' };
 
   /*
    * Plain-text coaching report to paste into a chat. Self-explanatory: it states the rules
@@ -91,11 +104,26 @@
     var today = S.dayKey(new Date(nowMs).toISOString());
     var ctx = { rounds: rounds, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
     L.push('# Arithmetic Trainer report (' + today + ')');
-    [rAbout, rOverview, rSteps, rSessions, rRoundIndex, rOps, rFacts, rGrid, rLatest, rFatigue].forEach(function (fn) {
+    [rAbout, rOverview, rSteps, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rLatest, rFatigue].forEach(function (fn) {
       L.push('');
       fn(ctx, L);
     });
     return L.join('\n');
+  }
+
+  // Finance tab: accuracy per category and the weakest templates (template ids, reproducible with a seed).
+  function rFinance(ctx, L) {
+    var fs = S.financeStats(ctx.rounds);
+    if (!fs.n) return;
+    L.push('## Finance tab');
+    L.push('Right = right on the first try (skips count as wrong). Times are medians. Sprints: score = questions answered right in the time.');
+    var sp = fs.sprints.slice(-10);
+    if (sp.length) L.push('Last sprints: ' + sp.map(function (x) { return x.score + ' (' + x.duration + ' s, ' + S.dayKey(x.startedAt) + ')'; }).join(', '));
+    L.push('Overall: ' + fs.n + ' answered, ' + pct(fs.acc) + ' right.');
+    L.push('Per category: ' + Object.keys(fs.cat).sort().map(function (c) { var e = fs.cat[c]; return c + ' ' + pct(e.acc) + ' of ' + e.n + ', ' + sec(e.med) + ' s'; }).join('; '));
+    var weak = Object.keys(fs.tpl).filter(function (k) { return fs.tpl[k].n >= 2 && fs.tpl[k].acc < 1; })
+      .sort(function (a, b) { return fs.tpl[a].acc - fs.tpl[b].acc || fs.tpl[b].n - fs.tpl[a].n; }).slice(0, 8);
+    if (weak.length) L.push('Weakest templates: ' + weak.map(function (k) { var e = fs.tpl[k]; return k + ' ' + pct(e.acc) + ' of ' + e.n; }).join('; '));
   }
 
   function rAbout(ctx, L) {
@@ -124,7 +152,7 @@
       ' (' + days[0] + ' to ' + days[days.length - 1] + '). Questions answered: ' + qs + '.');
     var rec = recommend(rs, ctx.info, ctx.today);
     L.push('Today is day ' + S.sessionNumber(rs, ctx.today) + '. Recommended: ' +
-      (rec.warmup ? 'warm up with Tables, then ' : '') + modeLabel(rec.mode) + '.');
+      (rec.warmup ? 'warm up with ' + modeLabel(rec.warmMode) + ', then ' : '') + modeLabel(rec.mode) + '.');
   }
 
   function rSteps(ctx, L) {
@@ -149,7 +177,7 @@
   function rSessions(ctx, L) {
     L.push('## Every day per mode (last 30 each)');
     var any = false;
-    REPORT_MODES.forEach(function (m) {
+    reportModes(ctx.rounds).forEach(function (m) {
       var ss = S.sessionsForMode(ctx.rounds, m);
       if (!ss.length) return;
       any = true;
@@ -166,7 +194,7 @@
   function rRoundIndex(ctx, L) {
     L.push('## Average score by round number within a day');
     var any = false;
-    REPORT_MODES.forEach(function (m) {
+    reportModes(ctx.rounds).forEach(function (m) {
       var b = S.roundIndexAverages(ctx.rounds, m).slice(0, 12);
       if (b.length < 2) return;
       any = true;

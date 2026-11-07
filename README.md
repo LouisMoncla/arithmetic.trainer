@@ -40,11 +40,11 @@ Every round is saved automatically on this computer, inside the browser's own st
 
 | # | Mode | What it's for |
 |---|------|---------------|
-| 1 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up; the home screen says "warm-up first" until you play one each day. |
+| 1 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up; the home screen says "warm-up first" until you play one each day. Once 150 of the 187 table facts have 2+ answers, row 1 becomes **Weighted tables** (the warm-up from then on) and plain Tables moves to `T`. |
 | 2 | **Foundations** | ×÷ (2–12)×(2–100), 60 s. One-digit × two-digit and big divisions (637 ÷ 7). |
 | 3 | **Speed** | Zetamac Normal, 60 s. |
 | 4 | **Interview-ready** | Zetamac Normal, 120 s: the real benchmark (step 3). |
-| – | **Weighted tables** | From Review (`W`). Tables, but every × fact and every ÷ (each direction on its own) comes up in proportion to (your median time on it)², so slow facts appear far more often. Facts with no data count as slowest until seen. Counts as the daily warm-up. |
+| – | **Weighted tables** | From Review (`W`), and row 1 of Play after the switch above. Tables, but every × fact and every ÷ (each direction on its own) comes up in proportion to (your median time on it)², so slow facts appear far more often. Facts with no data count as slowest until seen. Counts as the daily warm-up. |
 | 5 | **Weak-fact drill** | Shows your top 10 weak facts, then 60 s: ~70% from them (weighted by slowness, with their fact families), ~30% normal Foundations. |
 | 6 | **Interview sim** | Optiver-style: 80 questions in 8 min. Integers, decimals, fractions, percentages, estimates. Type and press Enter (`0.5`, `.5`, `1/2` all accepted); Tab skips; +1 / −1 (penalty set in Settings) / 0. |
 | 7 | **Custom** | Every Zetamac setting: operations, 4 ranges, 30/60/120/300 s. Save named presets. |
@@ -72,7 +72,7 @@ Rounds you enter from zetamac.com (Log screen) count too. Override the step in S
 
 ## Screens
 
-The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Settings**.
+The top bar has seven tabs: **Play**, **Learn**, **Matrices**, **Finance**, **Review**, **Stats** and **Settings**.
 
 - **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–9`, `0` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
@@ -92,6 +92,34 @@ The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Sett
   or cut off (2/3: 0.667 or 0.666); a decimal with … repeats. A grid shows every pair: grey = not seen yet,
   inverted = slow or often wrong. Practice and timed rounds pick slow and unseen pairs more often (the weighted-tables
   formula), and the method uses the patterns (ninths, elevenths, sevenths, multiples of 1/d).
+- **Matrices** (`X`): 2 × 2 matrix products. Choose the entries (ℤ, integers, or ℕ, natural numbers), the range
+  (−9 to 9 by default, −12 to 12, or **Custom**: your own From and To, between −99 and 99) and the length (60 or 120 s);
+  the choice is remembered. A round shows A × B and four answer boxes:
+  `Space` goes to the next box (row by row, wrapping), the arrows move anywhere in the grid, and the next matrix comes
+  as soon as all four entries are right. `Enter` outlines the wrong entries (until you edit them), `Tab` skips, `Esc` stops.
+  Each combination of options counts as its own mode ("Matrices, −9 to 9, 60 s") in Log, Progress and the report,
+  so scores are only compared with rounds of the same kind. Saved as mode `MATRIX`, questions as op `mx`.
+- **Finance** (`Q`): mental math and finance intuition for quant-finance interviews. 57 calculation templates
+  (arithmetic, quant mental math such as percentages, squares, roots, logs, compounding and expected value, and
+  finance: rates, bonds, macro, volatility, banks and ALM, VaR and ES, liquidity, statistics) and 78 concept questions.
+  Choose a mode, the families, a topic and a difficulty; the choice is remembered.
+  - **Sprint**: timed (60, 120 or 180 s), typed answers. An exact or rounded answer is taken as soon as you type it;
+    an estimate ("approximately, within 1%") takes `Enter`. The unit is beside the box and how to answer is under it.
+    `%` and `bp` suffixes, commas as decimal points and spaces are all understood. `Tab` skips, `Esc` stops.
+    **Pause and learn** (`H`, or the button under the box): the clock stops and you see the answer, the formula, the steps
+    and why. `Enter` brings the question back; type the answer to go on (no point for that one). After a wrong `Enter`
+    the line under the box reminds you. The end screen counts the questions you paused on.
+  - **Practice**: untimed, on the page. After each answer: right or not, the answer, the formula (drawn as real maths:
+    fractions, roots, exponents, Greek), the steps and why.
+    `Enter` next, `S` same type with new numbers, `C` the related calculation (after a concept question), `Esc` done.
+    Answer by typing or by picking from 4 (the wrong options are typical mistakes: forgetting √t, 1.96 for 99%, a sign…).
+    "My 5 weakest" draws only your weakest question types.
+  - **Intuition**: the concept questions only, keys `1–4`.
+  - **Interview mix**: 20 questions from every family, getting harder, then your score per topic.
+  Weaker and slower question types come up more often in Practice and the mix. The page shows your best sprint,
+  accuracy per topic, sprint scores over time and your 5 weakest. Every question can be reopened from its code:
+  `#finance/q/<template>/<seed>`. Saved as mode `FINANCE` (`settings.kind` = sprint, practice, intuition or mixed),
+  questions as op `fin` with their template and seed; Log and the report show them.
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
 - **Stats** (`A`): three big sections you open and close: Today, Progress and Log. Closed, each shows one line (today's rounds, your step's last average, how many rounds). The ones you leave open stay open in this browser. `E` `G` `L` jump to a section; links to the old pages (`#session/…`, `#log`, `#stats/review/…`) still work.
@@ -107,8 +135,34 @@ The top bar has five tabs: **Play**, **Learn**, **Review**, **Stats** and **Sett
 
 ## Keys
 
-`P` play · `N` learn · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
+`P` play · `N` learn · `X` matrices · `Q` finance · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
 Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start. Lesson: `Enter` practise, `F` timed round; in practice `Tab` shows the method.
+Matrices: `Enter` start; in a round `Space` next entry, arrows move, `Enter` outline wrong entries, `Tab` skip.
+Finance: `Enter` start; sprint `H` pause and learn (`Enter` back), `Enter` checks an estimate, `Tab` skips; practice `Enter` check then next, `1–4` choose, `S` new numbers, `C` related calculation, `Esc` done.
+
+## Adding a finance template
+
+Templates live in `js/finance-templates.js` and register with `F.register({...})` (fields documented at the top of
+`js/finance-core.js`):
+
+1. Give it a stable `id` (`fin.bond.price.3y`), a `family` (`arith`, `quant`, `fin`), a `category` (the topic shown
+   on the page), a `difficulty` (1 one formula, round numbers; 2 a constant or two steps; 3 multi-step or a trap).
+2. `params(rng)` draws the inputs from grids with `F.pick`, `F.int`, `F.grid` (realistic, mentally computable values);
+   `valid(p)` rejects silly draws. Choose the answer first when it should be a clean number.
+3. `prompt(p)`, `answer(p)` (the exact value), `unit` and `dp` (decimals shown), `tol(p)` if not "rounded to dp"
+   (`exact`, `abs`, `rel`: relative tolerances need Enter in a sprint and say "approximately").
+4. `distractors(p)`: plausible mistakes computed from the same inputs (the engine drops any within tolerance).
+   `steps(p)`: the formula with the numbers substituted and the intermediate results. Put every formula, letter or symbol
+   between `$…$` in the same LaTeX subset (`'Discount: $\\text{PV} = \\frac{C}{(1 + r)^t}$.'`), in prompts, steps and `why`
+   too; plain prose and plain numbers stay outside. `formula` (plain text, used in the
+   report); `why`. Add the same formula in LaTeX style to the `TEX` map at the end of the file (`\frac{C}{(1 + r)^t}`,
+   `\sigma_{\text{day}}\sqrt{252}`…): `js/tex.js` draws it as real maths with the browser's MathML. The supported subset is
+   listed at the top of `js/tex.js`; anything else fails the tests (`tests/tex.test.js`) and would show the plain formula.
+5. Add an independent reference in `tests/finance.test.js` (`REF`): a `check` of the grids and the `answer`
+   written separately. `npm test` runs it on 1,000 seeds; `npm run samples -- <id>` prints examples to read.
+
+Concept questions go in `js/finance-bank.js`: the right option first (the engine shuffles), a 2–4 sentence explanation,
+and optionally the id of the calculation to practise next.
 
 ## How weak facts are found
 
@@ -177,7 +231,8 @@ npm run test:e2e
 
 They cover: auto-accept, wrong-attempt counting, time-up saving, Esc, Enter to replay, Interview
 scoring, the home hero, Review views and their URLs, Session deep links and `A`, Stats sections and old links, the skip link,
-help, Learn (lessons, practice with the method on a miss, timed rounds saved as LEARN), zetamac.com entry, export → reset → import, and account sync against a fake Supabase
+help, Learn (lessons, practice with the method on a miss, timed rounds saved as LEARN), Matrices, Finance (sprint auto-accept and
+estimates, practice with worked answers, seed links, intuition keys, the interview mix, saving on leave, progress), zetamac.com entry, export → reset → import, and account sync against a fake Supabase
 (served over http by `tests/e2e/server.js`): first sign-in merge, push, tombstones, pull.
 
 ## Design docs
@@ -188,7 +243,7 @@ case, second person and plain; numbers are monospace with tabular figures.
 
 ## Files
 
-`js/generator.js` questions · `js/lessons.js` Learn texts · `js/stats.js` sessions and weak facts · `js/progression.js` steps and summary ·
+`js/generator.js` questions · `js/finance-core.js` `js/finance-templates.js` `js/finance-bank.js` Finance engine, templates, concept questions · `js/finance-ui.js` Finance tab · `js/tex.js` LaTeX-subset formulas to MathML · `tools/finance-samples.js` sample printer (`npm run samples`, not deployed) · `js/lessons.js` Learn texts · `js/stats.js` sessions and weak facts · `js/progression.js` steps and summary ·
 `js/storage.js` save/load/export/import · `js/sync.js` account sync · `js/config.js` Supabase keys · `js/game.js` play loop · `js/charts.js` SVG · `js/ui.js` screens ·
 `js/app.js` bootstrap; `tests/` logic tests, `tests/e2e/` browser tests. Classic `<script>` tags on one global `window.AT` (ES modules fail on `file://`).
 

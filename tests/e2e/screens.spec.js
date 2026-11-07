@@ -22,6 +22,70 @@ test('home: the hero follows the selected mode, and Enter starts it', async ({ p
   await page.keyboard.press('Escape');
 });
 
+// Yesterday's Tables round answering `count` grid facts twice each (× pairs first, then ÷).
+function tablesHistory(count) {
+  const facts = [];
+  for (let a = 2; a <= 12; a++) for (let b = a; b <= 12; b++) facts.push(['mul', a, b]);
+  for (let a = 2; a <= 12; a++) for (let b = 2; b <= 12; b++) facts.push(['div', a, b]);
+  const questions = [];
+  facts.slice(0, count).forEach(([op, a, b]) => questions.push({ op, a, b, timeMs: 1500, wrongAttempts: 0 }, { op, a, b, timeMs: 1500, wrongAttempts: 0 }));
+  return [{ id: 'seed-tables', startedAt: new Date(NOW.getTime() - 86400000).toISOString(), mode: 'TABLES', score: 30, settings: { duration: 60 }, questions }];
+}
+const savedModes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('arithmeticTrainer.v1')).rounds.map((r) => r.mode));
+
+test('home: Tables is the warm-up until 150 of 187 table facts are measured', async ({ page }) => {
+  await openApp(page, '', { rounds: tablesHistory(149) });
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tables');
+  await expect(page.getByTestId('home-hero-note')).toHaveText('149 of 187 table facts measured. Weighted tables becomes the warm-up at 150.');
+  await expect(page.locator('.mode[data-mode="TABLES"]')).toContainText('Warm up first');
+  await expect(page.locator('.mode[data-mode="WTABLES"]')).toHaveCount(0);
+  await expect(page.getByTestId('home-plain-tables')).toHaveCount(0);
+});
+
+test('home: then Weighted tables takes row 1, and T still plays plain Tables', async ({ page }) => {
+  await openApp(page, '', { rounds: tablesHistory(150) });
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Weighted tables');
+  await expect(page.locator('.mode[data-mode="WTABLES"]')).toContainText('Warm up first');
+  await expect(page.locator('.mode[data-mode="WTABLES"] .k')).toHaveText('1');
+  await expect(page.locator('.mode[data-mode="TABLES"]')).toHaveCount(0);
+  await expect(page.locator('.modes .mode')).toHaveCount(10);
+  await expect(page.locator('.mode .k').last()).toHaveText('0');
+
+  // Enter plays Weighted tables
+  await startSelected(page);
+  await expect(page.getByTestId('game-question')).toHaveText(/^\d+ [×÷] \d+$/);
+  await answerCurrent(page);
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('1');
+  expect((await savedModes(page)).pop()).toBe('WTABLES');
+
+  // warmed up: the step's mode is recommended now
+  await page.keyboard.press('p');
+  await expect(page).toHaveURL(/#play$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Foundations');
+  await expect(page.locator('.mode[data-mode="P2"]')).toContainText('Recommended');
+});
+
+test('home: T plays plain Tables once Weighted tables is the warm-up', async ({ page }) => {
+  await openApp(page, '', { rounds: tablesHistory(150) });
+  await page.keyboard.press('t');
+  await tick(page, 3100);
+  await answerCurrent(page);
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('1');
+  expect((await savedModes(page)).pop()).toBe('TABLES');
+});
+
+test('home: the Plain tables link starts a plain round', async ({ page }) => {
+  await openApp(page, '', { rounds: tablesHistory(187) });
+  await page.getByTestId('home-plain-tables').click();
+  await tick(page, 3100);
+  await answerCurrent(page);
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('1');
+  expect((await savedModes(page)).pop()).toBe('TABLES');
+});
+
 test('home: the step block shows the step, its rule and the streak', async ({ page }) => {
   await openApp(page);
   const step = page.getByTestId('home-step');

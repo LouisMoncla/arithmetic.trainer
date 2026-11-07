@@ -120,6 +120,8 @@
    */
   function factKeys(q) {
     if (q.keys) return q.keys;
+    if (q.op === 'mx') return ['mx'];
+    if (q.op === 'fin') return [];   // Finance questions have their own stats (S.financeStats), not fact keys
     if (q.op === 'tr') return q.type === 'fd' || q.type === 'df' ? ['tr-' + q.type, 'fr-' + q.a + '/' + q.b] : ['tr-' + q.type];
     if (q.op === 'mul' || q.op === 'div') {
       var s = Math.min(q.a, q.b), l = Math.max(q.a, q.b), pair = s + 'x' + l;
@@ -190,7 +192,8 @@
       'add-carry': '+ with carry', 'add-nocarry': '+ no carry',
       'sub-borrow': '− with borrow', 'sub-noborrow': '− no borrow',
       'iv-int': 'interview sim: integer', 'iv-dec': 'interview sim: decimal', 'iv-frac': 'interview sim: fraction',
-      'iv-pct': 'interview sim: percent', 'iv-mag': 'interview sim: estimate'
+      'iv-pct': 'interview sim: percent', 'iv-mag': 'interview sim: estimate',
+      mx: '2 × 2 matrix product'
     };
     if ((m = /^tr-(\w+)$/.exec(key)) && TRICKS[m[1]]) return TRICKS[m[1]].name;
     if (names[key]) return names[key];
@@ -219,7 +222,8 @@
       next: noRepeat(function () {
         if (pool.length && rng() < share) {
           var item = weightedPick(pool, rng);
-          var q = item.q ? (item.q.op === 'tr' ? makeTrick(item.q.type, item.q.a, item.q.b) : makeQuestion(item.q.op, item.q.a, item.q.b)) : fromKey(item.key, rng);
+          var q = item.q ? (item.q.op === 'tr' ? makeTrick(item.q.type, item.q.a, item.q.b)
+            : item.q.op === 'mx' ? makeMatrix(item.q.a, item.q.b) : makeQuestion(item.q.op, item.q.a, item.q.b)) : fromKey(item.key, rng);
           if (q) return q;
         }
         return generate(opts.base, rng);
@@ -259,6 +263,7 @@
       return 'Tens then ones: ' + m + ' − ' + tens + ' = ' + (m - tens) + ', − ' + ones + ' → ' + q.b + '.';
     }
     if (q.op === 'tr') return trickAdvice(q);
+    if (q.op === 'mx') return matrixAdvice(q);
     var iv = {
       int: 'Split one factor: 47×36 = 47×30 + 47×6.',
       dec: 'Drop the decimals, compute with integers, then place the point.',
@@ -540,6 +545,51 @@
     return how + (toDecimal ? ' → ' + hd.text + (hd.alt ? ' (or ' + hd.alt + ')' : '') + '.' : ' → ' + f + '.');
   }
 
+  // ---------- 2 × 2 matrices ----------
+  /*
+   * op "mx": A × B with A = (a11 a12; a21 a22), B likewise, stored row-major as 4-element arrays.
+   * cells = the product, row-major. shown / answer are text so every table renders them as is.
+   * Settings: entries in [lo, hi] (a custom range, or a preset: −9 to 9, 0 to 12…). Older settings
+   * { set: 'N' | 'Z', max } mean [0, max] or [−max, max].
+   */
+  function num(n) { return n < 0 ? '−' + (-n) : String(n); }   // typographic minus for display
+  function matText(m) { return '(' + num(m[0]) + ' ' + num(m[1]) + '; ' + num(m[2]) + ' ' + num(m[3]) + ')'; }
+
+  function matProduct(a, b) {
+    return [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3]];
+  }
+
+  function makeMatrix(a, b) {
+    var c = matProduct(a, b), text = matText(c);
+    return { op: 'mx', a: a.slice(), b: b.slice(), cells: c, shown: matText(a) + ' × ' + matText(b), answer: text, answerText: text };
+  }
+
+  // The entry range of matrix settings, new form { lo, hi } or old form { set, max }.
+  function matrixRange(s) {
+    s = s || {};
+    if (typeof s.lo === 'number' && typeof s.hi === 'number') return { lo: s.lo, hi: s.hi };
+    var max = typeof s.max === 'number' ? s.max : 9;
+    return { lo: s.set === 'N' ? 0 : -max, hi: max };
+  }
+
+  function matrixQuestion(opts, rng) {
+    var r = matrixRange(opts);
+    function m() { return [0, 1, 2, 3].map(function () { return randInt(rng, r.lo, r.hi); }); }
+    return makeMatrix(m(), m());
+  }
+
+  function makeMatrixGenerator(opts, rng) {
+    return { next: noRepeat(function () { return matrixQuestion(opts, rng); }) };
+  }
+
+  // Worked row-times-column for the end screen: every entry of the product.
+  function matrixAdvice(q) {
+    var a = q.a, b = q.b, c = q.cells || matProduct(a, b);
+    function dot(i, j, k, l, v) { return num(a[i]) + '·' + num(b[j]) + ' + ' + num(a[k]) + '·' + num(b[l]) + ' = ' + num(v); }
+    return 'Row times column: ' + dot(0, 0, 1, 2, c[0]) + '; ' + dot(0, 1, 1, 3, c[1]) + '; ' +
+      dot(2, 0, 3, 2, c[2]) + '; ' + dot(2, 1, 3, 3, c[3]) + '.';
+  }
+
   function trickNames() {
     var out = {};
     for (var k in TRICKS) out[k] = TRICKS[k].name;
@@ -575,7 +625,9 @@
     makeMixedGenerator: makeMixedGenerator, advice: advice,
     interviewQuestion: interviewQuestion, makeInterviewGenerator: makeInterviewGenerator,
     parseAnswer: parseAnswer, checkInterview: checkInterview, hasCarry: hasCarry, hasBorrow: hasBorrow,
-    makeTrick: makeTrick, trickQuestion: trickQuestion, trickAdvice: trickAdvice, trickNames: trickNames
+    makeTrick: makeTrick, trickQuestion: trickQuestion, trickAdvice: trickAdvice, trickNames: trickNames,
+    makeMatrix: makeMatrix, matrixRange: matrixRange, matrixQuestion: matrixQuestion, makeMatrixGenerator: makeMatrixGenerator,
+    matProduct: matProduct, matrixAdvice: matrixAdvice
   };
   AT.Generator = api;
   if (typeof module !== 'undefined') module.exports = api;

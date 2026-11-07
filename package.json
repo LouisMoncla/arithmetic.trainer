@@ -5,7 +5,8 @@
   "description": "Local mental-math trainer. The app itself has no dependencies; these are for tests only.",
   "scripts": {
     "test": "node --test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "samples": "node tools/finance-samples.js"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

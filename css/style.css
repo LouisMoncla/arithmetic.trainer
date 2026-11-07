@@ -334,6 +334,102 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 .g-in:focus-visible { outline: none; border-width: 2px; padding: 3px 7px; }  /* the box itself is the focus indicator */
 #game.wrong .g-in { outline: 3px solid var(--fg); outline-offset: 0; }
 
+/* Matrix rounds: A × B as two bracketed grids, then "=" and a 2 × 2 grid of answer boxes. */
+.mx-q { display: flex; align-items: center; gap: 24px; font-size: clamp(32px, 6vw, 56px); }
+.mx {
+  position: relative; display: inline-grid; grid-template-columns: repeat(2, auto); gap: 4px 24px; padding: 6px 18px;
+  text-align: right;
+}
+.mx-op { color: var(--mid); }
+.g-mx-ans { display: flex; align-items: center; gap: 24px; margin-top: 36px; }
+.mx-eq { font-size: clamp(32px, 6vw, 56px); color: var(--mid); }
+.g-grid { position: relative; display: grid; grid-template-columns: repeat(2, auto); gap: 12px; padding: 6px 16px; }
+/* Square brackets, not bars (bars would read as a determinant). */
+.mx::before, .mx::after, .g-grid::before, .g-grid::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 8px;
+  border: 2px solid var(--fg); pointer-events: none;
+}
+.mx::before, .g-grid::before { left: 0; border-right: 0; }
+.mx::after, .g-grid::after { right: 0; border-left: 0; }
+.g-cell { width: 4ch; font-size: 36px; }
+.g-cell.bad { outline: 3px solid var(--fg); outline-offset: 0; }   /* Enter showed it is wrong; clears when you edit it */
+.mx-start { margin: 24px 0 0; }
+.mx-custom { margin: 0; flex-basis: 100%; }
+.mx-custom input[type="number"] { width: 6em; }
+.fc .err { flex-basis: 100%; margin: 0; }
+.fc .err:empty { display: none; }
+.mx-start .hero-start { margin-top: 0; }
+
+/* Finance rounds: the question is a sentence, not "47 + 38"; the unit sits beside the box, how to answer under it. */
+#game.fin .g-q { font-family: var(--sans); font-size: clamp(20px, 3.2vw, 30px); line-height: 1.4; white-space: normal; max-width: 34em; padding: 0 16px; text-align: center; }
+#game.fin .g-in { width: 8ch; }
+#game.fin .g-hint { padding: 0 16px; text-align: center; }
+.g-unit { font-size: 32px; color: var(--mid); }
+/* Pause and learn: a quiet button under the box; when paused, the worked solution in the text face. */
+.g-learn-btn { margin-top: 20px; height: 32px; font-size: var(--t-xs); color: var(--mid); border-color: var(--line); }
+.g-learn-btn[hidden] { display: none; }
+/* Finance rounds scroll when the solution is taller than the window. Plain centring would push the top (the question)
+   out of reach, so the column starts at the top and auto margins centre it while it fits. */
+#game.fin .g-center { justify-content: flex-start; overflow-y: auto; padding-bottom: 24px; box-sizing: border-box; }
+/* No block may shrink to fit (a flex item with overflow set can collapse to nothing): the column scrolls instead. */
+#game.fin .g-center > * { flex-shrink: 0; }
+#game.fin .g-center > :first-child { margin-top: auto; }
+#game.fin .g-center > :last-child { margin-bottom: auto; }
+.g-learn { width: min(40em, calc(100% - 32px)); margin: 24px 16px 0; padding-top: 16px; border-top: 1px solid var(--fg); font-size: var(--t-m); line-height: 1.6; text-align: left; }
+.g-learn[hidden] { display: none; }
+.g-learn p { margin: 0 0 10px; }
+.g-learn ol { margin: 0 0 12px; padding-left: 1.4em; }
+.g-learn .g-learn-ans { font-size: var(--t-l); }
+#game.paused .g-in { border-color: var(--line); }
+#game.paused #g-timer { color: var(--fg); font-weight: 600; }
+
+/* ---------- finance (practice on the page) ---------- */
+.seg { flex-wrap: wrap; }
+.seg button.on + button.on { border-left-color: var(--bg); }   /* two chosen families stay two buttons */
+.fq, .fq-result { max-width: 46em; }
+.fq-meta { margin: 8px 0 0; font-size: var(--t-xs); color: var(--mid); }
+.fq-prompt { margin: 6px 0 0; font-size: var(--t-m); line-height: 1.5; }
+.fq-ask { margin: 6px 0 0; font-size: var(--t-s); color: var(--mid); }
+.fq-in { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0 0; }
+.fq-in input { width: 10em; height: 44px; font-size: 20px; }
+.fq-in .unit { font-size: var(--t-m); color: var(--mid); }
+.fq .err { margin: 8px 0 0; }
+.fq .err:empty { display: none; }
+.fq-opts { list-style: none; display: grid; gap: 8px; margin: 18px 0 0; padding: 0; }
+.fq-opts .opt { display: flex; align-items: center; gap: 12px; width: 100%; height: auto; min-height: 44px; padding: 8px 12px; text-align: left; line-height: 1.4; }
+.fq-opts .opt kbd { margin: 0; }
+.fq-opts .ot { flex: 1; }
+.fq-opts .tag { font-size: var(--t-xs); white-space: nowrap; }
+/* After answering: the right option inverted, yours (if wrong) with a heavy border. No colour. */
+.fq-opts .opt.right, .fq-opts .opt.right:disabled { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+.fq-opts .opt.chosen:disabled { color: var(--fg); border: 3px solid var(--fg); padding: 6px 10px; }
+.fq-result { margin: 24px 0 0; padding: 16px 0 0; border-top: 1px solid var(--fg); }
+.fq-result .verdict { margin: 0; font-size: var(--t-m); }
+/* The formula line: real maths (MathML, drawn by the browser) in a maths font, a bit larger than the text; scrolls sideways
+   on a narrow screen rather than overflowing. Ink only, like everything else. */
+.fq-formula { margin: 12px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.tex { display: inline-block; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 2px 0; vertical-align: middle; }
+.tex math { font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", math; font-size: 1.2em; color: var(--fg); math-style: normal; }   /* display-size fractions, like LaTeX's \displaystyle */
+/* Maths inside a sentence (rich text): on the text baseline, a touch larger than the words. A line too wide for a phone
+   scrolls sideways inside its own block (the question, a step, the why) instead of overflowing the page. */
+.tex.tex-i { display: inline; max-width: none; overflow: visible; padding: 0; vertical-align: baseline; }
+.tex.tex-i math { font-size: 1.1em; }
+.nobr { white-space: nowrap; }   /* a formula and the punctuation right after it stay on one line */
+.fq-prompt, .fq-why, .fq-opts .ot, .fq-rd p, .g-learn p, #game.fin .g-q { overflow-x: auto; overflow-y: hidden; }
+/* Step lists scroll as a whole (scrolling each item would clip its number); markers sit inside the box. */
+.fq-steps, .g-learn ol { overflow-x: auto; overflow-y: hidden; padding-left: 1.6em; }
+#game.fin .g-q .tex-i math { font-size: 1.2em; }
+.fq-steps { margin: 10px 0 0; padding-left: 1.4em; line-height: 1.6; }
+.fq-why { margin: 10px 0 0; }
+.fq-review { list-style: none; margin: 0; padding: 0; }
+.fq-review li { border-bottom: 1px solid var(--line); }
+.fq-review summary { cursor: pointer; padding: 10px 0; line-height: 1.45; }
+.fq-r { display: block; font-size: var(--t-xs); color: var(--mid); }
+.fin-weak td { vertical-align: middle; }
+.fin-weak button { height: 30px; font: 600 var(--t-xs) var(--sans); }
+.fq-rd { padding: 0 0 14px; }
+.fq-rd p:first-child { margin-top: 0; }
+
 /* ---------- help ---------- */
 #help { position: fixed; inset: 0; background: var(--bg); overflow: auto; overscroll-behavior: contain; }
 #help[hidden] { display: none; }

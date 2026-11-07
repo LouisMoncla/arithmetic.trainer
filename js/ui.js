@@ -18,7 +18,7 @@
   var AT = window.AT;
   var G = AT.Generator, S = AT.Stats, P = AT.Progression, Store = AT.Storage, C = AT.Charts, Game = AT.Game;
 
-  var data, main, screenKeys = null, endShownAt = 0;
+  var data, main, screenKeys = null, endShownAt = 0, leaveHook = null;
   var ui = { sel: null, sort: { col: 'slowness', dir: -1 }, filter: 'all', importPending: null, customError: null };
 
   var MODES = [
@@ -33,14 +33,23 @@
     { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions to decimals and back, adding and subtracting fractions in lowest terms, 60 seconds, Tab skips' },
     { id: 'TRICKS', label: 'Mixed tricks', desc: 'Squares, × 11, × 25, products near 100, difference of squares, 60 seconds, Tab skips' }
   ];
+  // Row 1 once the tables grid is measured (P.recommend's warmMode): same key, plain Tables moves to T.
+  var WTABLES_MODE = { id: 'WTABLES', label: 'Weighted tables', desc: '× and ÷, 2–12 by 2–12, your slow facts come up more, 60 seconds' };
+  function modesFor(rec) { return rec.warmMode === 'WTABLES' ? [WTABLES_MODE].concat(MODES.slice(1)) : MODES; }
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
   var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
-  // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions").
+  // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions"),
   function logModes() {
     var played = {};
-    data.rounds.forEach(function (r) { if (r.mode === 'LEARN') played[S.effMode(r)] = 1; });
-    return LOG_MODES.concat(Object.keys(G.trickNames()).concat(['fractions']).map(function (t) { return 'LEARN-' + t; }).filter(function (m) { return played[m]; }));
+    var mx = {}, fin = {};   // and one per matrix variant ("MATRIX-m9_9-60") and Finance kind ("FINANCE-sprint-120") played
+    data.rounds.forEach(function (r) {
+      if (r.mode === 'LEARN') played[S.effMode(r)] = 1;
+      if (r.mode === 'MATRIX') mx[S.effMode(r)] = 1;
+      if (r.mode === 'FINANCE') fin[S.effMode(r)] = 1;
+    });
+    return LOG_MODES.concat(Object.keys(G.trickNames()).concat(['fractions']).map(function (t) { return 'LEARN-' + t; }).filter(function (m) { return played[m]; }))
+      .concat(Object.keys(mx).sort()).concat(Object.keys(fin).sort());
   }
   var THRESHOLDS = { P2: 18, P3: 25, NORMAL120: 60 };
   var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
@@ -108,7 +117,7 @@
 
   // ---------- routing ----------
 
-  var SCREENS = { play: renderPlay, learn: renderLearn, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
+  var SCREENS = { play: renderPlay, learn: renderLearn, matrices: renderMatrices, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
   // Stats sections, in page order.
   var PANES = { day: renderDay, progress: renderProgress, log: renderLog };
   var PANE_ORDER = ['day', 'progress', 'log'];
@@ -131,6 +140,8 @@
 
   function route() {
     if (Game.active) return;
+    // A screen with unsaved work (a Finance practice session) saves it before the next screen draws.
+    if (leaveHook) { var leave = leaveHook; leaveHook = null; leave(); }
     screenKeys = null;
     var tip = document.querySelector('.chart-tip'); if (tip) tip.hidden = true;
     var hash = location.hash.slice(1), moved = canonical(hash);
@@ -142,6 +153,7 @@
     });
     if (name === 'play') ui.sel = null; // fresh default selection each visit
     if (name === 'learn') ui.lesson = parts[1] || null;
+    ui.parts = parts;
     if (name === 'review') ui.heatView = ['mul', 'div'].indexOf(parts[1]) >= 0 ? parts[1] : 'both';
     var pane = name === 'stats' && PANES[parts[1]] ? parts[1] : null;
     if (name === 'stats') {
@@ -173,7 +185,7 @@
     if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SUMMARY')) return;
     if (screenKeys && screenKeys(e) === true) { e.preventDefault(); return; }
     // E G L were pages of their own; they now open their Stats section.
-    var map = { p: 'play', n: 'learn', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
+    var map = { p: 'play', n: 'learn', x: 'matrices', q: 'finance', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (map[k]) { e.preventDefault(); go(map[k]); }
     else if (panes[k]) { e.preventDefault(); go('stats', panes[k]); }
@@ -275,10 +287,26 @@
     Game.startInterview(o);
   }
 
+  // 2 × 2 matrices. With `replay` (slow questions from an end screen), about 70% of matrices come from it.
+  function playMatrix(settings, replay) {
+    // Rounds store the resolved range: { lo, hi, duration } (custom: true when chosen by hand).
+    var r = G.matrixRange(settings), s = { lo: r.lo, hi: r.hi, duration: settings.duration || 60 };
+    if (settings.custom) s.custom = true;
+    if (replay) s.source = 'slow';
+    var rng = G.mulberry32(seed()), fresh = G.makeMatrixGenerator(s, rng);
+    var o = baseOpts('MATRIX', s, function (round) { showEnd(round, function () { playMatrix(settings, replay); }); });
+    o.generator = replay ? { next: function () {
+      if (rng() < 0.7) { var q = replay[Math.floor(rng() * replay.length)]; return G.makeMatrix(q.a, q.b); }
+      return fresh.next();
+    } } : fresh;
+    Game.startMatrix(o);
+  }
+
   function startMode(id) {
     if (id === 'DRILL') go('drill');
     else if (id === 'INTERVIEW') playInterview();
     else if (id === 'CUSTOM') submitCustom();
+    else if (id === 'WTABLES') playWeightedTables();
     else playStandard(id);
   }
 
@@ -286,7 +314,7 @@
 
   // The hero names whatever is selected, so the big button and Enter always do the same thing.
   function heroFor(m, rec, step) {
-    var why = m.id === 'TABLES' && rec.warmup ? 'Warm up first, then ' + label(rec.mode)
+    var why = m.id === rec.warmMode && rec.warmup ? 'Warm up first, then ' + label(rec.mode)
       : m.id === rec.mode ? 'Today’s training, step ' + step.n + ' of ' + P.STEPS.length
       : 'Your choice';
     var start = { DRILL: 'Open the drill', INTERVIEW: 'Start Interview sim', CUSTOM: 'Start custom round' }[m.id] || 'Start ' + m.label;
@@ -297,12 +325,15 @@
       CUSTOM: 'Set the operations, ranges and length below, then start.',
       NORMAL120: 'This is the score that matters for interviews. Target: 60 or more.',
       PERCENT: '3 ÷ 8 wants a decimal: 0.375. A fraction answer gets two boxes: type the numerator, then the denominator, in lowest terms.',
-      TRICKS: 'Each question has a shortcut. Freeze on one and the end screen shows how to think it.'
+      TRICKS: 'Each question has a shortcut. Freeze on one and the end screen shows how to think it.',
+      TABLES: rec.coverage.measured + ' of ' + rec.coverage.total + ' table facts measured. Weighted tables becomes the warm-up at ' + rec.coverage.need + '.',
+      WTABLES: 'Picked in proportion to your time on each fact, squared. Facts with no data yet count as slow.'
     }[m.id];
+    var plain = m.id === 'WTABLES' ? '<p class="hero-note"><button type="button" class="link" id="plain-tables" data-testid="home-plain-tables">Plain tables instead <kbd>T</kbd></button></p>' : '';
     return '<section class="hero" aria-labelledby="hero-mode">' +
       '<p class="hero-why">' + esc(why) + '</p>' +
       '<h1 class="hero-mode" id="hero-mode">' + esc(m.label) + '</h1>' +
-      '<p class="hero-desc">' + esc(m.desc) + '</p>' + (note ? '<p class="hero-note">' + esc(note) + '</p>' : '') +
+      '<p class="hero-desc">' + esc(m.desc) + '</p>' + (note ? '<p class="hero-note" data-testid="home-hero-note">' + esc(note) + '</p>' : '') + plain +
       '<button type="button" class="primary hero-start" id="hero-start" data-testid="home-start-button">' + esc(start) + ' <kbd>Enter</kbd></button>' +
       '</section>';
   }
@@ -311,8 +342,9 @@
     var rounds = data.rounds, st = data.settings;
     var info = P.current(rounds, st.stepOverride), cur = info.current, step = cur.step;
     var today = todayKey(), rec = P.recommend(rounds, info, today);
-    if (!ui.sel) ui.sel = rec.warmup ? 'TABLES' : rec.mode;
-    var sel = MODES.filter(function (m) { return m.id === ui.sel; })[0];
+    var modes = modesFor(rec);
+    if (!ui.sel || !modes.some(function (m) { return m.id === ui.sel; })) ui.sel = rec.warmup ? rec.warmMode : rec.mode;
+    var sel = modes.filter(function (m) { return m.id === ui.sel; })[0];
     var todayRounds = rounds.filter(function (r) { return S.dayKey(r.startedAt) === today; });
     var stepToday = todayRounds.filter(function (r) { return S.effMode(r) === step.mode; }).map(function (r) { return r.score; });
     var h = [heroFor(sel, rec, step)];
@@ -359,10 +391,10 @@
     var body = [];
     MODE_GROUPS.forEach(function (g) {
       body.push('<h3 class="group">' + g[0] + '</h3><ol class="modes">');
-      MODES.slice(g[1], g[2]).forEach(function (m, j) {
+      modes.slice(g[1], g[2]).forEach(function (m, j) {
         // One tag only: the warm-up while it is due, then the step's mode.
         var i = g[1] + j, tag = '';
-        if (rec.warmup ? m.id === 'TABLES' : m.id === rec.mode) tag = rec.warmup ? 'Warm up first' : 'Recommended';
+        if (rec.warmup ? m.id === rec.warmMode : m.id === rec.mode) tag = rec.warmup ? 'Warm up first' : 'Recommended';
         body.push('<li><button type="button" class="mode' + (ui.sel === m.id ? ' sel' : '') + (tag ? ' rec' : '') + '" data-mode="' + m.id + '"' +
           ' aria-pressed="' + (ui.sel === m.id) + '">' +
           '<span class="k">' + modeKey(i) + '</span><span class="nm">' + esc(m.label) + '</span><span class="ds">' + esc(m.desc) + '</span>' +
@@ -371,10 +403,11 @@
       body.push('</ol>');
     });
     h.push(section('All modes', body.join('')));
-    h.push(keys([['1–9 0', 'choose a mode'], ['↑ ↓', 'move'], ['Enter', 'start']]));
+    h.push(keys([['1–9 0', 'choose a mode'], ['↑ ↓', 'move'], ['Enter', 'start']].concat(rec.warmMode === 'WTABLES' ? [['T', 'plain tables']] : [])));
     main.innerHTML = h.join('');
 
     $('#hero-start').addEventListener('click', function () { startMode(ui.sel); });
+    if ($('#plain-tables')) $('#plain-tables').addEventListener('click', function () { playStandard('TABLES'); });
     // A row selects its mode; selecting the already-selected row starts it.
     $$('.mode').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -386,7 +419,8 @@
     if (ui.sel === 'CUSTOM') bindCustom();
 
     screenKeys = function (e) {
-      var ids = MODES.map(function (m) { return m.id; }), i = ids.indexOf(ui.sel);
+      var ids = modes.map(function (m) { return m.id; }), i = ids.indexOf(ui.sel);
+      if ((e.key === 't' || e.key === 'T') && rec.warmMode === 'WTABLES') { playStandard('TABLES'); return true; }
       if (/^[0-9]$/.test(e.key) && ids[(+e.key + 9) % 10]) { ui.sel = ids[(+e.key + 9) % 10]; renderPlay(); return true; }
       if (e.key === 'ArrowDown') { ui.sel = ids[(i + 1) % ids.length]; renderPlay(); return true; }
       if (e.key === 'ArrowUp') { ui.sel = ids[(i + ids.length - 1) % ids.length]; renderPlay(); return true; }
@@ -617,7 +651,11 @@
     main.innerHTML = h.join('');
     var actions = {
       again: again,
-      d: function () { if (slowQs.length) playPool(slowQs, 0.7, round.settings.ops || round.settings.types ? round.settings : G.modeSettings('P2'), 'slow'); },
+      d: function () {
+        if (!slowQs.length) return;
+        if (round.mode === 'MATRIX') playMatrix(round.settings, slowQs);
+        else playPool(slowQs, 0.7, round.settings.ops || round.settings.types ? round.settings : G.modeSettings('P2'), 'slow');
+      },
       a: function () { go('stats', 'day/' + todayKey()); },
       h: function () { go('play'); }
     };
@@ -718,6 +756,94 @@
     return { weak: 'Weak', improving: 'Improving', mastered: 'Mastered', ok: 'Practised' }[f.status] || f.status;
   }
 
+  // ---------- Matrices ----------
+
+  // Last-used options, read with defaults (older saves have none; no migration needed).
+  // set: 'N' | 'Z'; max: 9 | 12 | 'custom'; customLo / customHi: the custom range; duration: 60 | 120.
+  function matrixSettings() {
+    var m = data.settings.matrix || {};
+    return {
+      set: m.set === 'N' ? 'N' : 'Z',
+      max: m.max === 12 || m.max === 'custom' ? m.max : 9,
+      customLo: typeof m.customLo === 'number' ? m.customLo : -9,
+      customHi: typeof m.customHi === 'number' ? m.customHi : 9,
+      duration: m.duration === 120 ? 120 : 60
+    };
+  }
+  function validRange(lo, hi) { return Number.isInteger(lo) && Number.isInteger(hi) && lo >= -99 && hi <= 99 && lo < hi; }
+  // What a round stores and plays: the entry range and the length.
+  function matrixRun(s) {
+    var custom = s.max === 'custom';
+    return { lo: custom ? s.customLo : (s.set === 'Z' ? -s.max : 0), hi: custom ? s.customHi : s.max, duration: s.duration, custom: custom };
+  }
+
+  function renderMatrices() {
+    var s = matrixSettings(), run = matrixRun(s), mode = S.effMode({ mode: 'MATRIX', settings: run }), today = todayKey();
+    var custom = s.max === 'custom', ok = validRange(run.lo, run.hi), z = s.set === 'Z';
+    // Segmented toggle: one group of joined buttons, the chosen one filled.
+    function seg(key, name, opts) {
+      return '<div class="seg" role="group" aria-label="' + name + '">' + opts.map(function (o) {
+        var on = s[key] === o[0];
+        return '<button type="button" data-mx="' + key + '" data-v="' + o[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') +
+          ' data-testid="matrix-' + key + '-' + o[0] + '">' + o[1] + '</button>';
+      }).join('') + '</div>';
+    }
+    function numIn(id, lbl, v) {
+      return '<label class="field" for="' + id + '">' + lbl + '<input type="number" id="' + id + '" name="' + id + '" min="-99" max="99" step="1" ' +
+        'autocomplete="off" value="' + v + '" data-testid="matrix-' + id + '"></label>';
+    }
+    var h = [pageHead('Matrices', 'Multiply two 2 × 2 matrices: type the four entries of A × B, row by row.')];
+    // Range labels follow the entry set (0 to 9, or −9 to 9). Custom: your own From and To; the range then says it all.
+    h.push('<div class="form">' +
+      (custom ? '' : frow('Entries', seg('set', 'Entries', [['Z', 'ℤ, integers'], ['N', 'ℕ, natural numbers']]))) +
+      frow('Range', seg('max', 'Range', [[9, (z ? '−9' : '0') + ' to 9'], [12, (z ? '−12' : '0') + ' to 12'], ['custom', 'Custom']]) +
+        (custom ? '<div class="inline-form mx-custom">' + numIn('mx-lo', 'From', s.customLo) + numIn('mx-hi', 'To', s.customHi) + '</div>' +
+          '<p class="err" id="mx-err" aria-live="polite">' + (ok ? '' : 'Choose From below To, both between −99 and 99.') + '</p>' : '')) +
+      frow('Length', seg('duration', 'Length', [[60, '60 seconds'], [120, '120 seconds']])) + '</div>');
+    h.push('<div class="row mx-start"><button type="button" class="primary hero-start" id="mx-start" data-testid="matrix-start-button"' + (ok ? '' : ' disabled') +
+      '>Start matrices <kbd>Enter</kbd></button></div>');
+    h.push(keys([['Space', 'next entry'], ['← → ↑ ↓', 'move between entries'], ['Enter', 'show wrong entries'], ['Tab', 'skip'], ['Esc', 'stop']]));
+    h.push('<p class="sec-intro">Each entry is a row of A times a column of B. The next matrix comes as soon as all four entries are right.</p>');
+
+    var ss = ok ? S.sessionsForMode(data.rounds, mode) : [], todayS = ss.filter(function (d) { return d.day === today; })[0];
+    var scores = []; ss.forEach(function (d) { scores = scores.concat(d.scores); });
+    var last7 = ss.slice(-7).map(function (d) { return d.stats.avg; });
+    h.push(section('Your rounds', scores.length ? stats([
+      { label: 'Today', value: todayS ? f1(todayS.stats.avg) : '–', note: todayS ? 'Average of ' + plural(todayS.scores.length, 'round') : 'No rounds yet today', key: 'mx-today' },
+      { label: 'Best', value: String(Math.max.apply(null, scores)), note: 'Of ' + plural(scores.length, 'round'), key: 'mx-best' },
+      { label: 'Average', value: f1(S.mean(last7)), note: 'Last ' + plural(last7.length, 'day') + ' played', key: 'mx-avg' },
+      { label: 'Days played', value: String(ss.length), key: 'mx-days' }
+    ]) : '<p class="mid">No rounds yet with these options. Press Enter and play one.</p>', ok ? esc(label(mode)) : null, 'matrix-rounds'));
+    main.innerHTML = h.join('');
+
+    function store(next) { data.settings.matrix = next; save(); }
+    $$('[data-mx]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-mx'), v = b.getAttribute('data-v'), next = matrixSettings();
+        next[k] = k === 'set' || v === 'custom' ? v : Number(v);
+        store(next);
+        renderMatrices();
+        var again = $('[data-mx="' + k + '"][data-v="' + v + '"]'); if (again) again.focus();
+      });
+    });
+    // Custom range: saved on each change, the page redrawn so the button, error and "Your rounds" follow.
+    ['mx-lo', 'mx-hi'].forEach(function (id) {
+      var el = $('#' + id); if (!el) return;
+      el.addEventListener('change', function () {
+        var next = matrixSettings(), v = el.value === '' ? NaN : Number(el.value);
+        next[id === 'mx-lo' ? 'customLo' : 'customHi'] = v;
+        store(next);
+        renderMatrices();
+        var back = $('#' + id); if (back) back.focus();
+      });
+    });
+    function startIfValid() { var r = matrixRun(matrixSettings()); if (validRange(r.lo, r.hi)) playMatrix(r); }
+    $('#mx-start').addEventListener('click', startIfValid);
+    screenKeys = function (e) {
+      if (e.key === 'Enter') { startIfValid(); return true; }
+      return false;
+    };
+  }
   function renderLearn() {
     if (ui.lesson === 'fractions') return renderFractions();
     if (ui.lesson && AT.Lessons.LESSONS[ui.lesson]) return renderLesson(ui.lesson);
@@ -1576,5 +1702,19 @@
     }
   }
 
-  AT.UI = { init: init };
+  // ---------- for screens defined in other files (finance-ui.js) ----------
+
+  // The layout helpers and app services another screen file needs, so it looks and behaves like the rest.
+  var kit = {
+    data: function () { return data; }, main: function () { return main; }, parts: function () { return ui.parts || []; },
+    esc: esc, $: $, $$: $$, save: save, announce: announce, go: go, setHash: setHash, route: route,
+    pageHead: pageHead, section: section, stats: stats, facts: facts, keys: keys, frow: frow,
+    endHead: endHead, endButtons: endButtons, bindEndButtons: bindEndButtons, endKeys: endKeys,
+    sec: sec, pct: pct, plural: plural, f1: f1, label: label, todayKey: todayKey, fmtDate: fmtDate, seed: seed, baseOpts: baseOpts,
+    setKeys: function (fn) { screenKeys = fn; },
+    onLeave: function (fn) { leaveHook = fn; }
+  };
+  function addScreen(name, render) { SCREENS[name] = render; }
+
+  AT.UI = { init: init, addScreen: addScreen, kit: kit };
 })();

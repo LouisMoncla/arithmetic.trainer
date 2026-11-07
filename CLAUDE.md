@@ -39,6 +39,10 @@ index.html        shell: top bar, #main, #game overlay, #help dialog, script ord
 privacy.html      what is stored when signed in
 css/style.css     all styles (tokens on :root, dark mode via prefers-color-scheme + [data-theme])
 js/generator.js   questions per mode, fact keys, families, advice text, interview questions; mulberry32 PRNG
+js/finance-core.js      Finance engine: constants, answer parser, tolerances, registry, F.make(id, seed), selector
+js/finance-templates.js the procedural Finance templates (arith, quant, fin), each with an independent test reference
+js/finance-bank.js      the curated multiple-choice concept questions (right option first; shuffled by seed)
+js/tex.js               LaTeX subset → MathML (screens) or plain text (storage, alttext); rich() for prose with $…$ maths
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/stats.js       sessions (= calendar days), averages, trends, fatigue, weak-fact engine,
                   tables heatmap cells + weighted-tables weights, sessionReport (one day analysed),
@@ -48,8 +52,10 @@ js/storage.js     localStorage load/save (key arithmeticTrainer.v1), migrate, ex
 js/config.js      Supabase URL + anon key (empty = no accounts)
 js/sync.js        optional account sync (Supabase); pure diff/applyRemote exported for tests
 js/charts.js      inline-SVG line/bar charts, legend, tooltip, keyboard, "Show as table"
-js/game.js        the round loop (timer, input, auto-accept, interview scoring)
+js/game.js        the round loop (timer, input, auto-accept, interview scoring, the 2 × 2 matrix answer grid)
 js/ui.js          every screen, routing, keys, settings, account UI (largest file); Stats sections render via fill()
+js/finance-ui.js  the Finance tab, built on AT.UI.kit (ui.js's layout helpers) and AT.UI.addScreen
+tools/finance-samples.js  dev only (npm run samples): sample questions per template, not deployed
 js/app.js         bootstrap: load data, UI.init
 supabase/schema.sql  tables, row-level security, delete_my_account()
 tests/*.test.js   node --test (logic, sync pure functions); tests/fixtures.js shared data
@@ -58,18 +64,21 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → lessons → stats → progression → storage → config → sync → charts → game → ui → app.
+Script order matters: generator → tex → finance-core → finance-templates → finance-bank → lessons → stats → progression → storage → config → sync → charts → game → ui → finance-ui → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
 ```js
-{ schemaVersion: 1, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom },
+{ schemaVersion: 1, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix, finance },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
-             questions: [{ op /*add sub mul div iv tr*/, a, b, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
+             questions: [{ op /*add sub mul div iv tr mx fin*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
-  (one trick from the Learn tab, `settings.types = [type]`; `S.effMode` gives `LEARN-<type>`, `P.modeLabel` names it), or EXTERNAL
+  (one trick from the Learn tab, `settings.types = [type]`; `S.effMode` gives `LEARN-<type>`, `P.modeLabel` names it), MATRIX
+  (Matrices tab, `settings: { lo, hi, duration: 60|120, custom? }`; `S.effMode` gives `MATRIX-m9_9-60` etc., m = minus), FINANCE
+  (Finance tab, `settings: { kind: sprint|practice|intuition|mixed, duration?, fams?, cat?, diff?, only?, count? }`; `S.effMode` gives
+  `FINANCE-sprint-120`, `FINANCE-practice`…; questions `{ op: 'fin', tpl, seed, fam, cat, shown, answer, given, correct, timeMs, wrongAttempts, skipped?, mc? }`), or EXTERNAL
   (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as).
 - A **session = one local calendar day**. Session numbers count days with any round.
 - Rounds are immutable once saved and identified by `id`. Merge/sync rely on this.
@@ -171,6 +180,48 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     `S.fractionCells` weights pairs like weighted tables, `S.fractionPool` feeds `makeMixedGenerator`.
     Its rounds store `settings: { types: ['fd', 'df'], lesson: 'fractions' }`, so `S.effMode` gives LEARN-fractions.
 
+15. Matrices tab (key X, `#matrices`): 2 × 2 matrix products. Options as segmented toggles, remembered in
+    `settings.matrix` (added to `defaultSettings`, so `migrate` keeps it): `set` ℤ/ℕ, `max` 9 | 12 | 'custom' with `customLo`/`customHi`
+    (−99 to 99, From < To, else Start is disabled), `duration` 60 | 120. Default ℤ −9 to 9. Rounds store the resolved `{ lo, hi, duration }`;
+    `G.matrixRange` also reads the first form `{ set, max }`.
+    Questions are op `mx`: `a`, `b`, `cells` row-major 4-arrays, `shown`/`answer` as text ("(1 2; 3 4) × (5 6; 7 8)",
+    "(19 22; 43 50)", typographic minus) so every existing table renders them. `G.makeMatrix`, `G.matrixQuestion`,
+    `G.makeMatrixGenerator`, `G.matrixAdvice` (row times column, used for freezes). Fact key `mx`; like `tr`/`iv` it is out
+    of the stall rule, the weak-fact drill and per-op timing. `Game.startMatrix`: four boxes in a bracketed grid; Space =
+    next box (wraps), arrows = neighbour, auto-accept when all four are right, Enter outlines wrong filled boxes (`.bad`,
+    cleared on edit), Tab skips. Each option combination is its own mode in Log/Progress/report (`logModes()`,
+    `reportModes()`); "Drill these slow questions" on a matrix end screen replays matrices (`playMatrix(settings, replay)`).
+
+16. Finance tab (key Q, `#finance`, `js/finance-*.js`), built to a long spec in 3 reviewed steps (engine + quant, finance
+    templates, concept bank) then the screens. Questions come from templates: `F.make(templateId, seed)` always gives the same
+    question, its answer, tolerance, worked steps and wrong options (plausible mistakes), all from the same drawn parameters.
+    57 procedural templates (4 arith wrapping `G.makeQuestion`, 15 quant, 38 fin) + 78 concept questions; `tests/finance.test.js`
+    checks each template on 1,000 seeds against an independent reference (add one for every new template, or the test fails).
+    Answers: `F.parse` reads `%`/`bp` suffixes into the expected unit, commas as decimals; tolerances exact | round (dp) | abs | rel.
+    Sprint = `Game.startFinance` in the overlay: auto-accept only when the typed value equals the displayed answer (`F.autoOk`,
+    exact/round templates); rel/abs estimates need Enter; Tab skips (`skipped`, counts as a miss), time-up leaves `unanswered`.
+    The question is a sentence, so the overlay shows it in the text face with the unit beside the box and the answer instruction
+    under it (`g-hint`, as for fractions). Practice / Intuition / Interview mix run on the page (explanations need room); a session
+    is saved as one round when it ends or you leave (`kit.onLeave` hook in `route()`, and `pagehide`). End screens rebuild every
+    explanation from (tpl, seed). `S.financeStats`: per template/category/family attempts, first-try accuracy, median time;
+    `F.weight` (1 + 2 × wrong rate + slowness vs the family median, ≥ 1; unseen 3) drives adaptive picks and the 5 weakest.
+    Op `fin` has no fact keys (`G.factKeys` → []), so it stays out of the weak-fact engine, stall rule and per-op timing.
+    Pause and learn (`H` or a button, sprint only; `H` never appears in an answer): `st.paused` freezes `tick()`; on resume `st.t0` and `st.qStart` move by the pause,
+    so neither the round nor the question counts it. The panel shows answer, formula, steps, why (from `st.q`); then the same
+    question comes back and typing the answer moves on with no point: saved `learned: true, pausedMs, correct: false` (a miss in
+    `S.financeStats`, kept even when the clock then cuts it off). A wrong Enter writes "Press H to pause and learn" in `g-method`. Finance rounds' `.g-center`
+    starts at the top with auto margins (not `justify-content: center`) so a tall solution scrolls instead of hiding the question.
+    `P.summary` has a "Finance tab" section.
+    Formula line as maths: each quant/fin template has `tex` (a LaTeX subset, the `TEX` map at the end of finance-templates.js)
+    next to its plain `formula`. `AT.TeX.render(tex, formula)` gives MathML (`alttext` = the plain formula) or, if it cannot
+    parse, the plain text. Chosen over KaTeX/MathJax: no dependency, works offline, ~200 lines. Brackets group so `(1 + r)^t`
+    raises the whole bracket; plain brackets don't stretch, `\left \right` do; `math-style: normal` gives display-size fractions.
+    All Finance maths is drawn: prompts, steps, why sentences, options and explanations are rich text, prose with maths
+    between `$…$` (`TeX.rich` on screen; `F.make` adds plain twins `promptText`/`stepsText`/`whyText`/`optionsText`, which
+    are what rounds store as `shown`/`answer`). `tests/tex.test.js` fails on maths left outside `$…$` or that does not parse.
+    Round screen: `#game.fin .g-center > * { flex-shrink: 0 }`, else a question with `overflow` set collapses when the
+    pause-and-learn solution is taller than the window (it did at 100% zoom). `#finance/q/<id>/<seed>` reopens any question (the code is shown after answering).
+
 ## Working conventions
 
 - Match the surrounding code: ES5-style `var`/functions in `js/`, short comments where intent isn't obvious.
@@ -179,3 +230,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
 - Copy: second person, plain, sentence case; errors say how to fix; numbers as numerals.
 - Any new keyboard shortcut needs a visible control and a line in the help dialog (`index.html`).
 - Ask before deleting files or data, and before force-pushing.
+17. Warm-up switches to Weighted tables (`P.recommend` → `warmMode`): plain Tables until 150 of the 187 table facts (66 × pairs,
+    121 ÷ directions, 2–12) have 2+ answers (`S.tableCoverage` over `S.tableCells`, so Foundations answers within 2–12 count too),
+    then Weighted tables. History only grows, so it never switches back. On Play, row 1 (key 1) becomes Weighted tables and plain
+    Tables moves to `T` / a "Plain tables instead" link in the hero; before the switch the Tables hero shows "n of 187 measured".
