@@ -12,6 +12,7 @@
   var node = typeof module !== 'undefined';
   var S = node ? require('./stats.js') : AT.Stats;
   var G = node ? require('./generator.js') : AT.Generator;
+  var CO = node ? require('./coach.js') : AT.Coach;
 
   var STEPS = [
     // `id` is stored (stepOverride, announced) and never shown; people see `n` and `name`.
@@ -36,6 +37,8 @@
     if (x) return 'Matrices, ' + x[1].replace('m', '−') + ' to ' + x[2].replace('m', '−') + ', ' + x[3] + ' s';
     var f = /^FINANCE-(sprint|practice|intuition|mixed)(?:-(\d+))?$/.exec(m || '');   // "FINANCE-sprint-120" → "Finance sprint, 120 s"
     if (f) return f[1] === 'sprint' ? 'Finance sprint, ' + (f[2] || 120) + ' s' : FIN_KIND[f[1]];
+    var d = /^R60-([a-z]+)(?:-(\d+))?$/.exec(m || '');   // "R60-mult-7" → "Road to 60: × ÷ 7 drill"
+    if (d) return 'Road to 60: ' + G.drillLabel(d[1], d[2]);
     return MODE_LABELS[m] || m;
   }
 
@@ -104,11 +107,50 @@
     var today = S.dayKey(new Date(nowMs).toISOString());
     var ctx = { rounds: rounds, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
     L.push('# Arithmetic Trainer report (' + today + ')');
-    [rAbout, rOverview, rSteps, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rLatest, rFatigue].forEach(function (fn) {
+    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rLatest, rFatigue].forEach(function (fn) {
       L.push('');
       fn(ctx, L);
     });
     return L.join('\n');
+  }
+
+  /*
+   * Road to 60 (js/coach.js): benchmark sessions, estimate, milestones and gate, categories with lost time and a trend
+   * (median in the last 3 days vs the 3 before), focus history, mastered categories, time of day, warm-up curve.
+   */
+  function rCoach(ctx, L) {
+    var rs = ctx.rounds, all = CO.sessions(rs);
+    L.push('## Coach (Road to 60)');
+    var prog = CO.progress(rs), done = prog.sessions;
+    L.push('Benchmark (Normal 120 s, block 6), last 10 sessions:' + (done.length ? '' : ' none yet'));
+    done.slice(-10).forEach(function (s) {
+      L.push('  S' + s.n + ' ' + s.day + (s.test ? ' test' : '') + ': ' + s.bench.join(', ') + '  avg ' + f1(s.avg));
+    });
+    var st = CO.categoryStats(rs), est = CO.estimate(st);
+    var reached = prog.milestones.filter(function (m) { return m.day; }).map(function (m) { return m.m; });
+    L.push('Estimated score now ' + est.score + '. Milestones reached: ' + (reached.length ? reached.join(', ') : 'none') +
+      (prog.next ? ' (next ' + prog.next.m + ', ' + prog.towards + '/2 in a row)' : '') + '. Gate 60: ' + prog.gateRun + '/3' + (prog.gatePassed ? ', passed ' + prog.gatePassed : '') + '.');
+    // trend: the 3 days before the current window
+    var days = S.sessionDays(rs.filter(CO.isNormal)), cut = days.length > 3 ? days[days.length - 3] : null;
+    var prev = cut ? CO.categoryStats(rs, { before: cut }) : {};
+    L.push('Categories (key | n | median | target | wrong | lost points | trend; * = under ' + CO.MIN_N + ' answers, target used):');
+    var unseen = est.lost.filter(function (r) { return !r.n; }).map(function (r) { return r.key; }).sort();
+    est.lost.filter(function (r) { return r.n; }).forEach(function (r) {
+      var p = prev[r.key], tr = p && p.median && r.median ? (r.median < p.median * 0.95 ? 'faster' : r.median > p.median * 1.05 ? 'slower' : 'flat') : '–';
+      L.push('  ' + r.key + (r.flagged ? '*' : '') + ' | ' + r.n + ' | ' + sec(r.median) + ' | ' + sec(r.target) + ' | ' + pct(r.wrong) + ' | ' +
+        (r.lostMs > 0 ? f1(r.points) : '0') + ' | ' + tr);
+    });
+    if (unseen.length) L.push('  no answers yet: ' + unseen.join(', '));
+    var hist = all.slice(-10).map(function (s) {
+      var f = [3, 4].map(function (b) { var r = (s.byBlock[b] || [])[0]; return r ? S.effMode(r).replace(/^R60-/, '') : null; }).filter(Boolean);
+      return s.day + ': ' + (s.test ? 'test day' : f.length ? f.join(' + ') : 'no drills yet');
+    });
+    L.push('Focus history: ' + (hist.length ? hist.join('; ') : 'none yet'));
+    var m = CO.mastered(rs);
+    L.push('Mastered: ' + (Object.keys(m).length ? Object.keys(m).map(function (k) { return k + ' (' + m[k] + ')'; }).join(', ') : 'none yet'));
+    L.push('Benchmark by time of day: ' + CO.benchByTime(rs).map(function (x) { return x.tod + ' ' + (x.n ? f1(x.avg) + ' (n' + x.n + ')' : '–'); }).join(', '));
+    var curve = CO.warmupCurve(rs);
+    L.push('Warm-up curve (Speed by round of the day): ' + (curve.length ? curve.map(function (x, i) { return 'R' + (i + 1) + ' ' + f1(x.avg); }).join(', ') : 'none yet'));
   }
 
   // Finance tab: accuracy per category and the weakest templates (template ids, reproducible with a seed).

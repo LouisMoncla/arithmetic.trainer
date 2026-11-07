@@ -122,10 +122,16 @@
     return Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2);
   }
 
+  var HINT_MS = 5000;
   function tick() {
     if (st.paused) return;   // Finance: pausing to learn stops the clock
     var left = st.duration - (now() - st.t0) / 1000;
     timerEl.textContent = fmtClock(Math.max(0, Math.ceil(left)));
+    // Road to 60 drills: the method (never the answer) in the grey line once a question has waited 5 s.
+    if (st.opts.hint && st.q && !st.method && now() - st.qStart >= HINT_MS) {
+      var h = st.opts.hint(st.q);
+      if (h) { st.method = true; var m = document.getElementById('g-method'); m.textContent = h; m.classList.add('hint'); m.hidden = false; }
+    }
     if (left <= 0) finish(true);
   }
 
@@ -208,6 +214,7 @@
   function record(q, extra) {
     var rec = { op: q.op, a: q.a, b: q.b, shown: q.shown, answer: q.answer };
     if (q.op === 'tr') { rec.type = q.type; if (q.answerText) rec.answerText = q.answerText; }
+    if (q.op === 'cp') rec.type = q.type;   // Road to 60 complements: c100 | cten
     for (var k in extra) rec[k] = extra[k];
     return rec;
   }
@@ -241,6 +248,7 @@
   function accept() {
     var extra = { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong };
     if (st.kind === 'practice') extra.method = st.method;
+    if (st.opts.hint && st.method) extra.hinted = true;   // a Road to 60 drill showed the method
     st.questions.push(record(st.q, extra));
     st.score++;
     if (st.kind === 'practice') { if (st.questions.length >= st.opts.count) finish(false); else nextQuestion(); return; }

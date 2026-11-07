@@ -70,6 +70,29 @@ value counts as one wrong attempt (Backspace and keep going). `Esc` aborts (not 
 A day only counts if it has at least 3 rounds in that step's mode. (In the code and saved data a day of practice is called a session, and the steps keep their old ids P2, P3, P4.)
 Rounds you enter from zetamac.com (Log screen) count too. Override the step in Settings.
 
+## Road to 60 (key C)
+
+A coach for one goal: 60 or more on Normal 120 s. Open **Road to 60** in the top bar and press **Enter** for today's session. The app runs it round by round and, after each round, says what comes next:
+
+| Block | Rounds | What |
+|---|---|---|
+| 1 Warm-up | 1 | Tables (Weighted tables once you have passed the switch) |
+| 2 Warm-up | 2 | Foundations |
+| 3 Focus A | 3 | The drill for the category where you lose the most time |
+| 4 Focus B | 3 | The next one (Complements while they are slower than 1.2 s or new) |
+| 5 Main | 4 | Speed (Normal 60 s) |
+| 6 Benchmark | 2 | Normal 120 s: your official score |
+
+Every 7th session is a test day: the warm-up, then 4 benchmark rounds, no drills. After block 6 the page says **Done for today** with a summary; anything you play after that is saved as *extra* and never counts. Close the tab whenever you like: the session resumes where you were.
+
+- **Categories.** Every + − × ÷ question gets one: + with or without carry, − with or without borrow, − from 100 or more, × and ÷ tables, and × and ÷ by each number 2–12 with the other factor over 12. Each has a target median (1.0 s for tables up to 2.4 s for big ×).
+- **Gap to 60.** Your median per category (from Foundations, Speed and Normal 120 s, last 3 days, more if a category has under 15 answers), how often Normal asks each one, the estimated score this gives, and the top 5 categories by lost time ("− with borrow: 3.1 s vs 1.9 s target → costs ~4 points").
+- **Drills** (keys 1–5): Complements (37 → 100, and 237 → 240), Carry addition, Borrow subtraction, Cross-100 subtraction, and × ÷ by one number. After 5 seconds on a question a grey line shows the method (never the answer); turn it off in Settings.
+- **Milestones** 40 · 45 · 50 · 55 · 60: reached when your benchmark average is there 2 sessions in a row. 60 counts at 3 in a row.
+- **Mastered.** A category at its target 3 sessions in a row stops being picked as a focus.
+- Also on the page: benchmark by time of day, and your warm-up curve (Speed score by round of the day). The report has a Coach section.
+- Every end screen of a + − × ÷ round lists answers that took over 8 seconds, with the method.
+
 ## Screens
 
 The top bar has seven tabs: **Play**, **Learn**, **Matrices**, **Finance**, **Review**, **Stats** and **Settings**.
@@ -135,8 +158,9 @@ The top bar has seven tabs: **Play**, **Learn**, **Matrices**, **Finance**, **Re
 
 ## Keys
 
-`P` play · `N` learn · `X` matrices · `Q` finance · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
+`P` play · `C` Road to 60 · `N` learn · `X` matrices · `Q` finance · `R` review · `A` stats · `S` settings · `D` drill · `E` `G` `L` open the Today, Progress or Log section · `T` light/dark · `?` help.
 Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start. Lesson: `Enter` practise, `F` timed round; in practice `Tab` shows the method.
+Road to 60: `Enter` start or continue today's session (once done: an extra round), `1–5` drills.
 Matrices: `Enter` start; in a round `Space` next entry, arrows move, `Enter` outline wrong entries, `Tab` skip.
 Finance: `Enter` start; sprint `H` pause and learn (`Enter` back), `Enter` checks an estimate, `Tab` skips; practice `Enter` check then next, `1–4` choose, `S` new numbers, `C` related calculation, `Esc` done.
 

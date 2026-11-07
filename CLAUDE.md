@@ -44,6 +44,8 @@ js/finance-templates.js the procedural Finance templates (arith, quant, fin), ea
 js/finance-bank.js      the curated multiple-choice concept questions (right option first; shuffled by seed)
 js/tex.js               LaTeX subset → MathML (screens) or plain text (storage, alttext); rich() for prose with $…$ maths
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
+js/coach.js       Road to 60: category stats (windowed medians), Normal frequencies, estimated score + lost time,
+                  today's session plan, focus picks, mastery, milestones/gate, time of day; pure, node-testable
 js/stats.js       sessions (= calendar days), averages, trends, fatigue, weak-fact engine,
                   tables heatmap cells + weighted-tables weights, sessionReport (one day analysed),
                   roundReport (one round analysed, for the end screen)
@@ -64,14 +66,16 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → tex → finance-core → finance-templates → finance-bank → lessons → stats → progression → storage → config → sync → charts → game → ui → finance-ui → app.
+Script order matters: generator → tex → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
 ```js
-{ schemaVersion: 1, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix, finance },
+{ schemaVersion: 2, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix, finance,
+                                                       coach: { hints, announced /*'mastered:<key>', 'gate60'*/, multN } },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
-             questions: [{ op /*add sub mul div iv tr mx fin*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
+             coach? /*{ block 1–6, test }: a Road to 60 session round*/, extra? /*true: finished after today's session was done*/,
+             questions: [{ op /*add sub mul div iv tr mx fin cp*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
@@ -79,7 +83,9 @@ Script order matters: generator → tex → finance-core → finance-templates �
   (Matrices tab, `settings: { lo, hi, duration: 60|120, custom? }`; `S.effMode` gives `MATRIX-m9_9-60` etc., m = minus), FINANCE
   (Finance tab, `settings: { kind: sprint|practice|intuition|mixed, duration?, fams?, cat?, diff?, only?, count? }`; `S.effMode` gives
   `FINANCE-sprint-120`, `FINANCE-practice`…; questions `{ op: 'fin', tpl, seed, fam, cat, shown, answer, given, correct, timeMs, wrongAttempts, skipped?, mc? }`), or EXTERNAL
-  (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as).
+  (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as), R60 (a Road to 60 drill,
+  `settings: { drill: comp|carry|borrow|cross|mult, n? }`; `S.effMode` gives `R60-borrow`, `R60-mult-7`; complements are
+  `{ op: 'cp', type: c100|cten, a, b }`, answer b − a). Schema 2 (Road to 60) only added optional fields; `migrate` adds `settings.coach`.
 - A **session = one local calendar day**. Session numbers count days with any round.
 - Rounds are immutable once saved and identified by `id`. Merge/sync rely on this.
 - `ui.js` `save()` is the single write funnel (it also notifies sync). Use it for any data change.
@@ -234,3 +240,16 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     121 ÷ directions, 2–12) have 2+ answers (`S.tableCoverage` over `S.tableCells`, so Foundations answers within 2–12 count too),
     then Weighted tables. History only grows, so it never switches back. On Play, row 1 (key 1) becomes Weighted tables and plain
     Tables moves to `T` / a "Plain tables instead" link in the hero; before the switch the Tables hero shows "n of 187 measured".
+18. Road to 60 (key C, `#road`, `renderRoad` in ui.js, logic in `js/coach.js`), from the coach spec with the user's changes:
+    its own page (Play, Learn, Matrices, Finance unchanged, nothing locked); benchmark = coach block 6 only. `G.classify(q)` gives
+    one category per question (units-only carry/borrow, sub-cross100 when a+b ≥ 100, mul/div-table, mul/div-big-N, comp-100/ten).
+    Category medians: Foundations/Speed/Normal 120 rounds only (coach or not, extra included), last 3 days with such rounds,
+    widened day by day up to 10 until 15 answers, else flagged and the target used. Estimate = 120 / Σ freq × median, freq from
+    20,000 questions of the real Normal generator (seed 12345); all at target → 62. Lost time = freq × max(0, median − target).
+    `CO.plan(rounds, day)`: blocks 1 warm-up (follows the Weighted tables switch) · 2 P2 ×2 · 3/4 focus drills ×3 · 5 P3 ×4 ·
+    6 Normal 120 ×2; every 7th coach day a test day (1, 2, then 4 × Normal 120). Focus picks use data before today (stable all
+    day), one per drill; complements take Focus B while their drill median > 1.2 s or never played; mastered (≤ target at the end
+    of 3 complete sessions in a row) leaves the pool. Progress is read from today's `coach`-tagged rounds, so reloads resume.
+    Milestones 40…60: 2 complete sessions in a row; gate: 3 at 60 (one-time "Next: …" message). Drills show `G.hint(q)` after
+    5 s (`opts.hint` in `Game.startZetamac`, Settings can turn it off; answered questions keep `hinted`). End screens of every
+    + − × ÷ round also list answers over 8 s with the method (`S.freezes`, `over8`). Report: `## Coach (Road to 60)`.
