@@ -193,9 +193,16 @@ A `<details>`: ink rule above, `--line` below. The summary is one line: "Step 1:
 
 ---
 
-### Disclosure section (Stats)
+### Stats calendar and day panel
 
-`details.pane`, one per Stats section. Summary: the title as `h2` (32px bold, 24px compact) and, while closed, one line in secondary ink with the single thing worth knowing (`.pane-line`). Marker: `+` closed, `−` open, 24px light at the right, secondary ink, ink on hover; no animation. `--line` rule above each section. Content is rendered on first open; its own headings sit one level down (`h3` sections). Use native `<details>`/`<summary>` so keyboard and screen readers work without script.
+One mode at a time: a `.seg` toggle of played modes (`stats-modes`, `aria-label="Show stats for"`), three stat tiles,
+the progress chart, then `.stats-cal`: the calendar (300px) beside the day panel; stacked under 640px.
+Calendar (`.cal`, `--surface`, 16px radius): month name and ‹ › icon buttons (disabled before the first played month and
+after this month), weekday initials (narrow, Monday first, from `Intl`), then square day cells (6px radius, 4px gap).
+A day you played this mode is a `--chip` button with `aria-pressed` and a label ("Tuesday, October 20, 2 rounds,
+average 31.0"); the chosen day is inverted; a day with other modes only has a 3px dot; today is underlined.
+Day panel: the date as `h2` (24px bold), "Day N of practice", score chips (pill, `--surface`, × deletes with a confirm),
+a `facts` row, one pace sentence, then "Slowest and wrong": up to 5 rows (question = answer, time or wrong count, advice).
 
 ---
 

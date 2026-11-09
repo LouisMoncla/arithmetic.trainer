@@ -2,12 +2,15 @@
 const { test, expect } = require('@playwright/test');
 const { openApp, rounds } = require('./helpers');
 
-test('zetamac.com scores are saved and listed in the Log', async ({ page }) => {
+test('zetamac.com scores: #log opens the form on Stats; saved scores show on that day', async ({ page }) => {
   await openApp(page, 'log');
   await page.getByLabel('Mode').selectOption('P2');
   await page.getByLabel('Scores, separated by commas').fill('17, 19, 18');
   await page.getByRole('button', { name: 'Save rounds' }).click();
   await expect(page.getByText('Saved 3 rounds to Foundations.')).toBeVisible();
+  await expect(page).toHaveURL(/#stats\/add$/);
+  await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Foundations', pressed: true })).toBeVisible();
+  await expect(page.getByTestId('day-scores')).toContainText('19*');
   await expect(page.getByRole('button', { name: 'Delete round with score 19' })).toBeVisible();
 });
 
@@ -24,7 +27,7 @@ test('a bad score list is refused with a way to fix it', async ({ page }) => {
 test('a first visit starts with no history', async ({ page }) => {
   await openApp(page, 'session');
   expect(await rounds(page)).toHaveLength(0);
-  await expect(page.getByTestId('stats-day')).toContainText('No rounds yet');
+  await expect(page.locator('main')).toContainText('No rounds yet');
 });
 
 test('export, reset, then import restores everything', async ({ page }, testInfo) => {

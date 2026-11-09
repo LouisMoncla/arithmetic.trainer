@@ -1,14 +1,14 @@
 /*
  * ui.js — routing between screens and rendering.
- * Screens: play (home), review, drill, stats, settings; plus end screens after a round.
- * Stats holds three collapsible sections (day = "Today", progress, log), each built when first opened.
+ * Screens: road (home), play, learn, review, drill, stats, settings; plus end screens after a round.
+ * Stats shows one mode at a time: three numbers, its progress chart, a calendar of the days you played it with the
+ * chosen day beside it, speed per operation and the round-of-the-day chart.
  * Users see "day" where the code says session: one session is one calendar day with any round.
- * Each screen may set `screenKeys(e)`, which gets keys first and returns true when it handled one;
- * on Stats, each open section's `paneKeys[name]` gets them in turn.
+ * Each screen may set `screenKeys(e)`, which gets keys first and returns true when it handled one.
  *
  * Routes are hashes, with an optional section and argument that deep-link state:
  *   #stats/day/2026-10-20   one day        #review/div   heatmap view (both | mul | div)
- * Old hashes (#session/…, #progress, #log, #stats/session/…, #stats/review/…) redirect (MOVED).
+ * Old hashes (#session/…, #progress, #log, #stats/session/…, #stats/progress, #stats/log, #stats/review/…) redirect (MOVED).
  * Layout helpers (pageHead, section, stats, facts, keys, frow) give every screen the same structure.
  * Copy is sentence case, second person, plain words; no "a · b · c" strings (see docs/design-guidelines.md).
  * data-testid only where roles and labels are not enough (playwright-frontend conventions).
@@ -118,11 +118,10 @@
   // ---------- routing ----------
 
   var SCREENS = { play: renderPlay, road: renderRoad, learn: renderLearn, matrices: renderMatrices, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
-  // Stats sections, in page order.
-  var PANES = { day: renderDay, progress: renderProgress, log: renderLog };
-  var PANE_ORDER = ['day', 'progress', 'log'];
   // Old links keep working: these hash prefixes moved (Session became Day, inside Stats).
-  var MOVED = { session: 'stats/day', progress: 'stats/progress', log: 'stats/log', 'stats/session': 'stats/day', 'stats/review': 'review' };
+  // Stats was three sections (Today, Progress, Log); their links land on the one page, #log on the zetamac form.
+  var MOVED = { session: 'stats/day', progress: 'stats', log: 'stats/add', 'stats/session': 'stats/day', 'stats/review': 'review',
+    'stats/progress': 'stats', 'stats/log': 'stats/add' };
 
   function canonical(hash) {
     var parts = hash.split('/'), two = parts.slice(0, 2).join('/');
@@ -155,15 +154,10 @@
     if (name === 'learn') ui.lesson = parts[1] || null;
     ui.parts = parts;
     if (name === 'review') ui.heatView = ['mul', 'div'].indexOf(parts[1]) >= 0 ? parts[1] : 'both';
-    var pane = name === 'stats' && PANES[parts[1]] ? parts[1] : null;
-    if (name === 'stats') {
-      ui.pane = pane;
-      ui.sessionDay = pane === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(parts[2] || '') ? parts[2] : null; // today / latest unless the hash names a day
-    }
+    if (name === 'stats') statsRoute(parts);
     SCREENS[name]();
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
-    var target = name === 'stats' && pane && document.getElementById('pane-' + pane);
-    if (target && pane !== PANE_ORDER[0]) target.scrollIntoView(); else window.scrollTo(0, 0);
+    window.scrollTo(0, 0);
   }
 
   function setHelp(open) {
@@ -184,11 +178,11 @@
     // Let Enter/Space activate a focused button, link or checkbox.
     if ((e.key === 'Enter' || e.key === ' ') && (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SUMMARY')) return;
     if (screenKeys && screenKeys(e) === true) { e.preventDefault(); return; }
-    // E G L were pages of their own; they now open their Stats section.
-    var map = { p: 'play', c: 'road', n: 'learn', x: 'matrices', q: 'finance', r: 'review', d: 'drill', a: 'stats', s: 'settings' }, panes = { e: 'day', g: 'progress', l: 'log' };
+    // E opens Stats on today (G and L opened Stats sections that are gone).
+    var map = { p: 'play', c: 'road', n: 'learn', x: 'matrices', q: 'finance', r: 'review', d: 'drill', a: 'stats', s: 'settings' };
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (map[k]) { e.preventDefault(); go(map[k]); }
-    else if (panes[k]) { e.preventDefault(); go('stats', panes[k]); }
+    else if (k === 'e') { e.preventDefault(); go('stats', 'day/' + todayKey()); }
     else if (e.key === '?') { e.preventDefault(); setHelp(true); }
     else if (k === 't') { e.preventDefault(); toggleTheme(); }
   }
@@ -1191,80 +1185,251 @@
     endKeys(actions);
   }
 
-  // ---------- Stats: Today, Progress and Log as sections you open ----------
+  // ---------- Stats: one mode at a time; a calendar of the days you played it and the chosen day beside it ----------
 
-  var PANE_TITLES = { day: 'Today', progress: 'Progress', log: 'Log' };
-  var paneKeys = {};   // keys of each section, active while it is open
+  // The mode you looked at last is a per-browser convenience, so it lives outside the saved data.
+  var MODE_KEY = 'arithmeticTrainer.statsMode';
+  function storedMode() { try { return localStorage.getItem(MODE_KEY); } catch (e) { return null; } }
+  function storeMode(m) { try { localStorage.setItem(MODE_KEY, m); } catch (e) { /* not remembered; the default is used */ } }
 
-  // Which sections are open is a per-browser convenience, so it lives outside the saved data.
-  var OPEN_KEY = 'arithmeticTrainer.statsOpen';
-  function openPanes() {
-    try {
-      var v = JSON.parse(localStorage.getItem(OPEN_KEY));
-      if (Array.isArray(v)) return v.filter(function (p) { return PANES[p]; });
-    } catch (e) { /* blocked or corrupt: use the default */ }
-    return ['day'];
+  var monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
+  var wdFmt = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' });
+  var longDayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function keyOf(y, m0, d) { return y + '-' + pad2(m0 + 1) + '-' + pad2(d); }
+  function dateOf(day) { var p = day.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function shiftMonth(month, by) { var p = month.split('-').map(Number), d = new Date(p[0], p[1] - 1 + by, 1); return d.getFullYear() + '-' + pad2(d.getMonth() + 1); }
+
+  // From the hash: #stats; #stats/day/<date> (end screen A, old links); #stats/<MODE>[/<date>]; #stats/add (old #log).
+  function statsRoute(parts) {
+    var date = function (s) { return /^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s : null; };
+    ui.statsDay = null; ui.statsFromDay = false; ui.calMonth = null; ui.extOpen = false;
+    if (parts[1] === 'day') { ui.statsDay = date(parts[2]); ui.statsFromDay = true; }
+    else if (parts[1] === 'add') ui.extOpen = true;
+    else if (parts[1]) { ui.statsMode = parts[1]; ui.statsDay = date(parts[2]); }
   }
-  function rememberOpen() {
-    var open = PANE_ORDER.filter(function (p) { var d = document.getElementById('pane-' + p); return d && d.open; });
-    try { localStorage.setItem(OPEN_KEY, JSON.stringify(open)); } catch (e) { /* not remembered; nothing else depends on it */ }
-  }
 
-  // One line under each title, so the page reads without opening anything.
-  function paneLine(p) {
-    var rounds = data.rounds, days = S.sessionDays(rounds);
-    if (!days.length) return 'No rounds yet';
-    if (p === 'day') {
-      var today = todayKey(), day = days[days.length - 1], rep = S.sessionReport(rounds, day);
-      var one = rep.scores.length === 1 ? rep.scores[0] : null;
-      return (day === today ? 'Today: ' : 'Nothing yet today. Last played ' + fmtDay(day) + ': ') + plural(rep.rounds, 'round') +
-        (one ? ' of ' + label(one.mode) + ', average ' + f1(one.stats.avg) : ' in ' + plural(rep.scores.length, 'mode'));
+  function playedModes(rounds) { return logModes().filter(function (m) { return S.sessionsForMode(rounds, m).length; }); }
+
+  // Which mode to show: on a day link, the current or remembered mode if it was played that day, else the mode of that
+  // day's last round; otherwise the hash or the one you chose last, else the benchmark, else the mode you played last.
+  function pickMode(rounds, modes) {
+    var m = ui.statsMode || storedMode();
+    if (ui.statsFromDay && ui.statsDay) {
+      var ofDay = rounds.filter(function (r) { return S.dayKey(r.startedAt) === ui.statsDay && modes.indexOf(S.effMode(r)) >= 0; });
+      var playedThen = function (x) { return ofDay.some(function (r) { return S.effMode(r) === x; }); };
+      if (ofDay.length && !playedThen(m)) m = playedThen(storedMode()) ? storedMode() : S.effMode(ofDay[ofDay.length - 1]);
     }
-    if (p === 'progress') {
-      var info = P.current(rounds, data.settings.stepOverride), step = info.current.step, ss = S.sessionsForMode(rounds, step.mode);
-      if (info.allDone) return 'All steps complete';
-      return step.name + ': ' + (ss.length ? 'last day average ' + f1(ss[ss.length - 1].stats.avg) : 'no rounds yet') + ', target ' + step.threshold;
+    if (modes.indexOf(m) < 0) m = storedMode();
+    if (modes.indexOf(m) < 0) {
+      var mine = rounds.filter(function (r) { return modes.indexOf(S.effMode(r)) >= 0; });
+      m = modes.indexOf('NORMAL120') >= 0 ? 'NORMAL120' : S.effMode(mine[mine.length - 1]);
     }
-    return plural(rounds.length, 'round') + ' over ' + plural(days.length, 'day');
+    return m;
   }
 
   function renderStats() {
-    var open = openPanes();
-    if (ui.pane && open.indexOf(ui.pane) < 0) open.push(ui.pane);   // a link to a section opens it
-    paneKeys = {};
-    var h = [pageHead('Stats', 'Open a section for its details. The ones you leave open stay open next time.')];
-    PANE_ORDER.forEach(function (p) {
-      h.push('<details class="pane" id="pane-' + p + '" data-testid="stats-' + p + '"' + (open.indexOf(p) >= 0 ? ' open' : '') + '>' +
-        '<summary><h2 class="pane-h">' + PANE_TITLES[p] + '</h2><span class="pane-line">' + esc(paneLine(p)) + '</span></summary>' +
-        '<div class="pane-body" id="pane-' + p + '-body"></div></details>');
+    var rounds = data.rounds, modes = playedModes(rounds);
+    if (!modes.length) {
+      main.innerHTML = pageHead('Stats', 'No rounds yet. Play one and your stats appear here, or start with <a href="#road">Road to 60</a>.') + extForm();
+      bindExt(); screenKeys = null;
+      return;
+    }
+    var m = pickMode(rounds, modes);
+    ui.statsMode = m; storeMode(m);
+    var mine = rounds.filter(function (r) { return S.effMode(r) === m; });
+    var ss = S.sessionsForMode(rounds, m), days = ss.map(function (s) { return s.day; });
+    var day = ui.statsDay && days.indexOf(ui.statsDay) >= 0 ? ui.statsDay : days[days.length - 1];
+    ui.statsDay = day;
+    var month = ui.calMonth || day.slice(0, 7);
+    ui.calMonth = month;
+    var allDays = S.sessionDays(rounds), at = days.indexOf(day);
+
+    var h = [pageHead('Stats')];
+    h.push('<div class="seg stats-modes" role="group" aria-label="Show stats for" data-testid="stats-modes">' + modes.map(function (x) {
+      return '<button type="button" data-smode="' + esc(x) + '" aria-pressed="' + (x === m) + '"' + (x === m ? ' class="on"' : '') + '>' + esc(label(x)) + '</button>';
+    }).join('') + '</div>');
+
+    // Three numbers.
+    var last = ss[ss.length - 1], goal = m === 'NORMAL120' ? 60 : null, t = S.trend(ss, goal, allDays.length);
+    var best = Math.max.apply(null, ss.map(function (s) { return s.stats.best; }));
+    h.push(stats([
+      { label: 'Last day', value: f1(last.stats.avg), note: esc(fmtDay(last.day)) + ', ' + plural(last.scores.length, 'round'), key: 'stats-last' },
+      { label: 'Best round', value: String(best), note: 'All time', key: 'stats-best' },
+      { label: 'Trend', value: t.ok ? signed(t.slope) : '–', note: t.ok ? 'Points per day played' : 'Needs 4 days over a week', key: 'stats-trend' }
+    ]));
+
+    // The progress chart: one point per day you played this mode.
+    var lg = [{ kind: 'line', label: 'Day average' }, { kind: 'dots', label: 'Best round' }];
+    if (goal) lg.push({ kind: 'dash', label: 'Goal ' + goal });
+    h.push('<section class="sec" data-testid="stats-chart">' + C.legend(lg) + C.line({
+      xs: ss.map(function (s) { return s.number; }), xName: 'Day ', endLabel: true,
+      series: [{ ys: ss.map(function (s) { return s.stats.avg; }), kind: 'line', name: 'average' }, { ys: ss.map(function (s) { return s.stats.best; }), kind: 'dots', name: 'best' }],
+      hline: goal, label: label(m) + ' day averages', h: 180
+    }) + C.table(['Day', 'Average', 'Best', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; })) + '</section>');
+
+    // The calendar and the chosen day.
+    h.push('<section class="sec stats-cal">' + calendar(month, ss, allDays, day) +
+      '<div class="day-panel" data-testid="stats-day">' + dayPanel(mine, ss, day) + '</div></section>');
+
+    // Speed per operation: the last day against the days before, this mode only.
+    var tbo = S.timeByOp(mine), opRows = ['add', 'sub', 'mul', 'div'].filter(function (op) { return tbo[op].length; }).map(function (op) {
+      var pts = tbo[op], now = pts[pts.length - 1].ms, before = pts.slice(0, -1);
+      var avg = before.length ? before.reduce(function (a, p) { return a + p.ms; }, 0) / before.length : null;
+      return '<tr><td>' + OP_SYM[op] + ' ' + OP_NAME[op].toLowerCase() + '</td><td class="n">' + sec(now) + '</td><td class="n">' + (avg === null ? '–' : sec(avg)) +
+        '</td><td class="n">' + (avg === null ? '–' : '<b>' + dsec(now - avg) + '</b>') + '</td></tr>';
     });
-    h.push(keys([['E', 'today'], ['G', 'progress'], ['L', 'log']]));
+    if (opRows.length) h.push(section('Speed per operation', '<p class="sec-intro">Average time per question on your last day, against the days before.</p>' +
+      '<table class="compact" data-testid="stats-ops"><tr><th scope="col">Operation</th><th scope="col" class="n">Last day</th><th scope="col" class="n">Before</th>' +
+      '<th scope="col" class="n">Change</th></tr>' + opRows.join('') + '</table>'));
+
+    // Round of the day: warm-up and fatigue.
+    var ri = S.roundIndexAverages(rounds, m);
+    if (ri.length >= 3) h.push(section('Round of the day', '<p class="sec-intro">Average score by round number within a day. ' +
+      'A rising start is your warm-up; a drop at the end is fatigue.</p>' + roundChart(ri, label(m) + ' average score by round of the day'), null, 'stats-rounds'));
+
+    h.push(extForm());
     main.innerHTML = h.join('');
-    // A section is built the first time it opens.
-    PANE_ORDER.forEach(function (p) {
-      var d = document.getElementById('pane-' + p);
-      if (d.open) PANES[p]();
-      d.addEventListener('toggle', function () {
-        if (d.open && !paneBox(p).hasChildNodes()) PANES[p]();
-        rememberOpen();
-      });
-    });
-    screenKeys = function (e) {
-      return PANE_ORDER.some(function (p) { return document.getElementById('pane-' + p).open && paneKeys[p] && paneKeys[p](e) === true; });
-    };
+    C.bind(main);
+    bindStats(days, at);
   }
 
-  function paneBox(p) { return document.getElementById('pane-' + p + '-body'); }
-  // Fill a section. It sits under the page's h2 titles, so its own headings move down one level.
-  function fill(p, html) {
-    var box = paneBox(p);
-    box.innerHTML = html.replace(/<(\/?)h([2-5])\b/g, function (m, slash, n) { return '<' + slash + 'h' + (+n + 1); });
-    return box;
+  // Month grid, Monday first. Days you played this mode are buttons; days with only other modes get a dot.
+  function calendar(month, ss, allDays, sel) {
+    var p = month.split('-').map(Number), y = p[0], m0 = p[1] - 1;
+    var n = new Date(y, m0 + 1, 0).getDate(), lead = (new Date(y, m0, 1).getDay() + 6) % 7, today = todayKey();
+    var byDay = {};
+    ss.forEach(function (s) { byDay[s.day] = s; });
+    var first = (ss[0] ? ss[0].day : today).slice(0, 7), now = today.slice(0, 7);
+    var cells = [];
+    for (var i = 0; i < 7; i++) cells.push('<span class="cal-wd" aria-hidden="true">' + esc(wdFmt.format(new Date(2024, 0, 1 + i))) + '</span>');
+    for (i = 0; i < lead; i++) cells.push('<span class="cal-d blank"></span>');
+    for (var d = 1; d <= n; d++) {
+      var k = keyOf(y, m0, d), s = byDay[k], cls = 'cal-d' + (k === today ? ' today' : '');
+      if (s) {
+        cells.push('<button type="button" class="' + cls + ' on' + (k === sel ? ' sel' : '') + '" data-day="' + k + '" aria-pressed="' + (k === sel) + '"' +
+          ' aria-label="' + esc(longDayFmt.format(dateOf(k))) + ', ' + plural(s.scores.length, 'round') + ', average ' + f1(s.stats.avg) + '">' + d + '</button>');
+      } else cells.push('<span class="' + cls + (allDays.indexOf(k) >= 0 ? ' other' : '') + '">' + d + '</span>');
+    }
+    return '<div class="cal" data-testid="stats-calendar"><div class="cal-head"><span class="cal-m">' + esc(monthFmt.format(new Date(y, m0, 1))) + '</span>' +
+      '<button type="button" class="icon" id="cal-prev" aria-label="Previous month"' + (month <= first ? ' disabled' : '') + '>‹</button>' +
+      '<button type="button" class="icon" id="cal-next" aria-label="Next month"' + (month >= now ? ' disabled' : '') + '>›</button></div>' +
+      '<div class="cal-grid">' + cells.join('') + '</div>' +
+      '<p class="small cal-key">Filled: days you played this mode. Dot: other modes only.</p></div>';
   }
-  // A section's intro line and its buttons. `title` is HTML (Today names the day it shows).
-  function paneHead(sub, actions, title) {
-    return '<div class="page-head pane-head"><div>' + (title || '') + '<p class="sub">' + sub + '</p></div>' +
-      (actions ? '<div class="actions">' + actions + '</div>' : '') + '</div>';
+
+  // The chosen day, for this mode: scores (× deletes one), time and accuracy against your usual, pace, slowest questions.
+  function dayPanel(mine, ss, day) {
+    var s = ss.filter(function (x) { return x.day === day; })[0], rep = S.sessionReport(mine, day), sc = rep.scores[0];
+    var n = S.sessionDays(data.rounds).indexOf(day) + 1, h = [];
+    h.push('<h2 class="day-h" data-testid="day-title">' + esc(longDayFmt.format(dateOf(day))) + '</h2>' +
+      '<p class="sub">Day ' + n + ' of practice' + (day === todayKey() ? ', today' : '') + '</p>');
+    h.push('<ul class="chips" data-testid="day-scores">' + s.rounds.map(function (r) {
+      return '<li><span class="num">' + r.score + (r.mode === 'EXTERNAL' ? '*' : '') + '</span><button type="button" class="del" data-id="' + esc(r.id) + '"' +
+        ' aria-label="Delete round with score ' + r.score + '" title="Delete this round">×</button></li>';
+    }).join('') + '</ul>');
+    h.push(facts([
+      ['Average', f1(s.stats.avg)],
+      ['Median time', rep.median ? sec(rep.median) : '–'],
+      rep.usualMedian ? ['Usually', sec(rep.usualMedian)] : null,
+      ['Wrong', rep.questions ? pct(rep.wrong) : '–']
+    ]));
+    var pace = rep.pace[0];
+    if (pace && pace.change !== null) h.push('<p>' + (Math.abs(pace.change) < 0.05 ? 'Your pace stays steady to the end of the clock.' :
+      'You are <b>' + Math.round(Math.abs(pace.change) * 100) + '% ' + (pace.change > 0 ? 'slower' : 'faster') + '</b> in the last third of the clock than in the first.') + '</p>');
+    if (sc && sc.fatigue) h.push('<p class="notice strong">Fatigue: your last 3 rounds were ' + sc.fatigue.last.join(', ') + ', against ' + f1(sc.fatigue.base) + ' for your first 3.</p>');
+    if (s.rounds.some(function (r) { return r.mode === 'EXTERNAL'; })) h.push('<p class="small">* Played on zetamac.com: score only.</p>');
+    if (rep.mistakes.length) {
+      h.push('<h3 class="sub-h">Slowest and wrong</h3><ol class="slow-list" data-testid="day-mistakes">' + rep.mistakes.slice(0, 5).map(function (e) {
+        var ans = e.q.answerText !== undefined ? e.q.answerText : e.q.answer;
+        return '<li><span class="num">' + esc(e.q.shown) + ' = ' + esc(ans) + '</span><span class="m">' +
+          (e.wrong ? plural(e.wrong, 'wrong answer') : sec(e.slowest)) + '</span><span class="small">' + esc(e.advice) + '</span></li>';
+      }).join('') + '</ol>');
+    } else if (rep.questions) h.push('<p class="mid">No wrong answers and no freezes.</p>');
+    return h.join('');
+  }
+
+  // zetamac.com scores: a small form at the bottom of Stats (it was in the Log).
+  function extForm() {
+    return '<details class="ext" id="ext-box"' + (ui.extOpen ? ' open' : '') + '><summary>Add scores from zetamac.com</summary>' +
+      '<form id="ext" class="inline-form">' +
+      '<label class="field" for="ext-mode">Mode<select id="ext-mode" name="mode">' + ['TABLES', 'P2', 'P3', 'NORMAL120'].map(function (x) {
+        return '<option value="' + x + '"' + (x === ui.extMode ? ' selected' : '') + '>' + label(x) + '</option>';
+      }).join('') + '</select></label>' +
+      '<label class="field" for="ext-date">Date<input type="date" id="ext-date" name="date" autocomplete="off" value="' + todayKey() + '"></label>' +
+      '<label class="field grow" for="ext-scores">Scores, separated by commas<input id="ext-scores" name="scores" autocomplete="off" inputmode="numeric" spellcheck="false" placeholder="28, 24, 25…"></label>' +
+      '<button type="submit">Save rounds</button></form>' +
+      '<p id="ext-msg" class="small" aria-live="polite">' + esc(ui.extMsg || 'They count like your own rounds, without per-question data.') + '</p></details>';
+  }
+
+  function bindExt() {
+    ui.extMsg = null;
+    $('#ext-box').addEventListener('toggle', function () { ui.extOpen = this.open; });
+    $('#ext').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var mode = $('#ext-mode').value, day = $('#ext-date').value || todayKey();
+      var scores = $('#ext-scores').value.split(/[\s,;]+/).filter(Boolean).map(Number);
+      if (!scores.length || scores.some(function (x) { return !isFinite(x) || x < 0 || Math.floor(x) !== x; })) {
+        $('#ext-msg').textContent = 'Type whole-number scores separated by commas, for example 28, 24, 25.';
+        $('#ext-scores').focus();
+        return;
+      }
+      var p = day.split('-').map(Number), base;
+      if (day === todayKey()) base = Date.now() - scores.length * 1000;
+      else base = new Date(p[0], p[1] - 1, p[2], 12, 0, 0).getTime();
+      scores.forEach(function (sc, i) {
+        data.rounds.push({
+          id: Store.uuid(), startedAt: new Date(base + i * 1000).toISOString(), mode: 'EXTERNAL', linkedMode: mode,
+          settings: G.modeSettings(mode), score: sc, questions: []
+        });
+      });
+      data.rounds.sort(function (a, b) { return a.startedAt < b.startedAt ? -1 : 1; });
+      save();
+      // Show what was saved: its mode and day, the form still open with the message.
+      ui.statsMode = mode; ui.statsDay = S.dayKey(new Date(base).toISOString()); ui.statsFromDay = false; ui.calMonth = null;
+      ui.extOpen = true; ui.extMode = mode;
+      var msg = 'Saved ' + plural(scores.length, 'round') + ' to ' + label(mode) + '.';
+      renderStats();
+      $('#ext-msg').textContent = msg;
+    });
+  }
+
+  function bindStats(days, at) {
+    function goDay(d, focus) {
+      if (!d) return;
+      ui.statsDay = d; ui.statsFromDay = false; ui.calMonth = null;
+      setHash('stats', 'day/' + d);
+      renderStats();
+      if (focus) { var b = $('.cal-d[data-day="' + d + '"]'); if (b) b.focus(); }
+    }
+    $$('[data-smode]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        ui.statsMode = b.getAttribute('data-smode'); ui.statsFromDay = false; ui.calMonth = null;
+        renderStats();
+        setHash('stats', 'day/' + ui.statsDay);
+        var again = $('[data-smode="' + ui.statsMode + '"]'); if (again) again.focus();
+      });
+    });
+    $$('.cal-d[data-day]').forEach(function (b) { b.addEventListener('click', function () { goDay(b.getAttribute('data-day'), true); }); });
+    $('#cal-prev').addEventListener('click', function () { ui.calMonth = shiftMonth(ui.calMonth, -1); renderStats(); $('#cal-prev').focus(); });
+    $('#cal-next').addEventListener('click', function () { ui.calMonth = shiftMonth(ui.calMonth, 1); renderStats(); $('#cal-next').focus(); });
+    $$('.del').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-id'), r = data.rounds.filter(function (x) { return x.id === id; })[0];
+        if (!r) return;
+        if (confirm('Delete this ' + label(S.effMode(r)) + ' round (score ' + r.score + ', ' + fmtDay(S.dayKey(r.startedAt)) + ')? This cannot be undone.')) {
+          data.rounds = data.rounds.filter(function (x) { return x.id !== id; });
+          save(); renderStats();
+          announce('Round deleted.');
+        }
+      });
+    });
+    bindExt();
+    screenKeys = function (e) {
+      if (e.key === 'ArrowLeft') { goDay(days[at - 1]); return true; }
+      if (e.key === 'ArrowRight') { goDay(days[at + 1]); return true; }
+      return false;
+    };
   }
 
   // ---------- Review ----------
@@ -1413,133 +1578,7 @@
   function pct(x) { return x === null || x === undefined ? '–' : Math.round(x * 100) + '%'; }
   function dsec(ms) { return ms === null || ms === undefined ? '–' : (ms >= 0 ? '+' : '−') + (Math.abs(ms) / 1000).toFixed(1) + ' s'; }
 
-  function renderDay() {
-    var rounds = data.rounds, days = S.sessionDays(rounds), today = todayKey();
-    if (!days.length) { fill('day', '<p class="mid">Press P and play a round. Its analysis appears here.</p>'); return; }
-    if (!ui.sessionDay || days.indexOf(ui.sessionDay) < 0) ui.sessionDay = days.indexOf(today) >= 0 ? today : days[days.length - 1];
-    var day = ui.sessionDay, rep = S.sessionReport(rounds, day), h = [];
-
-    var pick = '<label class="sr-only" for="s-pick">Choose a day</label><select id="s-pick" name="day">' + days.slice().reverse().map(function (d) {
-      return '<option value="' + d + '"' + (d === day ? ' selected' : '') + '>Day ' + (days.indexOf(d) + 1) + ', ' + esc(fmtDay(d)) + '</option>';
-    }).join('') + '</select>';
-    var actions = '<button type="button" id="s-prev" aria-label="Previous day" title="Previous day (←)"' + (rep.prevDay ? '' : ' disabled') + '>←</button>' + pick +
-      '<button type="button" id="s-next" aria-label="Next day" title="Next day (→)"' + (rep.nextDay ? '' : ' disabled') + '>→</button>';
-    h.push(paneHead(esc(fmtDay(day)) + (day === today ? ', today' : '') + '. You played ' +
-      esc(rep.scores.map(function (s) { return label(s.mode); }).join(', ')) + '.', actions,
-      '<p class="pane-title" data-testid="day-title">Day ' + rep.number + ' of practice</p>'));
-
-    h.push(stats([
-      { label: 'Rounds', value: String(rep.rounds), note: plural(rep.scores.length, 'mode'), key: 'rounds' },
-      { label: 'Questions answered', value: String(rep.questions), note: 'With per-question data', key: 'questions' },
-      { label: 'Median time', value: rep.median ? sec(rep.median) : '–', note: rep.usualMedian ? 'Usually ' + sec(rep.usualMedian) : 'No earlier data', key: 'median' },
-      { label: 'Wrong answers', value: pct(rep.wrong), note: rep.usualWrong !== null ? 'Usually ' + pct(rep.usualWrong) : 'No earlier data', key: 'wrong' }
-    ]));
-
-    // Scores round by round.
-    var sc = [];
-    rep.scores.forEach(function (s) {
-      var n = s.scores.length, xs = s.scores.map(function (_, i) { return i + 1; });
-      sc.push('<h3 class="sub-h">' + esc(label(s.mode)) + ' <span class="mid">' + plural(n, 'round') + '</span></h3>');
-      if (n >= 2) {
-        var lg = [{ kind: 'line', label: 'Score' }];
-        if (s.threshold) lg.push({ kind: 'dash', label: 'Threshold ' + s.threshold });
-        if (s.prevAvg !== null) lg.push({ kind: 'dot', label: 'Last 7 days played ' + f1(s.prevAvg) });
-        sc.push(C.legend(lg) + C.line({
-          xs: xs, h: 150, label: label(s.mode) + ' scores by round', xName: 'Round ', endLabel: true,
-          series: [{ ys: s.scores, kind: 'line', name: 'score' }],
-          hlines: [{ y: s.threshold, kind: 'dash', name: 'threshold' }, { y: s.prevAvg, kind: 'dot', name: 'last 7 days played' }]
-        }) + C.table(['Round', 'Score'], s.scores.map(function (v, i) { return [i + 1, v]; })));
-      }
-      sc.push(facts([
-        ['Average', f1(s.stats.avg)], ['Best', s.stats.best], ['Worst', s.stats.worst], ['Spread (sd)', f1(s.stats.sd)],
-        ['First round', s.stats.first],
-        ['Since your last day', s.lastAvg !== null ? signed(s.stats.avg - s.lastAvg) : 'First time'],
-        s.prevAvg !== null ? ['Last 7 days played', f1(s.prevAvg)] : null
-      ]));
-      if (s.fatigue) sc.push('<div class="notices"><p class="notice strong">Fatigue: your last 3 rounds were ' + s.fatigue.last.join(', ') + ', against ' + f1(s.fatigue.base) + ' for your first 3.</p></div>');
-      if (s.external) sc.push('<p class="small">' + plural(s.external, 'round') + ' from zetamac.com: score only, no per-question data.</p>');
-    });
-    h.push(section('Scores', sc.join(''), null, 'day-scores'));
-
-    // Pace inside rounds.
-    if (rep.pace.length) {
-      var pc = ['<p class="sec-intro">Each round split into thirds of the clock. Do you slow down as time runs out?</p>'];
-      rep.pace.forEach(function (p) {
-        var t = p.duration / 3, labels = [0, 1, 2].map(function (i) { return Math.round(t * i) + '–' + Math.round(t * (i + 1)) + ' s'; });
-        pc.push('<h3 class="sub-h">' + esc(label(p.mode)) + ' <span class="mid">' + plural(p.rounds, 'round') + '</span></h3>');
-        pc.push('<p class="chart-cap">Answers per third, averaged over rounds</p>' + C.bars({
-          values: p.thirds.map(function (x) { return x.answers; }), labels: labels, h: 110, w: 420, label: label(p.mode) + ' answers per third',
-          tips: p.thirds.map(function (x, i) {
-            return { t: labels[i] + ' of the clock', rows: [{ v: f1(x.answers), l: 'answers per round' }, { v: x.median ? sec(x.median) : '–', l: 'median time' }] };
-          })
-        }));
-        pc.push(facts(p.thirds.map(function (x, i) { return ['Median time, ' + labels[i], x.median ? sec(x.median) : '–']; })));
-        if (p.change !== null) pc.push('<p>' + (Math.abs(p.change) < 0.05 ? 'Your pace stays steady from start to finish.' :
-          'You are <b>' + Math.round(Math.abs(p.change) * 100) + '% ' + (p.change > 0 ? 'slower' : 'faster') + '</b> in the last third than in the first.') + '</p>');
-        if (p.perRound.length >= 2) {
-          pc.push('<p class="chart-cap">Median answer time per round</p>' + C.line({
-            xs: p.perRound.map(function (_, i) { return i + 1; }), h: 110, xName: 'Round ', endLabel: true,
-            label: label(p.mode) + ' median answer time per round',
-            series: [{ ys: p.perRound.map(function (ms) { return ms / 1000; }), kind: 'line', name: 'median time' }], fmt: function (v) { return v.toFixed(1) + 's'; }
-          }));
-        }
-      });
-      h.push(section('Pace inside rounds', pc.join('')));
-    }
-
-    // Mistakes and freezes.
-    var mk;
-    if (!rep.mistakes.length) mk = '<p class="mid">' + (rep.questions ? 'No wrong answers and no freezes. A clean day.' : 'This day has no per-question data.') + '</p>';
-    else {
-      mk = '<p class="sec-intro">Questions you got wrong, or froze on (more than 3 times the round’s median).</p>' +
-        '<table><tr><th scope="col">Question</th><th scope="col" class="n">Seen</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Freezes</th><th scope="col" class="n">Slowest</th><th scope="col">How to think it</th></tr>' +
-        rep.mistakes.map(function (e) {
-          var ans = e.q.answerText !== undefined ? e.q.answerText : e.q.answer;
-          return '<tr><td class="num">' + esc(e.q.shown) + ' = ' + esc(ans) + '</td><td class="n">' + e.seen + '</td><td class="n">' + (e.wrong || '') +
-            '</td><td class="n">' + (e.freezes || '') + '</td><td class="n">' + sec(e.slowest) + '</td><td class="small">' + esc(e.advice) + '</td></tr>';
-        }).join('') + '</table>';
-    }
-    h.push(section('Mistakes and freezes', mk));
-
-    // Per operation.
-    if (rep.ops.length) {
-      h.push(section('Per operation', '<p class="sec-intro">Today against all your earlier days.</p>' +
-        '<table><tr><th scope="col">Operation</th><th scope="col" class="n">Questions</th><th scope="col" class="n">Median</th><th scope="col" class="n">Usually</th>' +
-        '<th scope="col" class="n">Change</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Usually</th></tr>' +
-        rep.ops.map(function (o) {
-          return '<tr><td>' + OP_SYM[o.op] + ' ' + OP_NAME[o.op].toLowerCase() + '</td><td class="n">' + o.n + '</td><td class="n">' + sec(o.median) + '</td><td class="n">' +
-            (o.usualMedian ? sec(o.usualMedian) : '–') + '</td><td class="n">' + (o.usualMedian ? '<b>' + dsec(o.median - o.usualMedian) + '</b>' : '–') +
-            '</td><td class="n">' + pct(o.wrong) + '</td><td class="n">' + pct(o.usualWrong) + '</td></tr>';
-        }).join('') + '</table>'));
-    }
-
-    // Facts that moved.
-    if (rep.questions) {
-      var list = function (xs) {
-        if (!xs.length) return '<p class="small">Nothing clear yet.</p>';
-        return '<ol class="weak">' + xs.map(function (x) {
-          return '<li><span class="f">' + esc(x.label) + '</span><span class="m">' + sec(x.before) + ' → ' + sec(x.today) + '</span></li>';
-        }).join('') + '</ol>';
-      };
-      h.push(section('Facts that moved', '<p class="sec-intro">Median time before, then today. A fact needs 2 attempts today and 3 before to show here.</p>' +
-        '<div class="twocol"><div><h3 class="sub-h">Faster today</h3>' + list(rep.faster) + '</div><div><h3 class="sub-h">Slower today</h3>' + list(rep.slower) + '</div></div>'));
-    }
-    h.push(keys([['←', 'previous day'], ['→', 'next day'], ['P', 'play']]));
-    C.bind(fill('day', h.join('')));
-
-    // The day lives in the URL (#stats/day/2026-10-20).
-    function goDay(d) { if (d) { ui.sessionDay = d; setHash('stats', 'day/' + d); renderDay(); } }
-    $('#s-prev').addEventListener('click', function () { goDay(rep.prevDay); });
-    $('#s-next').addEventListener('click', function () { goDay(rep.nextDay); });
-    $('#s-pick').addEventListener('change', function () { goDay(this.value); $('#s-pick').focus(); });
-    paneKeys.day = function (e) {
-      if (e.key === 'ArrowLeft') { goDay(rep.prevDay); return true; }
-      if (e.key === 'ArrowRight') { goDay(rep.nextDay); return true; }
-      return false;
-    };
-  }
-
-  // ---------- Progress ----------
+  // ---------- Round-of-the-day chart (Stats and Road to 60) ----------
 
   // Average score by round number within a day (S.roundIndexAverages): a line with dots on rounds 1–12+, ticks
   // 1, 3, 6, 9, 12+, values on hover/focus and in the table. Used by every mode panel and the Road to 60 warm-up curve.
@@ -1553,149 +1592,6 @@
         return { t: 'Round ' + x.label + ' of a day', rows: [{ v: f1(x.avg), l: 'average score', k: 'line' }, { v: String(x.days), l: 'days' }, { v: String(x.n), l: x.n === 1 ? 'round' : 'rounds' }] };
       })
     }) + C.table(['Round of the day', 'Average', 'Days', 'Rounds'], curve.map(function (x) { return [x.label, f1(x.avg), x.days, x.n]; }));
-  }
-
-  function renderProgress() {
-    var rounds = data.rounds;
-    var h = [paneHead('One point per day you played. Hover or focus a chart to read its values; arrow keys move along it.')];
-    var info = P.current(rounds, data.settings.stepOverride), step = info.current.step;
-    var latest = S.sessionDays(rounds).length;
-    var stepSessions = S.sessionsForMode(rounds, step.mode), st = S.trend(stepSessions, step.threshold, latest);
-    var est = S.estimate120(rounds), lastStep = stepSessions[stepSessions.length - 1];
-    h.push(stats([
-      { label: label(step.mode) + ', last day', value: lastStep ? f1(lastStep.stats.avg) : '–', note: 'Target ' + step.threshold + ' or more', key: 'step-last' },
-      { label: 'Trend', value: st.ok ? (st.slope >= 0 ? '+' : '−') + Math.abs(st.slope).toFixed(1) : '–', note: st.ok ? 'Per session, sessions ' + st.first + '–' + st.last : 'Not enough data yet', key: 'trend' },
-      { label: 'Estimated 120-second score', value: est ? f1(est.estimate) : '–', note: est ? (est.calibrated ? 'Calibrated on your data, ×' + est.factor.toFixed(2) : 'About 2 × your Speed average') : 'Play Speed to get an estimate', key: 'estimate' }
-    ]));
-
-    var any = false;
-    logModes().forEach(function (m) {
-      var ss = S.sessionsForMode(rounds, m);
-      if (!ss.length) return;
-      any = true;
-      var thr = THRESHOLDS[m] || null, t = S.trend(ss, thr, latest), last = ss[ss.length - 1];
-      var body = facts([
-        ['Trend', P.trendText(t)],
-        thr && t.ok ? ['To reach ' + thr, P.projectionText(t)] : null,
-        ['Last day', f1(last.stats.avg)], ['Best (all time)', Math.max.apply(null, ss.map(function (s) { return s.stats.best; }))]
-      ]);
-      var lg = [{ kind: 'line', label: 'Day average' }, { kind: 'dots', label: 'Best round' }];
-      if (thr) lg.push({ kind: 'dash', label: 'Threshold ' + thr });
-      body += C.legend(lg) + C.line({
-        xs: ss.map(function (s) { return s.number; }), xName: 'Day ', endLabel: true,
-        series: [{ ys: ss.map(function (s) { return s.stats.avg; }), kind: 'line', name: 'average' }, { ys: ss.map(function (s) { return s.stats.best; }), kind: 'dots', name: 'best' }],
-        hline: thr, label: label(m) + ' day averages', h: 160
-      }) + C.table(['Day', 'Average', 'Best', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; }));
-      var ri = S.roundIndexAverages(rounds, m);
-      if (ri.length >= 2) {
-        body += '<p class="chart-cap">Average score by round within a day, to see where fatigue starts (round numbers played on 2 or more days)</p>' +
-          roundChart(ri, label(m) + ' average score by round of the day');
-      }
-      h.push(section(label(m), body, plural(ss.length, 'day')));
-    });
-    if (!any) h.push('<p class="mid">No rounds yet. Play one and your progress appears here.</p>');
-
-    var tbo = S.timeByOp(rounds);
-    if (['add', 'sub', 'mul', 'div'].some(function (op) { return tbo[op].length; })) {
-      var sm = ['<p class="sec-intro">Average time per question, by operation.</p><div class="small-multiples">'];
-      ['add', 'sub', 'mul', 'div'].forEach(function (op) {
-        var pts = tbo[op];
-        sm.push('<div><h3 class="sub-h">' + OP_SYM[op] + ' ' + OP_NAME[op] + ' <span class="mid">' + (pts.length ? 'last ' + sec(pts[pts.length - 1].ms) : 'no data yet') + '</span></h3>' +
-          (pts.length ? C.line({
-            xs: pts.map(function (p) { return p.number; }), xName: 'Day ', endLabel: true, label: OP_NAME[op] + ', average time per question',
-            series: [{ ys: pts.map(function (p) { return p.ms / 1000; }), kind: 'line', name: 'average time' }],
-            w: 400, h: 120, fmt: function (v) { return v.toFixed(1) + 's'; }
-          }) : '') + '</div>');
-      });
-      sm.push('</div>');
-      h.push(section('Time per question', sm.join('')));
-    }
-    var notes = P.fatigueNotes(rounds, 1000);
-    if (notes.length) h.push(section('Fatigue', notes.slice(-8).map(function (n) { return '<p class="mid">' + esc(n) + '</p>'; }).join('')));
-    C.bind(fill('progress', h.join('')));
-  }
-
-  // ---------- Log ----------
-
-  function renderLog() {
-    var rounds = data.rounds;
-    var h = [paneHead('One row per day. Select a score to delete that round.',
-      '<button type="button" id="copy">Copy report for Claude</button>')];
-    h.push('<p id="copy-st" class="small" aria-live="polite">The report explains your rules, days, weak facts and latest day. For the raw data, use Export JSON in Settings.</p><label class="sr-only" for="summary">Report for Claude</label><textarea id="summary" readonly hidden></textarea>');
-
-    h.push(section('Add rounds played on zetamac.com', '<form id="ext" class="inline-form">' +
-      '<label class="field" for="ext-mode">Mode<select id="ext-mode" name="mode">' + ['TABLES', 'P2', 'P3', 'NORMAL120'].map(function (m) { return '<option value="' + m + '">' + label(m) + '</option>'; }).join('') + '</select></label>' +
-      '<label class="field" for="ext-date">Date<input type="date" id="ext-date" name="date" autocomplete="off" value="' + todayKey() + '"></label>' +
-      '<label class="field grow" for="ext-scores">Scores, separated by commas<input id="ext-scores" name="scores" autocomplete="off" inputmode="numeric" spellcheck="false" placeholder="28, 24, 25…"></label>' +
-      '<button type="submit">Save rounds</button></form>' +
-      '<p id="ext-msg" class="small" aria-live="polite">They count toward your steps, without per-question data.</p>'));
-
-    var any = false;
-    logModes().forEach(function (m) {
-      var ss = S.sessionsForMode(rounds, m);
-      if (!ss.length) return;
-      any = true;
-      var t = ['<table><tr><th scope="col">Day</th><th scope="col">Scores</th><th scope="col" class="n">Average</th><th scope="col" class="n">Best</th><th scope="col" class="n">Spread</th></tr>'];
-      ss.slice().reverse().forEach(function (s) {
-        t.push('<tr><td>Day ' + s.number + ' <small>' + esc(fmtDay(s.day)) + '</small></td><td class="scores">' + s.rounds.map(function (r) {
-          return '<button type="button" class="del" data-id="' + esc(r.id) + '" aria-label="Delete round with score ' + r.score + '" title="Delete this round">' +
-            r.score + (r.mode === 'EXTERNAL' ? '*' : '') + '</button>';
-        }).join(', ') + '</td><td class="n"><b>' + f1(s.stats.avg) + '</b></td><td class="n">' + s.stats.best + '</td><td class="n">' + f1(s.stats.sd) + '</td></tr>');
-      });
-      t.push('</table>');
-      h.push(section(label(m), t.join(''), plural(ss.length, 'day')));
-    });
-    if (any) h.push('<p class="small">* Played on zetamac.com.</p>');
-    fill('log', h.join(''));
-
-    $('#copy').addEventListener('click', function () {
-      var text = P.summary(data), ta = $('#summary'), stEl = $('#copy-st');
-      ta.value = text; ta.hidden = false;
-      function fallback() {
-        ta.focus(); ta.select();
-        var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-        stEl.textContent = ok ? 'Copied.' : 'Copying is blocked here. Select the text below and copy it with Ctrl+C.';
-        ta.blur();
-      }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () { stEl.textContent = 'Copied ' + plural(text.split('\n').length, 'line') + '. Paste it into your chat.'; }, fallback);
-      } else fallback();
-    });
-
-    $('#ext').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var mode = $('#ext-mode').value, day = $('#ext-date').value || todayKey();
-      var scores = $('#ext-scores').value.split(/[\s,;]+/).filter(Boolean).map(Number);
-      if (!scores.length || scores.some(function (x) { return !isFinite(x) || x < 0 || Math.floor(x) !== x; })) {
-        $('#ext-msg').textContent = 'Type whole-number scores separated by commas, for example 28, 24, 25.';
-        $('#ext-scores').focus();
-        return;
-      }
-      var p = day.split('-').map(Number), base;
-      if (day === todayKey()) base = Date.now() - scores.length * 1000;
-      else base = new Date(p[0], p[1] - 1, p[2], 12, 0, 0).getTime();
-      scores.forEach(function (sc, i) {
-        data.rounds.push({
-          id: Store.uuid(), startedAt: new Date(base + i * 1000).toISOString(), mode: 'EXTERNAL', linkedMode: mode,
-          settings: G.modeSettings(mode), score: sc, questions: []
-        });
-      });
-      data.rounds.sort(function (a, b) { return a.startedAt < b.startedAt ? -1 : 1; });
-      save(); renderLog();
-      $('#ext-msg').textContent = 'Saved ' + plural(scores.length, 'round') + ' to ' + label(mode) + '.';
-    });
-
-    $$('.del').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var id = b.getAttribute('data-id'), r = data.rounds.filter(function (x) { return x.id === id; })[0];
-        if (!r) return;
-        if (confirm('Delete this ' + label(S.effMode(r)) + ' round (score ' + r.score + ', session ' + S.sessionNumber(data.rounds, S.dayKey(r.startedAt)) + ')? This cannot be undone.')) {
-          data.rounds = data.rounds.filter(function (x) { return x.id !== id; });
-          save(); renderLog();
-          announce('Round deleted.');
-        }
-      });
-    });
   }
 
   // ---------- Settings ----------
@@ -1722,7 +1618,10 @@
         'You have ' + plural(data.rounds.length, 'round') + ' in ' + plural(S.sessionDays(data.rounds).length, 'day') + '. Last export: ' +
         (st.lastExport ? esc(fmtDate(st.lastExport)) : 'never') + '.') +
       frow('Import', '<input type="file" id="import" name="import" accept=".json,application/json">', 'You see what the file contains, then choose to replace or merge.', 'import') +
-      '</div><div id="import-preview" aria-live="polite"></div>'));
+      frow('Report', '<button type="button" id="copy">Copy report for Claude</button>',
+        '<span id="copy-st" aria-live="polite">Your rules, days, weak facts and latest day as text, to paste into a chat.</span>') +
+      '</div><label class="sr-only" for="summary">Report for Claude</label><textarea id="summary" readonly hidden></textarea>' +
+      '<div id="import-preview" aria-live="polite"></div>'));
 
     h.push(section('Reset all data', '<div class="form">' +
       frow('Type RESET to confirm', '<input id="reset-txt" name="reset-confirm" autocomplete="off" spellcheck="false" placeholder="RESET" style="width:10em">' +
@@ -1736,6 +1635,19 @@
       r.addEventListener('change', function () { st.theme = r.value; applyTheme(); save(); });
     });
     $('#cd').addEventListener('change', function () { st.countdown = this.checked; save(); });
+    $('#copy').addEventListener('click', function () {
+      var text = P.summary(data), ta = $('#summary'), stEl = $('#copy-st');
+      ta.value = text; ta.hidden = false;
+      function fallback() {
+        ta.focus(); ta.select();
+        var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        stEl.textContent = ok ? 'Copied.' : 'Copying is blocked here. Select the text below and copy it with Ctrl+C.';
+        ta.blur();
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { stEl.textContent = 'Copied ' + plural(text.split('\n').length, 'line') + '. Paste it into your chat.'; }, fallback);
+      } else fallback();
+    });
     $('#hints').addEventListener('change', function () { st.coach.hints = this.checked; save(); });
     $('#step').addEventListener('change', function () { st.stepOverride = this.value || null; save(); });
     $('#neg').addEventListener('change', function () { var v = parseFloat(this.value); st.negMark = isFinite(v) && v >= 0 ? v : 1; save(); });

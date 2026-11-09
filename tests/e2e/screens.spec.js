@@ -122,31 +122,32 @@ test('review: W starts weighted tables', async ({ page }) => {
   await page.keyboard.press('Escape');
 });
 
-test('today: deep link (old session link too), arrow keys, and A from the end screen', async ({ page }) => {
+test('stats: a day link (old session link too), A from the end screen, and arrow keys between days', async ({ page }) => {
   const yesterday = new Date(NOW); yesterday.setDate(NOW.getDate() - 1);
   await openApp(page, 'session/' + dayKey(yesterday), { history: true });
-  await expect(page.getByTestId('day-title')).toHaveText('Day 1 of practice');
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(yesterday) + '$'));
-  await expect(page.getByTestId('day-scores')).toContainText('Interview-ready');
+  await expect(page.getByTestId('stats-day')).toContainText('Day 1 of practice');
+  // the day's last round decides the mode: the zetamac session ends on Interview-ready
+  await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Interview-ready', pressed: true })).toBeVisible();
 
-  // Play one round today, then jump to today's analysis with A.
+  // Play one Interview-ready round today, then A on the end screen opens today in that mode.
   await page.keyboard.press('p');
-  // The play screen renders on hashchange; keys sent before that still go to the session screen.
-  await expect(page).toHaveURL(/#play$/);
   await expect(page.getByTestId('play-modes')).toBeVisible();
-  await page.keyboard.press('1');
+  await page.keyboard.press('4');
   await startSelected(page);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await tick(page, 121000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await tick(page, 500);
   await page.keyboard.press('a');
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(NOW) + '$'));
-  await expect(page.getByTestId('day-title')).toHaveText('Day 2 of practice');
+  await expect(page.getByTestId('stats-day')).toContainText('Day 2 of practice, today');
 
   await page.keyboard.press('ArrowLeft');
-  await expect(page.getByTestId('day-title')).toHaveText('Day 1 of practice');
+  await expect(page.getByTestId('stats-day')).toContainText('Day 1 of practice');
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(yesterday) + '$'));
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('stats-day')).toContainText('Day 2 of practice');
 });
 
 test('keyboard: the skip link comes first and moves focus to the content', async ({ page }) => {
@@ -168,38 +169,52 @@ test('keyboard: ? opens the shortcut list and Esc closes it', async ({ page }) =
   await expect(dialog).toBeHidden();
 });
 
-test('stats: sections open on click, show a line while closed, and stay open next time', async ({ page }) => {
-  await openApp(page, 'stats', { history: true });
-  const session = page.getByTestId('stats-day'), progress = page.getByTestId('stats-progress');
-  await expect(session).toHaveAttribute('open', '');                  // open by default
-  await expect(progress).not.toHaveAttribute('open', '');
-  await expect(progress.locator('summary')).toContainText('Foundations: no rounds yet, target 18');  // the closed line
-  await expect(progress.getByText('One point per day you played')).toBeHidden();
+test('stats: one mode at a time, remembered; the calendar picks a day', async ({ page }) => {
+  // Two days: Speed and Interview-ready rounds yesterday, Speed today.
+  const at = (daysAgo, min) => { const d = new Date(NOW); d.setDate(d.getDate() - daysAgo); d.setHours(9, min, 0, 0); return d.toISOString(); };
+  let n = 0;
+  const r = (mode, daysAgo, score) => ({ id: 's' + (n++), startedAt: at(daysAgo, n), mode, score, settings: { duration: mode === 'NORMAL120' ? 120 : 60 }, questions: [] });
+  await openApp(page, 'stats', { rounds: [r('P3', 1, 30), r('P3', 1, 32), r('NORMAL120', 1, 55), r('P3', 0, 34)] });
+  const modes = page.getByTestId('stats-modes');
+  await expect(modes.getByRole('button', { name: 'Interview-ready', pressed: true })).toBeVisible();   // the benchmark first
+  await expect(page.getByTestId('stats-chart').locator('svg.chart')).toHaveCount(1);
+  await expect(page.getByTestId('stat-stats-best')).toBeVisible();
 
-  await progress.getByRole('heading', { name: 'Progress' }).click();
-  await expect(progress.getByText(/One point per day you played/)).toBeVisible();
-  await session.getByRole('heading', { name: 'Today', exact: true }).click();
-  await expect(session).not.toHaveAttribute('open', '');
-  // The open sections are saved on the toggle event, which fires after the click.
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('arithmeticTrainer.statsOpen'))).toBe('["progress"]');
-
+  await modes.getByRole('button', { name: 'Speed' }).click();
+  await expect(modes.getByRole('button', { name: 'Speed', pressed: true })).toBeVisible();
+  await expect(page.locator('svg[aria-label="Speed day averages"]')).toHaveCount(1);
   await page.reload();
-  await expect(progress).toHaveAttribute('open', '');
-  await expect(session).not.toHaveAttribute('open', '');
+  await expect(modes.getByRole('button', { name: 'Speed', pressed: true })).toBeVisible();   // remembered in this browser
+
+  // the calendar: the day played is a button, pressed; the panel names it
+  const cal = page.getByTestId('stats-calendar');
+  await expect(cal.locator('.cal-d.on')).toHaveCount(2);   // Speed on 2 days, both in October
+  const sel = cal.locator('.cal-d.sel');
+  await expect(sel).toHaveAttribute('aria-pressed', 'true');
+  await expect(sel).toHaveAttribute('aria-label', /2 rounds, average 31/);   // the day in the link: yesterday's two Speed rounds
+  await expect(page.getByTestId('day-scores').locator('li')).toHaveCount(2);
+  await page.keyboard.press('ArrowRight');
+  await expect(cal.locator('.cal-d.sel')).toHaveAttribute('aria-label', /1 round, average 34/);   // today
+  await expect(page.getByTestId('day-scores').locator('li')).toHaveCount(1);
+  await cal.locator('.cal-d.on').first().click();   // a click picks a day too
+  await expect(page.getByTestId('day-scores')).toContainText('30');
 });
 
-test('stats: old links and keys open their section', async ({ page }) => {
-  await openApp(page, 'log');
-  await expect(page).toHaveURL(/#stats\/log$/);
+test('stats: old links and keys land on the one page', async ({ page }) => {
+  await openApp(page, 'stats/progress', { history: true });
+  await expect(page).toHaveURL(/#stats$/);
   await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stats' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByTestId('stats-log')).toHaveAttribute('open', '');
-  await expect(page.getByLabel('Scores, separated by commas')).toBeVisible();
+  await expect(page.getByTestId('stats-chart')).toBeVisible();
+
+  await page.goto(page.url().replace(/#.*$/, '#stats/log'));
+  await expect(page).toHaveURL(/#stats\/add$/);
+  await expect(page.getByLabel('Scores, separated by commas')).toBeVisible();   // the zetamac form, open
 
   await page.keyboard.press('p');
-  await expect(page).toHaveURL(/#play$/);
-  await page.keyboard.press('g');
-  await expect(page).toHaveURL(/#stats\/progress$/);
-  await expect(page.getByTestId('stats-progress')).toHaveAttribute('open', '');
+  await expect(page.getByTestId('play-modes')).toBeVisible();
+  await page.keyboard.press('e');
+  await expect(page).toHaveURL(/#stats\/day\/\d{4}-\d{2}-\d{2}$/);
+  await expect(page.getByTestId('stats-day')).toBeVisible();
 
   // Review was a Stats section for a while; those links go to its own tab.
   await page.goto(page.url().replace(/#.*$/, '#stats/review/div'));
@@ -210,6 +225,13 @@ test('stats: old links and keys open their section', async ({ page }) => {
   await page.keyboard.press('r');
   await expect(page).toHaveURL(/#review$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible();
+});
+
+test('settings: Copy report for Claude is in Backup', async ({ page }) => {
+  await openApp(page, 'settings', { history: true });
+  await page.getByRole('button', { name: 'Copy report for Claude' }).click();
+  await expect(page.getByLabel('Report for Claude')).toBeVisible();
+  await expect(page.getByLabel('Report for Claude')).toHaveValue(/## /);
 });
 
 test('play: no backup reminder before there is much to lose', async ({ page }) => {

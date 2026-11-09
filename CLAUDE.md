@@ -286,3 +286,14 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     `CO.estimate` returns `coverage` (share of Normal's questions in measured categories) and `shown` (≥ `CO.MIN_COVERAGE`, 0.5):
     below that the estimate is "–", since it would mostly be the targets. E2E `openApp(page)` with no hash opens Play; pass
     `null` for the bare site.
+
+21. Restyle (11-09): soft grey panels and rounded corners by hierarchy (tokens in docs/design.md), numbers in the text face.
+    Stats reworked (it was 3 collapsible sections repeating every mode, ~11,000 px with 2 weeks of data): one mode at a
+    time (`renderStats`, `.seg` of `playedModes`, remembered in localStorage `arithmeticTrainer.statsMode`), 3 tiles, the
+    progress chart (goal line only on NORMAL120), a month calendar (`calendar`) beside the day panel (`dayPanel`:
+    `S.sessionReport` on that mode's rounds only, score chips with × delete, pace sentence, top 5 mistakes), speed per
+    operation (`S.timeByOp` of the mode: last day vs before), round of the day (`roundChart`, 3+ points), and the zetamac
+    form in a `<details>` at the bottom (`#log`/`#stats/log` → `#stats/add` opens it). Hash `#stats/day/<date>` (end
+    screen A, E, ← →): a day link keeps the current or remembered mode if it was played that day, else the day's last
+    round's mode (`pickMode`). `#stats/<MODE>[/<date>]` also works. G and L keys are gone. "Copy report for Claude" moved
+    to Settings › Backup. Today/Progress/Log panes, `PANES`, `paneLine` and statsOpen are gone.

@@ -44,9 +44,8 @@ async function overlaps(page) {
 for (const [w, h] of [[1366, 900], [390, 844]]) {
   test(`round-of-the-day charts and no overlapping chart labels at ${w}`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
-    await openApp(page, 'stats/progress', { rounds: history() });
-    const progress = page.getByTestId('stats-progress');
-    await expect(progress).toHaveAttribute('open', '');
+    await openApp(page, 'stats/P3', { rounds: history() });
+    const progress = page.locator('main');
 
     // Speed: a line with a dot per round number, ticks 1 3 6 9 12+ only, no value printed on the chart
     const speed = progress.locator('svg[aria-label="Speed average score by round of the day"]');
@@ -59,17 +58,23 @@ for (const [w, h] of [[1366, 900], [390, 844]]) {
     for (const t of await speed.locator('text:not(.xt)').allTextContents()) expect(t).toMatch(/^\d+$/);
     await expect(speed.locator('path.bar')).toHaveCount(0);
     // Foundations was played on 3 days, one round each: only round 1 qualifies, so there is no chart (needs 2 points)
-    await expect(progress.locator('svg[aria-label="Foundations average score by round of the day"]')).toHaveCount(0);
+    await expect(progress.locator('svg[aria-label="Foundations average score by round of the day"]')).toHaveCount(0);   // not shown: Speed is the mode
     // the table twin has days and rounds
     const table = speed.locator('xpath=following-sibling::details[1]');
     await table.locator('summary').click();
     await expect(table.locator('tr').nth(12)).toContainText('12+');
     await expect(table.locator('tr').first()).toHaveText(/Round of the dayAverageDaysRounds/);
-    await expect(progress.getByText('Best (all time)').first()).toBeVisible();
+    await expect(page.getByTestId('stat-stats-best')).toContainText('All time');
 
     let o = await overlaps(page);
     expect(o.bad).toEqual([]);
-    expect(o.labels).toBeGreaterThan(30);   // the check really saw the labels
+    expect(o.labels).toBeGreaterThan(15);   // the check really saw the labels
+
+    // Foundations, played on 3 days with one round each: no round-of-the-day chart
+    await page.getByTestId('stats-modes').getByRole('button', { name: 'Foundations' }).click();
+    await expect(page.getByTestId('stats-rounds')).toHaveCount(0);
+    o = await overlaps(page);
+    expect(o.bad).toEqual([]);
 
     await page.goto(page.url().replace(/#.*$/, '#road'));
     const warm = page.getByTestId('road-warmup').locator('svg.chart');

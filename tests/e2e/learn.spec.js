@@ -80,8 +80,8 @@ test('timed round: F plays 60 s of one trick, saved as LEARN and named after the
   await page.getByTestId('learn-lesson-x25').click();
   await expect(page.getByRole('heading', { name: 'Your numbers' })).toBeVisible();
   await expect(page.locator('.facts')).toContainText('Timed rounds');
-  await page.goto(page.url().replace(/#.*/, '#stats/log'));
-  await expect(page.locator('#pane-log').getByRole('heading', { name: 'Learn: × 25' })).toBeVisible();   // listed in the Log
+  await page.goto(page.url().replace(/#.*/, '#stats'));
+  await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Learn: × 25' })).toBeVisible();   // its own mode on Stats
 });
 
 // Fractions by heart, solved independently of the app: "3/7" → a decimal (cut off to 3 places when it

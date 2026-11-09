@@ -214,8 +214,8 @@ test('Leaving mid-session saves it; progress, weak spots and Log show finance ro
   await page.keyboard.press('Escape');   // nothing answered: nothing saved, back to the Finance page
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finance');
   expect(await rounds(page)).toHaveLength(1);
-  await page.keyboard.press('l');
-  await expect(page.locator('#pane-log').getByRole('heading', { name: 'Finance practice' })).toBeVisible();
+  await page.keyboard.press('a');
+  await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Finance practice' })).toBeVisible();
 });
 
 // Squares and powers at Easy, as plain text: "47²" or "2¹¹".

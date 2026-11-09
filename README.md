@@ -21,6 +21,7 @@ A Zetamac-style mental-math trainer for quant interviews. Black and white, keybo
 ## Back up your data
 
 Settings (`S`) → **Export JSON** downloads `arithmetic-trainer-YYYY-MM-DD.json`.
+**Copy report for Claude** (same section) copies a text report of your rules, days and weak facts to paste into a chat.
 **Import JSON** shows a preview ("142 rounds, 12 days") and lets you *Replace* everything
 or *Merge* (rounds are matched by id, so merging the same file twice adds nothing).
 If your last export is older than 7 days, the home screen shows a one-line reminder.
@@ -148,18 +149,14 @@ The site opens on **Road to 60**; with no rounds yet it explains how a day works
   questions as op `fin` with their template and seed; Log and the report show them.
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
-- **Stats** (`A`): three big sections you open and close: Today, Progress and Log. Closed, each shows one line (today's rounds, your step's last average, how many rounds). The ones you leave open stay open in this browser. `E` `G` `L` jump to a section; links to the old pages (`#session/…`, `#log`, `#stats/review/…`) still work.
-  - **Today** (`E`): one day analysed. Scores round by round against your threshold and your last 7 days played, pace inside rounds (answers and median time per third of the clock), mistakes and freezes with how to think them, each operation today vs usual, and the facts that got faster or slower. `←` `→` move between days; `A` on any end screen jumps here.
-  - **Progress** (`G`): per-mode charts (day average, best, threshold), trend per session (the slope over the day
-  numbers on the chart, last 14 sessions, needs 4 of them over 7 days) and a range of sessions to the threshold from
-  that slope ± its standard error ("about 25–60 sessions", or "plateau" when it is flat, unsure or over 90),
-  estimated 120 s score, time per question by operation, and average score by round of the day (fatigue): a line with
-  dots for rounds 1 to 12+ (12 and later together), only round numbers played on 2 or more days; values on hover and in
-  "Show as table". Each mode shows its best round of all time.
-  - **Log** (`L`): one row per day, add zetamac.com scores, delete a round (activate its score),
-  **Copy report for Claude**: a self-explanatory text report (rules, every day, steps and trends,
-  per-operation speed, weak facts, tables grid, latest day in detail, fatigue). For the raw
-  data, Export JSON in Settings.
+- **Stats** (`A`): one mode at a time. Pick the mode at the top (the modes you have played; your choice is remembered
+  in this browser). Under it: your last day's average, best round and trend (points per day played, needs 4 days over a
+  week); the progress chart (day average, best round, the 60 goal on Interview-ready); a **calendar** of the days you
+  played that mode, with the chosen day beside it: its scores (× deletes a round), median time against your usual, wrong
+  answers, your pace from the first to the last third of the clock, and the 5 slowest or wrong questions with how to think
+  them. Then speed per operation (last day against the days before) and the round-of-the-day chart (warm-up and fatigue,
+  when 3 or more round numbers have 2+ days). `←` `→` move between days, `E` opens today, `A` on any end screen opens that
+  day. **Add scores from zetamac.com** is at the bottom. Old links (`#session/…`, `#log`, `#stats/progress`) still work.
 - **Settings**: theme, countdown, step override, interview penalty, export/import, reset.
 
 ## Keys

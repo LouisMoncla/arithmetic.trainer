@@ -116,8 +116,9 @@ test('negative entries take a minus sign; the round shows in Stats, Log', async 
   await expect(cell(page, 0)).toHaveValue('-5');   // letters dropped, one leading minus kept
   await tick(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText(String(solved));
-  await page.keyboard.press('l');
-  await expect(page.locator('#pane-log').getByRole('heading', { name: 'Matrices, −9 to 9, 60 s' })).toBeVisible();
+  await tick(page, 500);
+  await page.keyboard.press('a');   // from the end screen: Stats on today, in the mode just played
+  await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Matrices, −9 to 9, 60 s', pressed: true })).toBeVisible();
 });
 
 test('Custom range: From and To, checked, remembered, and used for every entry', async ({ page }) => {

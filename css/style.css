@@ -198,36 +198,8 @@ label { white-space: nowrap; }
 .road-drill .mode { flex: 1; }
 .road-drill select { margin-right: 6px; height: 36px; }
 
-/* Step block: one line (step, streak, count) that opens to the rule and today's count. */
-.step { margin: 48px 0 0; padding: 18px 0; border-top: 1px solid var(--fg); border-bottom: 1px solid var(--line); }
-.step > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; cursor: pointer; list-style: none; }
-.step-id { font-size: var(--t-l); font-weight: 700; margin: 0; }
-.step-count { color: var(--mid); }
-.step-rule { margin: 14px 0 0; }
+/* Road to 60: the 3-box run to the 60 gate. */
 .streak { font-size: var(--t-l); letter-spacing: 4px; line-height: 1; }
-.step-now { margin: 4px 0 0; color: var(--mid); }
-
-/* Disclosure marker shared by the step block and Stats sections: + closed, − open. */
-.step > summary::-webkit-details-marker, .pane > summary::-webkit-details-marker { display: none; }
-.step > summary::after, .pane > summary::after { content: "+"; margin-left: auto; font: 300 var(--t-l) var(--sans); line-height: 1; color: var(--mid); }
-.step[open] > summary::after, .pane[open] > summary::after { content: "−"; }
-.step > summary:hover::after, .pane > summary:hover::after { color: var(--fg); }
-
-/* ---------- stats sections ---------- */
-/* Big titles you open. The line under each title is the one thing worth reading while it is closed. */
-.pane { border-top: 1px solid var(--line); }
-.pane:last-of-type { border-bottom: 1px solid var(--line); }
-.pane > summary {
-  display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: baseline;
-  padding: 20px 0; cursor: pointer; list-style: none;
-}
-.pane > summary::after { grid-column: 2; grid-row: 1; }
-.pane-h { grid-column: 1; grid-row: 1; margin: 0; font-size: var(--t-l); font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
-.pane-line { grid-column: 1; grid-row: 2; color: var(--mid); }
-.pane[open] .pane-line { display: none; }  /* open, the section itself says it */
-.pane-body { padding: 0 0 48px; }
-.pane-head { margin: 4px 0 8px; align-items: center; }
-.pane-title { margin: 0; font-size: var(--t-l); font-weight: 700; line-height: 1.3; }
 
 .modes { list-style: none; padding: 4px; margin: 0; border-radius: var(--r-l); background: var(--surface); }
 .mode {
@@ -478,9 +450,10 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
   .top-in nav { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; border-radius: var(--r-l); }
   nav a { padding: 10px 12px; }
   .hero-mode { font-size: 40px; }
-  .pane-h { font-size: var(--t-l); }
   .heat-side { padding-top: 0; }
   .stats { grid-template-columns: repeat(2, 1fr); }
+  .stats[style*="--n:3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stats[style*="--n:3"] .stat { padding: 12px; }
   .mode { grid-template-columns: 34px 1fr; }
   .mode .ds, .mode .tag { grid-column: 2; }
   .panel { padding-left: 10px; }
@@ -497,3 +470,44 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
   .keys, button kbd { display: none; }
 }
 .sec-intro + .modes, .sec-intro + ol.modes { margin-top: 12px; }
+
+/* ---------- stats: one mode, a calendar and the chosen day ---------- */
+.stats-modes { margin: 4px 0 8px; max-width: 100%; }
+.stats-modes:has(button:nth-child(5)) { border-radius: var(--r-l); }   /* many modes wrap: a softer track */
+.stats-cal { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 32px; align-items: start; }
+.cal { padding: 14px; border-radius: var(--r-l); background: var(--surface); }
+.cal-head { display: flex; align-items: center; gap: 4px; margin: 0 0 10px; }
+.cal-m { flex: 1; font-weight: 600; }
+.cal-head .icon { width: 30px; height: 30px; background: var(--chip); }
+.cal-head .icon:disabled { background: transparent; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-wd { text-align: center; font-size: var(--t-xs); color: var(--soft); padding-bottom: 2px; }
+.cal-d { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; height: auto; padding: 0; border: 0;
+  border-radius: var(--r-s); font-size: var(--t-xs); font-variant-numeric: tabular-nums; color: var(--soft); background: transparent; position: relative; }
+.cal-d.other::after { content: ""; position: absolute; bottom: 3px; width: 3px; height: 3px; border-radius: 50%; background: var(--soft); }
+.cal-d.on { background: var(--chip); color: var(--fg); font-weight: 600; cursor: pointer; }
+.cal-d.on:hover:not(:disabled) { background: var(--surface-2); }
+.cal-d.sel, .cal-d.sel:hover:not(:disabled) { background: var(--fg); color: var(--bg); }
+.cal-d.today { text-decoration: underline; text-underline-offset: 3px; }
+.cal-key { margin: 10px 0 0; }
+.day-h { margin: 0; font-size: var(--t-l); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+.day-panel .sub { margin: 2px 0 0; color: var(--mid); }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 4px; padding: 0; }
+.chips li { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 12px; height: 34px; border-radius: var(--r-pill); background: var(--surface); }
+.chips .num { font-weight: 600; }
+.chips .del { width: 26px; height: 26px; padding: 0; border-radius: var(--r-pill); background: transparent; color: var(--soft); font-size: 16px; line-height: 1; }
+.chips .del:hover:not(:disabled) { background: var(--surface-2); color: var(--fg); }
+.day-panel .facts { margin-top: 12px; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.slow-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.slow-list li { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.slow-list li:last-child { border-bottom: 0; }
+.slow-list .num { font-weight: 600; }
+.slow-list .m { color: var(--mid); font-size: var(--t-xs); text-align: right; }
+.slow-list .small { grid-column: 1 / -1; }
+.ext { margin: 48px 0 0; }
+.ext > summary { cursor: pointer; color: var(--mid); width: max-content; }
+.ext > summary:hover { color: var(--fg); }
+@media (max-width: 640px) {
+  .stats-cal { grid-template-columns: 1fr; gap: 24px; }
+  .stats-modes { border-radius: var(--r-l); }
+}
