@@ -147,7 +147,7 @@
     if (moved !== hash) history.replaceState(null, '', '#' + moved);
     var parts = moved.split('/'), name = parts[0] || 'road';
     if (!SCREENS[name]) name = 'road';
-    Array.prototype.forEach.call(document.querySelectorAll('nav a'), function (a) {
+    Array.prototype.forEach.call(document.querySelectorAll('nav a, #settings-link'), function (a) {
       if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
     if (name === 'play') ui.sel = null; // fresh default selection each visit

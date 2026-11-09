@@ -10,7 +10,13 @@ test('the site opens on Road to 60; a new user gets the explanation, not empty n
   await expect(page.getByTestId('road-intro')).toContainText('60 or more is a strong score');
   await expect(page.getByTestId('stat-road-estimate')).toHaveCount(0);
   await expect(page.getByTestId('road-milestones')).toHaveCount(0);
-  await expect(page.locator('nav a')).toHaveText(['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats', 'Settings']);
+  await expect(page.locator('nav a')).toHaveText(['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats']);
+  // Settings is a gear beside the theme toggle, marked current on its page
+  const gear = page.getByRole('link', { name: 'Settings' });
+  await expect(gear).toHaveAttribute('href', '#settings');
+  await gear.click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
+  await expect(gear).toHaveAttribute('aria-current', 'page');
 });
 
 test('play: only the modes, no recommendation; number keys and arrows choose, Enter starts', async ({ page }) => {
@@ -244,7 +250,8 @@ test('phone width: every tab is on screen, the nav does not scroll sideways', as
   await page.setViewportSize({ width: 390, height: 844 });
   await openApp(page);
   const nav = page.getByRole('navigation', { name: 'Main' });
-  for (const name of ['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats', 'Settings']) {
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeInViewport({ ratio: 1 });
+  for (const name of ['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats']) {
     await expect(nav.getByRole('link', { name })).toBeInViewport({ ratio: 1 });
   }
 });

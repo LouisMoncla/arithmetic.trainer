@@ -98,7 +98,7 @@ Every 7th session is a test day: the warm-up, then 4 benchmark rounds, no drills
 
 ## Screens
 
-The top bar has seven tabs: **Road to 60**, **Play**, **Learn**, **Review**, **Finance**, **Stats** and **Settings**.
+The top bar has six tabs: **Road to 60**, **Play**, **Learn**, **Review**, **Finance** and **Stats**. **Settings** is the gear at the top right, next to the light/dark toggle (`S`).
 The site opens on **Road to 60**; with no rounds yet it explains how a day works instead of showing empty numbers.
 
 - **Play**: every mode, nothing recommended. A click starts a mode (Custom opens its form); or choose with `1–9`, `0` or `↑ ↓` and press `Enter`. **Matrices** is the last row (also key `X`).
