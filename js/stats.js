@@ -2,7 +2,7 @@
  * stats.js — sessions, averages, trends, per-fact stats and weak-fact scoring.
  * Pure logic, no DOM.
  *
- * A session = all rounds played on the same local calendar day.
+ * A session = all rounds played on the same day, which runs from 05:00 to 05:00 local (dayKey).
  * Session numbers are global (Session 1 = first day with any round).
  */
 (function () {
@@ -40,20 +40,30 @@
     }
     return vals[idx[idx.length - 1]];
   }
-  // Least-squares slope of ys against 0..n-1.
-  function slope(ys) {
-    var n = ys.length;
+  // Least-squares slope of ys against xs (default 0..n-1), or null.
+  function slope(ys, xs) { var f = fit(ys, xs); return f ? f.slope : null; }
+
+  // Least-squares line: { slope, intercept, se (standard error of the slope; null under 3 points), at(x) }, or null.
+  function fit(ys, xs) {
+    var n = ys.length, i;
+    xs = xs || ys.map(function (_, k) { return k; });
     if (n < 2) return null;
-    var mx = (n - 1) / 2, my = mean(ys), num = 0, den = 0;
-    for (var i = 0; i < n; i++) { num += (i - mx) * (ys[i] - my); den += (i - mx) * (i - mx); }
-    return num / den;
+    var mx = mean(xs), my = mean(ys), num = 0, den = 0;
+    for (i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) * (xs[i] - mx); }
+    if (!den) return null;
+    var b = num / den, a = my - b * mx, ss = 0;
+    for (i = 0; i < n; i++) ss += Math.pow(ys[i] - (a + b * xs[i]), 2);
+    return { slope: b, intercept: a, se: n > 2 ? Math.sqrt(ss / (n - 2) / den) : null, at: function (x) { return a + b * x; } };
   }
 
   // ---------- sessions ----------
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
+  // A day (session) runs from 05:00 to 05:00 local: a round at 00:30 belongs to the evening before.
+  var DAY_START_HOUR = 5;
   function dayKey(iso) {
     var d = new Date(iso);
+    if (d.getHours() < DAY_START_HOUR) d.setDate(d.getDate() - 1);   // by the clock, so a DST night stays right
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   }
   // External (zetamac.com) rounds count as the mode they were linked to.
@@ -63,7 +73,10 @@
     if (r.mode === 'LEARN') return 'LEARN-' + (r.settings.lesson || (r.settings.types || [])[0]);   // lesson: 'fractions' (fd + df)
     if (r.mode === 'MATRIX') return matrixMode(r.settings);
     if (r.mode === 'FINANCE') return financeMode(r.settings);
-    if (r.mode === 'R60') return 'R60-' + ((r.settings && r.settings.drill) || 'drill') + (r.settings && r.settings.n ? '-' + r.settings.n : '');   // Road to 60 drills
+    if (r.mode === 'R60') {   // Road to 60 drills: R60-borrow, R60-mult-7, R60-mult-12-8-6, R60-acc
+      var n = r.settings && r.settings.n;
+      return 'R60-' + ((r.settings && r.settings.drill) || 'drill') + (n ? '-' + [].concat(n).join('-') : '');
+    }
     return r.mode;
   }
   // Finance rounds count per kind, and sprints per length: "FINANCE-sprint-120", "FINANCE-practice".
@@ -152,25 +165,54 @@ ef = my median time per
     return mean(ss.map(function (s) { return s.stats.avg; }));
   }
 
-  // Trend of last 5 session averages and projected sessions to reach a threshold.
-  function trend(sessions, threshold) {
-    var ys = sessions.slice(-5).map(function (s) { return s.stats.avg; });
-    var sl = slope(ys);
-    var out = { slope: sl, sessionsToThreshold: null };
-    if (sl !== null && sl > 0 && threshold) {
-      var fittedLast = mean(ys) + sl * (ys.length - 1) / 2;
-      out.sessionsToThreshold = fittedLast >= threshold ? 0 : Math.ceil((threshold - fittedLast) / sl);
+  /*
+   * Trend of a mode's day averages, regressed on the session number (the chart's x: days with data), per session.
+   * Window: sessions numbered within the last 14 of `latest` (the latest session number overall; default the last
+   * one given). It needs 4 sessions spanning at least 7 days (first to last, inclusive), else ok = false and no slope.
+   * Projection to `threshold` (only when ok): 'reached' when the fitted line at the last session is there;
+   * 'plateau' when the slope is ≤ 0.2 per session, slope − 1 SE ≤ 0, or the slow end needs over 90 sessions;
+   * otherwise a range { low, high } in sessions from slope + 1 SE and slope − 1 SE.
+   * { ok, n, slope, se, first, last, projection: null | { state: 'reached' | 'plateau' | 'range', low?, high? } }.
+   */
+  var TREND_DAYS = 14, TREND_MIN = 4, TREND_SPAN = 7, TREND_FLAT = 0.2, TREND_MAX = 90;
+  function trend(sessions, threshold, latest) {
+    if (!sessions.length) return { ok: false, n: 0, slope: null, se: null, projection: null };
+    latest = latest || sessions[sessions.length - 1].number;
+    var win = sessions.filter(function (s) { return s.number > latest - TREND_DAYS; });
+    var out = { ok: false, n: win.length, slope: null, se: null, projection: null };
+    if (win.length < TREND_MIN || win[win.length - 1].number - win[0].number + 1 < TREND_SPAN) return out;
+    var xs = win.map(function (s) { return s.number; }), f = fit(win.map(function (s) { return s.stats.avg; }), xs);
+    out.ok = true; out.slope = f.slope; out.se = f.se; out.first = xs[0]; out.last = xs[xs.length - 1];
+    if (threshold) {
+      var left = threshold - f.at(out.last), lo = f.slope - f.se, hi = f.slope + f.se;
+      if (left <= 0) out.projection = { state: 'reached' };
+      else if (f.slope <= TREND_FLAT || lo <= 0 || Math.ceil(left / lo) > TREND_MAX) out.projection = { state: 'plateau' };
+      else out.projection = { state: 'range', low: Math.ceil(left / hi), high: Math.ceil(left / lo) };
     }
     return out;
   }
 
   // Average score by round index within a session (round 1, 2, 3…).
+  /*
+   * Average score by round number within a day: [{ idx 1–12, label ('12+' for round 12 and later), avg, n (rounds),
+   * days }]. A round number only counts with data from 2 or more days.
+   */
+  var ROUND_CAP = 12;
   function roundIndexAverages(rounds, mode) {
     var buckets = [];
     sessionsForMode(rounds, mode).forEach(function (s) {
-      s.scores.forEach(function (sc, i) { (buckets[i] = buckets[i] || []).push(sc); });
+      s.scores.forEach(function (sc, i) {
+        var k = Math.min(i, ROUND_CAP - 1), b = buckets[k] = buckets[k] || { scores: [], days: {} };
+        b.scores.push(sc); b.days[s.day] = 1;
+      });
     });
-    return buckets.map(function (b) { return { avg: mean(b), n: b.length }; });
+    var out = [];
+    buckets.forEach(function (b, k) {
+      var days = Object.keys(b.days).length;
+      if (days < 2) return;
+      out.push({ idx: k + 1, label: k + 1 === ROUND_CAP ? ROUND_CAP + '+' : String(k + 1), avg: mean(b.scores), n: b.scores.length, days: days });
+    });
+    return out;
   }
 
   // Fatigue: last 3 rounds all ≥ 15% below the average of the first 3 rounds.
@@ -769,10 +811,10 @@ ef = my median time per
   }
 
   var api = {
-    mean: mean, median: median, stdev: stdev, weightedMedian: weightedMedian, slope: slope,
-    dayKey: dayKey, effMode: effMode, financeMode: financeMode, financeStats: financeStats, sessionDays: sessionDays, sessionNumber: sessionNumber,
+    mean: mean, median: median, stdev: stdev, weightedMedian: weightedMedian, slope: slope, fit: fit,
+    DAY_START_HOUR: DAY_START_HOUR, dayKey: dayKey, effMode: effMode, financeMode: financeMode, financeStats: financeStats, sessionDays: sessionDays, sessionNumber: sessionNumber,
     summarize: summarize, sessionsForMode: sessionsForMode, recentAverage: recentAverage, trend: trend,
-    roundIndexAverages: roundIndexAverages, fatigue: fatigue, estimate120: estimate120, timeByOp: timeByOp,
+    ROUND_CAP: ROUND_CAP, roundIndexAverages: roundIndexAverages, fatigue: fatigue, estimate120: estimate120, timeByOp: timeByOp,
     fractionCells: fractionCells, fractionPool: fractionPool,
     slowest: slowest, freezes: freezes, paceThirds: paceThirds, roundReport: roundReport, factStats: factStats, drillTargets: drillTargets,
     weakLines: weakLines, drillPool: drillPool, tableCells: tableCells, tableWeights: tableWeights, tableCoverage: tableCoverage, mistakes: mistakes, wrongRateByOp: wrongRateByOp, sessionReport: sessionReport

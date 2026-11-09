@@ -12,8 +12,10 @@ const NOW = new Date('2026-10-21T10:00:00');
 
 // Install the fake clock before the page loads, open the app at an optional hash route, then pause
 // time so it only moves when a test says so (tick). Natural flow raced with fastForward and made a test flaky.
+// `opts.now` starts the clock at another time (a Date).
 async function openApp(page, hash, opts) {
-  await page.clock.install({ time: NOW });
+  const now = (opts && opts.now) || NOW;
+  await page.clock.install({ time: now });
   if (opts && (opts.history || opts.rounds)) {
     // Written before the app loads, and only into an empty store, so reloads keep what the test did.
     // `rounds` seeds those rounds instead of the zetamac.com session.
@@ -23,7 +25,7 @@ async function openApp(page, hash, opts) {
   }
   await page.goto(APP_URL + (hash ? '#' + hash : ''));
   await expect(page.locator('main')).not.toBeEmpty();
-  await page.clock.pauseAt(new Date(NOW.getTime() + 60000));
+  await page.clock.pauseAt(new Date(now.getTime() + 60000));
 }
 
 // Solve a question as shown on screen ("56 ÷ 7", "132 − 47", "65²", "8% of 25"…).
@@ -77,6 +79,6 @@ async function answerCurrent(page) {
 }
 
 const rounds = page => page.evaluate(() => window.AT.data.rounds);
-const dayKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const dayKey = d => { d = new Date(d); if (d.getHours() < 5) d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };   // a day runs 05:00 to 05:00, like S.dayKey
 
 module.exports = { APP_URL, NOW, openApp, tick, solve, solveFraction, startSelected, answerBox, answerCurrent, rounds, dayKey };

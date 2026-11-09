@@ -37,8 +37,8 @@
     if (x) return 'Matrices, ' + x[1].replace('m', '−') + ' to ' + x[2].replace('m', '−') + ', ' + x[3] + ' s';
     var f = /^FINANCE-(sprint|practice|intuition|mixed)(?:-(\d+))?$/.exec(m || '');   // "FINANCE-sprint-120" → "Finance sprint, 120 s"
     if (f) return f[1] === 'sprint' ? 'Finance sprint, ' + (f[2] || 120) + ' s' : FIN_KIND[f[1]];
-    var d = /^R60-([a-z]+)(?:-(\d+))?$/.exec(m || '');   // "R60-mult-7" → "Road to 60: × ÷ 7 drill"
-    if (d) return 'Road to 60: ' + G.drillLabel(d[1], d[2]);
+    var d = /^R60-([a-z]+)((?:-\d+)*)$/.exec(m || '');   // "R60-mult-7" → "Road to 60: × ÷ 7 drill"; "R60-mult-12-8-6" → "… × ÷ by 12, 8 and 6"
+    if (d) return 'Road to 60: ' + G.drillLabel(d[1], d[2] ? d[2].slice(1).split('-').map(Number) : null);
     return MODE_LABELS[m] || m;
   }
 
@@ -130,6 +130,14 @@
     var reached = prog.milestones.filter(function (m) { return m.day; }).map(function (m) { return m.m; });
     L.push('Estimated score now ' + est.score + '. Milestones reached: ' + (reached.length ? reached.join(', ') : 'none') +
       (prog.next ? ' (next ' + prog.next.m + ', ' + prog.towards + '/2 in a row)' : '') + '. Gate 60: ' + prog.gateRun + '/3' + (prog.gatePassed ? ', passed ' + prog.gatePassed : '') + '.');
+    L.push('Families (lost ms a question, points): ' + CO.families(est, CO.mastered(rs)).map(function (f) {
+      return f.name + ' ' + Math.round(f.lostMs) + ' ms (' + f1(f.points) + ')';
+    }).join(', ') + '.');
+    var acc = CO.accuracy(rs, {}, est), ast = CO.accuracyState(rs);
+    L.push('Accuracy (per category, lost to wrong attempts): ' + Math.round(acc.lostMs) + ' ms a question (' + f1(acc.points) + ' points)' +
+      (acc.rate !== null ? '; overall ' + pct(acc.rate) + ' wrong, ' + sec(acc.medWrong) + ' vs ' + sec(acc.medClean) + ' clean' : '') +
+      '; ' + (ast.inPool ? 'in the focus pool' : 'mastered since ' + ast.since) +
+      (ast.rates.length ? '; wrong-attempt rate by session: ' + ast.rates.slice(-10).map(function (x) { return x.day + ' ' + pct(x.rate); }).join(', ') : '') + '.');
     // trend: the 3 days before the current window
     var days = S.sessionDays(rs.filter(CO.isNormal)), cut = days.length > 3 ? days[days.length - 3] : null;
     var prev = cut ? CO.categoryStats(rs, { before: cut }) : {};
@@ -150,7 +158,7 @@
     L.push('Mastered: ' + (Object.keys(m).length ? Object.keys(m).map(function (k) { return k + ' (' + m[k] + ')'; }).join(', ') : 'none yet'));
     L.push('Benchmark by time of day: ' + CO.benchByTime(rs).map(function (x) { return x.tod + ' ' + (x.n ? f1(x.avg) + ' (n' + x.n + ')' : '–'); }).join(', '));
     var curve = CO.warmupCurve(rs);
-    L.push('Warm-up curve (Speed by round of the day): ' + (curve.length ? curve.map(function (x, i) { return 'R' + (i + 1) + ' ' + f1(x.avg); }).join(', ') : 'none yet'));
+    L.push('Warm-up curve (Speed by round of the day, 2+ days each): ' + (curve.length ? curve.map(function (x) { return 'R' + x.label + ' ' + f1(x.avg) + ' (' + x.days + 'd)'; }).join(', ') : 'none yet'));
   }
 
   // Finance tab: accuracy per category and the weakest templates (template ids, reproducible with a seed).
@@ -174,7 +182,7 @@
     L.push('Modes: Tables (× ÷ 2–12, 60 s), Weighted tables (same, slow facts come up more), ' +
       STEPS.map(function (s) { return 'Step ' + s.n + ' ' + s.name + ' (' + s.desc + ')'; }).join(', ') +
       ', Drill (weak facts), Squares, Percentages and Mixed tricks (shortcut training, outside the steps), Interview sim (Optiver-style: harder mixed questions, wrong answers penalised), Custom.');
-    L.push('A day is one calendar day with any round. Day numbers count those days.');
+    L.push('A day runs from 05:00 to 05:00 local (a round at 00:30 counts for the evening before), with any round. Day numbers count those days; trends are per day played (session).');
     L.push('Steps: a day qualifies with >= ' + MIN_ROUNDS + ' rounds of the step mode; the step is done after ' +
       IN_A_ROW + ' qualifying days in a row with average >= threshold.');
     L.push('Facts: weak = slow vs my own median for that operation (or often wrong, or > 4 s recently); ' +
@@ -197,17 +205,30 @@
       (rec.warmup ? 'warm up with ' + modeLabel(rec.warmMode) + ', then ' : '') + modeLabel(rec.mode) + '.');
   }
 
+  // Trend lines shared by the Progress page and the report (S.trend: per session, last 14 sessions).
+  function trendText(t) {
+    return t.ok ? (t.slope >= 0 ? '+' : '−') + Math.abs(t.slope).toFixed(1) + ' per session' : 'Not enough data yet';
+  }
+  function projectionText(t) {
+    var p = t.projection;
+    if (!p) return '–';
+    if (p.state === 'reached') return 'Reached';
+    if (p.state === 'plateau') return 'Plateau — no projection';
+    return 'About ' + (p.low === p.high ? p.low : p.low + '–' + p.high) + ' sessions at the current pace';
+  }
+
   function rSteps(ctx, L) {
     L.push('## Steps');
+    var latest = S.sessionDays(ctx.rounds).length;
     ctx.info.all.forEach(function (p) {
-      var st = p.step, ss = S.sessionsForMode(ctx.rounds, st.mode), tr = S.trend(ss, st.threshold);
+      var st = p.step, ss = S.sessionsForMode(ctx.rounds, st.mode), tr = S.trend(ss, st.threshold, latest);
       var line = 'Step ' + st.n + ' ' + st.name + (p === ctx.info.current ? ' (current' + (ctx.info.overridden ? ', set manually' : '') + ')' : '') +
         ': ' + st.desc + ', threshold ' + st.threshold + '. ';
       line += p.completed ? 'Done on day ' + p.completedAt + '. ' : 'Streak ' + boxes(p.streak) + ' ' + p.streak + ' of ' + IN_A_ROW + '. ';
       line += 'Qualifying days ' + p.qualifying.length + ', all days ' + ss.length + '.';
-      if (tr.slope !== null) {
-        line += ' Trend ' + (tr.slope >= 0 ? '+' : '') + tr.slope.toFixed(2) + ' per day' +
-          (tr.sessionsToThreshold !== null ? ', about ' + tr.sessionsToThreshold + ' days to threshold' : '') + '.';
+      if (ss.length) {
+        line += tr.ok ? ' Trend ' + (tr.slope >= 0 ? '+' : '') + tr.slope.toFixed(2) + ' per session (± ' + tr.se.toFixed(2) + ', sessions ' + tr.first + '–' + tr.last +
+          ', ' + tr.n + ' days played); to threshold: ' + projectionText(tr).toLowerCase() + '.' : ' Trend: not enough data yet (needs 4 sessions over 7 days within the last 14).';
       }
       L.push(line);
     });
@@ -234,13 +255,13 @@
   }
 
   function rRoundIndex(ctx, L) {
-    L.push('## Average score by round number within a day');
+    L.push('## Average score by round number within a day (rounds 12 and later as 12+; only round numbers played on 2+ days)');
     var any = false;
     reportModes(ctx.rounds).forEach(function (m) {
-      var b = S.roundIndexAverages(ctx.rounds, m).slice(0, 12);
+      var b = S.roundIndexAverages(ctx.rounds, m);
       if (b.length < 2) return;
       any = true;
-      L.push('  ' + modeLabel(m) + ': ' + b.map(function (x, i) { return 'R' + (i + 1) + ' ' + f1(x.avg) + ' (n' + x.n + ')'; }).join(', '));
+      L.push('  ' + modeLabel(m) + ': ' + b.map(function (x) { return 'R' + x.label + ' ' + f1(x.avg) + ' (n' + x.n + ', ' + x.days + 'd)'; }).join(', '));
     });
     if (!any) L.push('none yet');
   }
@@ -355,7 +376,7 @@
   }
 
   var api = {
-    STEPS: STEPS, MODE_LABELS: MODE_LABELS, modeLabel: modeLabel, qualifying: qualifying, stepProgress: stepProgress,
+    STEPS: STEPS, MODE_LABELS: MODE_LABELS, modeLabel: modeLabel, trendText: trendText, projectionText: projectionText, qualifying: qualifying, stepProgress: stepProgress,
     current: current, recommend: recommend, boxes: boxes, summary: summary, fatigueNotes: fatigueNotes, f1: f1
   };
   AT.Progression = api;

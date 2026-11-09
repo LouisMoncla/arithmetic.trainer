@@ -35,8 +35,11 @@
   }
 
   /*
-   * line({ xs, series, hline, hlines, w, h, fmt, label, xName, endLabel, zero })
-   *   series: [{ ys, kind: 'line' | 'dots', name, tip: true }]   (tip:false hides a series from the tooltip)
+   * line({ xs, series, hline, hlines, w, h, fmt, label, xName, endLabel, zero, xDomain, xTicks, xFmt, tips })
+   *   series: [{ ys, kind: 'line' | 'dots', name, tip: true, marks }]   (tip:false hides a series from the tooltip;
+   *           marks: true puts a dot on every point of a line)
+   *   xDomain: [x0, x1] fixed x range; xTicks: the only x values labelled; xFmt: x → label text (ticks and tooltip)
+   *   tips:   [{ t, rows }] per x, instead of the built-in rows
    *   hlines: [{ y, kind: 'dash' | 'dot', name }] reference lines (dash = threshold, dot = average)
    *   xName:  tooltip header prefix, e.g. 'Session ' → "Session 12"
    *   endLabel: label the last value of the first series at the right end
@@ -58,7 +61,8 @@
     lo = ticks[0]; hi = ticks[ticks.length - 1];
     var padL = 12 + 7 * Math.max.apply(null, ticks.map(function (t) { return fmt(t).length; }));
     var padR = o.endLabel ? 12 + 7 * fmt(hi).length + 6 : 14;
-    var xs = o.xs, x0 = xs[0], x1 = xs[xs.length - 1];
+    var xs = o.xs, x0 = o.xDomain ? o.xDomain[0] : xs[0], x1 = o.xDomain ? o.xDomain[1] : xs[xs.length - 1];
+    var xFmt = o.xFmt || function (x) { return String(x); };
     function X(x) { return x1 === x0 ? padL + (w - padL - padR) / 2 : padL + (x - x0) / (x1 - x0) * (w - padL - padR); }
     function Y(y) { return padT + (hi - y) / (hi - lo) * (h - padT - padB); }
 
@@ -71,8 +75,9 @@
         rows.push({ v: v === null || v === undefined ? '–' : fmt(v), l: s.name, k: s.kind === 'dots' ? 'dots' : 'line' });
       });
       refs.forEach(function (l) { if (l.name) rows.push({ v: fmt(l.y), l: l.name, k: l.kind }); });
-      return { t: (o.xName || '') + x, rows: rows };
+      return { t: (o.xName || '') + xFmt(x), rows: rows };
     });
+    if (o.tips) tips = o.tips;
 
     var out = ['<svg class="chart" viewBox="0 0 ' + w + ' ' + h + '" width="100%" role="img"' +
       (o.label ? ' aria-label="' + esc(o.label) + '"' : '') + hoverAttrs('line', xs.map(X), tips) + '>'];
@@ -82,9 +87,8 @@
       out.push('<text class="lbl" x="' + (padL - 6) + '" y="' + r1(Y(t) + 4) + '" text-anchor="end">' + esc(fmt(t)) + '</text>');
     });
     var step = Math.max(1, Math.ceil(xs.length / 8));
-    xs.forEach(function (x, i) {
-      if (i % step && i !== xs.length - 1) return;
-      out.push('<text class="lbl" x="' + r1(X(x)) + '" y="' + (h - 6) + '" text-anchor="middle">' + esc(x) + '</text>');
+    (o.xTicks || xs.filter(function (x, i) { return !(i % step) || i === xs.length - 1; })).forEach(function (x) {
+      out.push('<text class="lbl xt" x="' + r1(X(x)) + '" y="' + (h - 6) + '" text-anchor="middle">' + esc(xFmt(x)) + '</text>');
     });
     refs.forEach(function (l) {
       out.push('<line class="' + (l.kind === 'dot' ? 'avg' : 'thr') + '" x1="' + padL + '" y1="' + r1(Y(l.y)) + '" x2="' + (w - padR) + '" y2="' + r1(Y(l.y)) + '"/>');
@@ -98,8 +102,8 @@
       if (s.kind !== 'dots' && pts.length > 1) {
         out.push('<path class="ln" d="' + pts.map(function (p, i) { return (i ? 'L' : 'M') + r1(p[0]) + ' ' + r1(p[1]); }).join(' ') + '"/>');
       }
-      if (s.kind === 'dots' || pts.length === 1) {
-        pts.forEach(function (p) { marks.push('<circle class="dot' + (s.kind === 'dots' ? ' hollow' : '') + '" cx="' + r1(p[0]) + '" cy="' + r1(p[1]) + '" r="4"/>'); });
+      if (s.kind === 'dots' || s.marks || pts.length === 1) {
+        pts.forEach(function (p) { marks.push('<circle class="dot' + (s.kind === 'dots' ? ' hollow' : '') + '" cx="' + r1(p[0]) + '" cy="' + r1(p[1]) + '" r="' + (s.marks ? 3 : 4) + '"/>'); });
       }
     });
     out.push(marks.join(''));

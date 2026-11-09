@@ -49,11 +49,56 @@ test('fatigue', () => {
   assert.strictEqual(S.fatigue([20, 20, 20, 15, 15]), null); // too few rounds
 });
 
-test('trend and projection', () => {
-  const ss = [10, 11, 12, 13, 14].map(avg => ({ stats: { avg } }));
-  const t = S.trend(ss, 18);
-  assert.strictEqual(t.slope, 1);
-  assert.strictEqual(t.sessionsToThreshold, 4);
+// Sessions as sessionsForMode gives them: { number (the chart's x), stats: { avg } }.
+const sess = (xs, ys) => xs.map((number, i) => ({ number, stats: { avg: ys[i] } }));
+
+test('slope on uneven spacing regresses on the session number, not the point index', () => {
+  const xs = [2, 12, 15, 16], ys = [25.8, 36.2, 37.4, 37.8];
+  assert.ok(Math.abs(S.slope(ys, xs) - 0.88) < 0.01, String(S.slope(ys, xs)));
+  assert.ok(S.slope(ys) > 3.5);   // what the index gave: +3.7
+  const f = S.fit(ys, xs);
+  assert.ok(f.se > 0 && f.se < 0.2);
+  assert.strictEqual(S.fit([1, 2], [3, 3]), null);   // no spread in x
+});
+
+test('trend: last 14 sessions, at least 4 spanning 7 days, else not enough data', () => {
+  // the example above: only 12, 15, 16 are within 14 of 16
+  let t = S.trend(sess([2, 12, 15, 16], [25.8, 36.2, 37.4, 37.8]), 60);
+  assert.strictEqual(t.ok, false);
+  assert.strictEqual(t.n, 3);
+  assert.strictEqual(t.slope, null);
+  assert.strictEqual(t.projection, null);
+  // 4 sessions but only 5 days apart (10–14): not enough
+  assert.strictEqual(S.trend(sess([10, 11, 13, 14], [30, 31, 32, 33]), 60).ok, false);
+  // 4 sessions spanning 7 days (8–14): enough; slope per session on the numbers
+  t = S.trend(sess([8, 10, 12, 14], [30, 31, 32, 33]), 60);
+  assert.strictEqual(t.ok, true);
+  assert.strictEqual(t.slope, 0.5);
+  assert.deepStrictEqual([t.first, t.last, t.n], [8, 14, 4]);
+  // the window is anchored on the latest session overall: no recent days of this mode → not enough data
+  assert.strictEqual(S.trend(sess([8, 10, 12, 14], [30, 31, 32, 33]), 60, 30).ok, false);
+});
+
+test('projection: a range from slope ± 1 SE, plateau when flat, uncertain or far', () => {
+  // steady +1 a session with a little noise: a short range around 10 sessions
+  let t = S.trend(sess([1, 3, 5, 7, 9, 11, 13, 14], [20, 22.3, 23.8, 26.2, 28, 29.9, 32.1, 33]), 43);
+  assert.strictEqual(t.projection.state, 'range');
+  assert.ok(t.projection.low <= 10 && t.projection.high >= 10 && t.projection.low < t.projection.high, JSON.stringify(t.projection));
+  const P = require('../js/progression.js');
+  assert.match(P.projectionText(t), /^About \d+–\d+ sessions at the current pace$/);
+  assert.strictEqual(P.trendText(t), '+1.0 per session');
+  // slope 0.2 or less: plateau
+  t = S.trend(sess([1, 4, 7, 10], [30, 30.5, 30.9, 31.5]), 60);
+  assert.ok(t.slope <= 0.2);
+  assert.strictEqual(t.projection.state, 'plateau');
+  assert.strictEqual(P.projectionText(t), 'Plateau — no projection');
+  // noisy: slope − 1 SE ≤ 0
+  assert.strictEqual(S.trend(sess([1, 4, 7, 10], [30, 40, 25, 38]), 60).projection.state, 'plateau');
+  // clear but slow: the slow end needs more than 90 sessions
+  assert.strictEqual(S.trend(sess([1, 4, 7, 10], [20, 21, 22.1, 23]), 60).projection.state, 'plateau');
+  // already there
+  assert.strictEqual(S.trend(sess([1, 4, 7, 10], [20, 21, 22, 23]), 22).projection.state, 'reached');
+  assert.strictEqual(P.trendText(S.trend(sess([1, 2], [1, 2]), 5)), 'Not enough data yet');
 });
 
 test('estimate120: 2x until calibrated', () => {
@@ -143,9 +188,17 @@ test('mistakes: wrong or stalled (> 3× my op median) in last 3 sessions', () =>
   assert.deepStrictEqual(S.mistakes(rs).map(x => x.shown), ['3 × 3', '5 × 5']);
 });
 
-test('round index averages', () => {
+test('round index averages: 2 days or more per round number, rounds 12 and later in one 12+ bucket', () => {
   const rs = [round('P2', '2026-10-01', 10, [], 9), round('P2', '2026-10-01', 14, [], 10), round('P2', '2026-10-02', 12, [], 9)];
-  assert.deepStrictEqual(S.roundIndexAverages(rs, 'P2').map(x => x.avg), [11, 14]);
+  // round 2 was played on one day only: left out
+  assert.deepStrictEqual(S.roundIndexAverages(rs, 'P2').map(x => [x.idx, x.label, x.avg, x.n, x.days]), [[1, '1', 11, 2, 2]]);
+  // two days of 15 rounds: rounds 12–15 of both days share the 12+ bucket
+  const long = [];
+  ['2026-10-03', '2026-10-04'].forEach((d) => { for (let i = 0; i < 15; i++) long.push(round('P3', d, 20 + i, [], 6 + Math.floor(i / 2), { startedAt: undefined })); });
+  long.forEach((r, i) => { const [y, m, dd] = (i < 15 ? '2026-10-03' : '2026-10-04').split('-').map(Number); r.startedAt = new Date(y, m - 1, dd, 6, i % 15).toISOString(); });
+  const c = S.roundIndexAverages(long, 'P3');
+  assert.strictEqual(c.length, 12);
+  assert.deepStrictEqual(c[11], { idx: 12, label: '12+', avg: (31 + 32 + 33 + 34) / 4, n: 8, days: 2 });
 });
 
 test('tableCells keeps × and each ÷ direction apart', () => {

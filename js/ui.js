@@ -271,12 +271,15 @@
   // ---------- Road to 60: drills and today's session ----------
 
   // A Road to 60 drill (60 s, auto-accept). The method shows after 5 s unless hints are off in Settings.
+  // mult: n is one multiplier or a list ([12, 8, 6]). acc: the accuracy round, Normal 60 s where one wrong digit ends
+  // the question (no hints).
   function playDrill(drill, n, tag) {
     var s = { drill: drill, duration: 60 };
     if (drill === 'mult') s.n = n;
     var o = baseOpts('R60', s, function (round) { showEnd(round, tag ? playCoach : function () { playDrill(drill, n); }); }, tag);
     o.generator = G.makeDrillGenerator(drill, n, G.mulberry32(seed()));
-    if (data.settings.coach.hints) o.hint = G.hint;
+    if (drill === 'acc') o.strict = true;
+    else if (data.settings.coach.hints) o.hint = G.hint;
     Game.startZetamac(o);
   }
 
@@ -472,8 +475,10 @@
 
   // ---------- Road to 60 ----------
 
-  var ROAD_DRILLS = ['comp', 'carry', 'borrow', 'cross', 'mult'];
+  var ROAD_DRILLS = ['comp', 'carry', 'borrow', 'cross', 'mult', 'acc'];
   var TOD_NAMES = { morning: 'Morning (5–12)', afternoon: 'Afternoon (12–18)', evening: 'Evening (18–23)', late: 'Late (after 23)' };
+
+  function famName(id) { return (CO.FAMILIES.filter(function (f) { return f.id === id; })[0] || { name: id }).name; }
 
   // The × ÷ drill to suggest: the multiplier losing the most time, else 7.
   function worstN(est) {
@@ -488,12 +493,19 @@
     var est = CO.estimate(CO.categoryStats(rounds));
     var was = CO.categoryStats(rounds, { before: today });
     var todays = rounds.filter(function (r) { return S.dayKey(r.startedAt) === today; });
-    var rows = p.blocks.filter(function (b) { return b.key; }).map(function (b) {
-      var comp = /^comp/.test(b.key);
-      var bef = comp ? CO.categoryStats(rounds, { before: today, filter: function (r) { return CO.isDrill(r, 'comp'); } })[b.key] : was[b.key];
-      var now = (comp ? CO.categoryStats(todays, { filter: function (r) { return CO.isDrill(r, 'comp'); } }) : CO.categoryStats(todays))[b.key];
-      return [CO.catName(b.key) + ' (' + G.drillLabel(b.drill, b.n) + ')',
-        (bef && bef.median ? sec(bef.median) : '–') + ' → ' + (now && now.median ? sec(now.median) + ' today (' + plural(now.n, 'answer') + ')' : 'no answers today')];
+    var nowSt = CO.categoryStats(todays);
+    var rows = p.blocks.filter(function (b) { return b.block === 3 || b.block === 4; }).map(function (b) {
+      if (b.drill === 'acc') {
+        var a0 = CO.accuracy(rounds, { before: today }), a1 = CO.accuracy(todays);
+        return ['Accuracy (wrong-attempt rate)', (a0.rate !== null ? pct(a0.rate) : '–') + ' → ' + (a1.rate !== null ? pct(a1.rate) + ' today (' + plural(a1.n, 'answer') + ')' : 'no answers today')];
+      }
+      var keys = b.keys || [b.key];
+      var name = b.keys ? famName(b.family) : CO.catName(b.key);
+      return [name + ' (' + G.drillLabel(b.drill, b.n) + ')', keys.map(function (k) {
+        var bef = was[k], now = nowSt[k];
+        return (b.keys ? k.replace(/^(mul|div)-big-/, function (_, op) { return op === 'mul' ? '×' : '÷'; }) + ' ' : '') +
+          (bef && bef.median ? sec(bef.median) : '–') + ' → ' + (now && now.median ? sec(now.median) + (b.keys ? '' : ' today (' + plural(now.n, 'answer') + ')') : (b.keys ? '–' : 'no answers today'));
+      }).join(', ')];
     });
     var pairs = [
       ['Benchmark today', s.bench.length ? s.bench.join(', ') + (s.avg !== null ? ', average ' + f1(s.avg) : '') : '–'],
@@ -517,6 +529,12 @@
       if (cs.announced.indexOf('mastered:' + k) >= 0) return;
       notes.push('<p class="notice strong">Mastered: ' + esc(CO.catName(k)) + '. At its target 3 sessions in a row, so it leaves the focus pool.</p>');
       cs.announced.push('mastered:' + k);
+    });
+    var accState = CO.accuracyState(rounds);
+    accState.out.forEach(function (day) {
+      if (cs.announced.indexOf('mastered:accuracy:' + day) >= 0) return;
+      notes.push('<p class="notice strong" data-testid="road-accuracy-mastered">Mastered: accuracy. Under 8% wrong attempts 3 sessions in a row, so it leaves the focus pool. It comes back above 12%.</p>');
+      cs.announced.push('mastered:accuracy:' + day);
     });
     if (prog.gatePassed && cs.announced.indexOf('gate60') < 0) {
       notes.push('<p class="notice strong" data-testid="road-gate-message">60 reached. Next: squares to 25, fractions, percentages, Optiver-style.</p>');
@@ -545,11 +563,25 @@
     var firstCoach = CO.sessions(rounds)[0];
     var pre = S.sessionsForMode(rounds.filter(function (r) { return !firstCoach || S.dayKey(r.startedAt) < firstCoach.day; }), 'NORMAL120').slice(-3);
     var top = est.lost.filter(function (r) { return r.lostMs > 0; }).slice(0, 5);
+    var fams = CO.families(est, mastered), acc = CO.accuracy(rounds, {}, est), focusOf = {};
+    p.blocks.forEach(function (b) { if (b.family) focusOf[b.family] = b.name; });
+    function cost(ms, pts, fam) {
+      return Math.round(ms) + ' ms a question' + (ms > 0 ? ', costs ~' + Math.max(1, Math.round(pts)) + ' ' + (Math.round(pts) > 1 ? 'points' : 'point') : '') +
+        (focusOf[fam] ? ' (' + focusOf[fam] + ')' : '');
+    }
+    var famList = '<p class="sec-intro">Time lost per question, by family. The focus drills go to the two costliest.</p>' +
+      '<ol class="road-gap" data-testid="road-families">' + fams.map(function (f) {
+        return '<li><span class="f">' + esc(f.name) + '</span><span class="m">' + cost(f.lostMs, f.points, f.id) + '</span></li>';
+      }).join('') + '</ol>' +
+      '<ol class="road-gap" data-testid="road-accuracy"><li><span class="f">Accuracy</span><span class="m">' +
+      (accState.inPool ? cost(acc.lostMs, acc.points, 'accuracy') : 'Mastered: under 8% for 3 sessions in a row; comes back above 12%') + '</span>' +
+      (acc.rate !== null ? '<span class="note">' + pct(acc.rate) + ' of answers have a wrong attempt (' + sec(acc.medWrong) + ' vs ' + sec(acc.medClean) + ' clean)' +
+        (acc.cats.length ? '' : '. Not enough wrong and clean answers per category yet') + '.</span>' : '') + '</li></ol>';
     h.push(section('Gap to 60', stats([
       { label: 'Estimated score', value: String(est.score), note: 'From your median per category', key: 'road-estimate' },
       { label: 'Benchmark', value: real.length ? f1(S.mean(real)) : '–', note: real.length ? 'Last ' + plural(real.length, 'session') : 'No session finished yet', key: 'road-benchmark' },
       { label: 'Before coach', value: pre.length ? f1(S.mean(pre.map(function (s) { return s.stats.avg; }))) : '–', note: 'Normal 120 s, last ' + plural(pre.length, 'day'), key: 'road-before' }
-    ]) + (top.length ? '<ol class="road-gap" data-testid="road-gap">' + top.map(function (r) {
+    ]) + famList + '<p class="sec-intro">Costliest categories.</p>' + (top.length ? '<ol class="road-gap" data-testid="road-gap">' + top.map(function (r) {
       return '<li><span class="f">' + esc(CO.catName(r.key)) + '</span><span class="m">' + sec(r.median) + ' vs ' + sec(r.target) + ' target → costs ~' + Math.max(1, Math.round(r.points)) + ' ' + (Math.round(r.points) > 1 ? 'points' : 'point') + '</span></li>';
     }).join('') + '</ol>' : '<p class="mid" data-testid="road-gap">Every category with enough data is at its target.</p>'), null, 'road-gap-sec'));
 
@@ -575,7 +607,7 @@
     var all = est.lost.slice().sort(function (a, b) { return b.lostMs - a.lostMs || b.freq - a.freq; });
     h.push(section('All categories', '<p class="sec-intro">Median over your last 3 days of Foundations, Speed and Normal 120 s (more days when a category has under ' + CO.MIN_N + ' answers). ' +
       'Share is how often Normal asks it.</p><div class="tbl-scroll"><table class="compact" data-testid="road-categories"><tr><th scope="col">Category</th><th scope="col" class="n">Share</th>' +
-      '<th scope="col" class="n">Answers</th><th scope="col" class="n">Median</th><th scope="col" class="n">Target</th><th scope="col" class="n">Wrong</th><th scope="col" class="n">Costs</th><th scope="col">Note</th></tr>' +
+      '<th scope="col" class="n">Answers</th><th scope="col" class="n">Median</th><th scope="col" class="n">Target</th><th scope="col" class="n">Wrong attempts</th><th scope="col" class="n">Costs</th><th scope="col">Note</th></tr>' +
       all.map(function (r) {
         return '<tr><td>' + esc(CO.catName(r.key)) + '</td><td class="n">' + (r.freq * 100).toFixed(1) + '%</td><td class="n">' + r.n + '</td><td class="n">' + (r.median ? sec(r.median) : '–') +
           '</td><td class="n">' + sec(r.target) + '</td><td class="n">' + pct(r.wrong) + '</td><td class="n">' + (r.lostMs > 0 ? '~' + f1(r.points) : '') + '</td><td class="mid">' +
@@ -587,13 +619,11 @@
     h.push(section('Benchmark by time of day', '<table class="compact" data-testid="road-tod"><tr><th scope="col">Time</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Average</th></tr>' +
       tod.map(function (x) { return '<tr><td>' + TOD_NAMES[x.tod] + '</td><td class="n">' + x.n + '</td><td class="n">' + (x.n ? f1(x.avg) : '–') + '</td></tr>'; }).join('') + '</table>'));
     var curve = CO.warmupCurve(rounds);
-    h.push(section('Warm-up curve', curve.length ? '<p class="sec-intro">Average Speed score by round number within a day. A flatter start means a shorter warm-up.</p>' +
-      '<p class="chart-cap">Speed score by round of the day</p>' + C.bars({
-        values: curve.map(function (x) { return Math.round(x.avg * 10) / 10; }), labels: curve.map(function (_, i) { return String(i + 1); }), h: 120, w: 420, label: 'Average Speed score by round of the day',
-        tips: curve.map(function (x, i) { return { t: 'Round ' + (i + 1), rows: [{ v: f1(x.avg), l: 'average' }, { v: String(x.n), l: x.n === 1 ? 'day' : 'days' }] }; })
-      }) : '<p class="mid">Play Speed rounds to see it.</p>', null, 'road-warmup'));
+    h.push(section('Warm-up curve', curve.length ? '<p class="sec-intro">Average Speed score by round number within a day (round numbers played on 2 or more days). A flatter start means a shorter warm-up.</p>' +
+      '<p class="chart-cap">Speed score by round of the day</p>' + roundChart(curve, 'Average Speed score by round of the day') :
+      '<p class="mid">Play Speed rounds on 2 days to see it.</p>', null, 'road-warmup'));
 
-    h.push(keys([['Enter', p.done ? 'extra round' : 'today’s session'], ['1–5', 'drills']]));
+    h.push(keys([['Enter', p.done ? 'extra round' : 'today’s session'], ['1–6', 'drills']]));
     main.innerHTML = h.join('');
 
     function enter() {
@@ -606,7 +636,7 @@
     $$('[data-drill]').forEach(function (b) { b.addEventListener('click', function () { drill(b.getAttribute('data-drill')); }); });
     screenKeys = function (e) {
       if (e.key === 'Enter' || e.key === ' ') { enter(); return true; }
-      if (/^[1-5]$/.test(e.key)) { drill(ROAD_DRILLS[+e.key - 1]); return true; }
+      if (/^[1-6]$/.test(e.key)) { drill(ROAD_DRILLS[+e.key - 1]); return true; }
       return false;
     };
   }
@@ -808,7 +838,7 @@
     if (rep.slowest.length) {
       h.push(section('Slowest questions', '<table class="compact"><tr><th scope="col">Question</th><th scope="col" class="n">Time</th><th scope="col">Note</th></tr>' + rep.slowest.map(function (q) {
         return '<tr><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="mid">' +
-          (q.skipped ? 'Skipped' : q.unanswered ? 'Not answered' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
+          (q.skipped ? 'Skipped' : q.missed ? 'Missed (wrong digit)' : q.unanswered ? 'Not answered' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
       }).join('') + '</table>'));
     }
     if (rep.slower.length || rep.faster.length) {
@@ -826,7 +856,7 @@
       h.push(section('Every question', '<div class="tbl-scroll"><table class="compact" data-testid="end-all-questions"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col" class="n">Time</th>' +
         '<th scope="col" class="n">Wrong</th><th scope="col">Note</th></tr>' + round.questions.map(function (q, i) {
           return '<tr><td class="n">' + (i + 1) + '</td><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="n">' +
-            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.skipped ? 'Skipped' : q.unanswered ? 'Not answered' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
+            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.skipped ? 'Skipped' : q.missed ? 'Missed (wrong digit)' : q.unanswered ? 'Not answered' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
         }).join('') + '</table></div>'));
     }
     h.push('</div>');
@@ -1544,15 +1574,30 @@
 
   // ---------- Progress ----------
 
+  // Average score by round number within a day (S.roundIndexAverages): a line with dots on rounds 1–12+, ticks
+  // 1, 3, 6, 9, 12+, values on hover/focus and in the table. Used by every mode panel and the Road to 60 warm-up curve.
+  var ROUND_TICKS = [1, 3, 6, 9, 12];
+  function roundChart(curve, name) {
+    var lbl = function (x) { return x >= S.ROUND_CAP ? S.ROUND_CAP + '+' : String(x); };
+    return C.line({
+      xs: curve.map(function (x) { return x.idx; }), xDomain: [1, S.ROUND_CAP], xTicks: ROUND_TICKS, xFmt: lbl, h: 120, label: name,
+      series: [{ ys: curve.map(function (x) { return x.avg; }), kind: 'line', marks: true, name: 'average' }],
+      tips: curve.map(function (x) {
+        return { t: 'Round ' + x.label + ' of a day', rows: [{ v: f1(x.avg), l: 'average score', k: 'line' }, { v: String(x.days), l: 'days' }, { v: String(x.n), l: x.n === 1 ? 'round' : 'rounds' }] };
+      })
+    }) + C.table(['Round of the day', 'Average', 'Days', 'Rounds'], curve.map(function (x) { return [x.label, f1(x.avg), x.days, x.n]; }));
+  }
+
   function renderProgress() {
     var rounds = data.rounds;
     var h = [paneHead('One point per day you played. Hover or focus a chart to read its values; arrow keys move along it.')];
     var info = P.current(rounds, data.settings.stepOverride), step = info.current.step;
-    var stepSessions = S.sessionsForMode(rounds, step.mode), st = S.trend(stepSessions, step.threshold);
+    var latest = S.sessionDays(rounds).length;
+    var stepSessions = S.sessionsForMode(rounds, step.mode), st = S.trend(stepSessions, step.threshold, latest);
     var est = S.estimate120(rounds), lastStep = stepSessions[stepSessions.length - 1];
     h.push(stats([
       { label: label(step.mode) + ', last day', value: lastStep ? f1(lastStep.stats.avg) : '–', note: 'Target ' + step.threshold + ' or more', key: 'step-last' },
-      { label: 'Trend', value: st.slope === null ? '–' : (st.slope >= 0 ? '+' : '−') + Math.abs(st.slope).toFixed(1), note: st.slope === null ? 'Needs 2 days' : 'Per day, over the last ' + Math.min(5, stepSessions.length), key: 'trend' },
+      { label: 'Trend', value: st.ok ? (st.slope >= 0 ? '+' : '−') + Math.abs(st.slope).toFixed(1) : '–', note: st.ok ? 'Per session, sessions ' + st.first + '–' + st.last : 'Not enough data yet', key: 'trend' },
       { label: 'Estimated 120-second score', value: est ? f1(est.estimate) : '–', note: est ? (est.calibrated ? 'Calibrated on your data, ×' + est.factor.toFixed(2) : 'About 2 × your Speed average') : 'Play Speed to get an estimate', key: 'estimate' }
     ]));
 
@@ -1561,11 +1606,11 @@
       var ss = S.sessionsForMode(rounds, m);
       if (!ss.length) return;
       any = true;
-      var thr = THRESHOLDS[m] || null, t = S.trend(ss, thr), last = ss[ss.length - 1];
+      var thr = THRESHOLDS[m] || null, t = S.trend(ss, thr, latest), last = ss[ss.length - 1];
       var body = facts([
-        ['Trend', t.slope === null ? 'Needs 2 days' : (t.slope >= 0 ? '+' : '−') + Math.abs(t.slope).toFixed(1) + ' per day'],
-        thr ? ['To reach ' + thr, t.sessionsToThreshold === null ? '–' : t.sessionsToThreshold === 0 ? 'Reached' : 'About ' + plural(t.sessionsToThreshold, 'day')] : null,
-        ['Last day', f1(last.stats.avg)], ['Best round', last.stats.best]
+        ['Trend', P.trendText(t)],
+        thr && t.ok ? ['To reach ' + thr, P.projectionText(t)] : null,
+        ['Last day', f1(last.stats.avg)], ['Best (all time)', Math.max.apply(null, ss.map(function (s) { return s.stats.best; }))]
       ]);
       var lg = [{ kind: 'line', label: 'Day average' }, { kind: 'dots', label: 'Best round' }];
       if (thr) lg.push({ kind: 'dash', label: 'Threshold ' + thr });
@@ -1576,10 +1621,8 @@
       }) + C.table(['Day', 'Average', 'Best', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; }));
       var ri = S.roundIndexAverages(rounds, m);
       if (ri.length >= 2) {
-        body += '<p class="chart-cap">Average score by round within a day, to see where fatigue starts</p>' + C.bars({
-          values: ri.map(function (x) { return x.avg; }), h: 100, label: label(m) + ' average score by round index',
-          tips: ri.map(function (x, i) { return { t: 'Round ' + (i + 1) + ' of a day', rows: [{ v: f1(x.avg), l: 'average score' }, { v: String(x.n), l: x.n === 1 ? 'day' : 'days' }] }; })
-        });
+        body += '<p class="chart-cap">Average score by round within a day, to see where fatigue starts (round numbers played on 2 or more days)</p>' +
+          roundChart(ri, label(m) + ' average score by round of the day');
       }
       h.push(section(label(m), body, plural(ss.length, 'day')));
     });

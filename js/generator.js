@@ -306,9 +306,15 @@
     carry:  { label: 'Carry addition', desc: 'Normal addition where the units always carry' },
     borrow: { label: 'Borrow subtraction', desc: 'Two-digit subtraction where the units always borrow' },
     cross:  { label: 'Cross-100 subtraction', desc: 'Subtraction from 100 or more' },
-    mult:   { label: 'Multiplier drill', desc: '× and ÷ by one number, the other 2–100' }
+    mult:   { label: 'Multiplier drill', desc: '× and ÷ by one number, the other 2–100' },
+    acc:    { label: 'Accuracy round', desc: 'Normal 60 s; one wrong digit ends the question' }
   };
-  function drillLabel(drill, n) { return drill === 'mult' ? '× ÷ ' + n + ' drill' : (DRILLS[drill] || { label: drill }).label; }
+  // n: one multiplier (7) or several ([12, 8, 6]: "× ÷ by 12, 8 and 6").
+  function drillLabel(drill, n) {
+    if (drill !== 'mult') return (DRILLS[drill] || { label: drill }).label;
+    if (!Array.isArray(n) || n.length === 1) return '× ÷ ' + n + ' drill';
+    return '× ÷ by ' + n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1];
+  }
 
   function complement(rng) {
     if (rng() < 0.3) {   // to the next ten, on a 3-digit number
@@ -320,10 +326,14 @@
     return { op: 'cp', type: 'c100', a: y, b: 100, shown: y + ' → 100', answer: 100 - y };
   }
 
-  // A Road to 60 drill: comp | carry | borrow | cross | mult (n = 2–12). Normal's ranges, rejection-sampled to one category.
+  // A Road to 60 drill: comp | carry | borrow | cross | mult (n = 2–12, or a list: one picked per question).
+  // Normal's ranges, rejection-sampled to one category. The accuracy round (acc) uses the Speed generator instead.
   function drillQuestion(drill, n, rng) {
     if (drill === 'comp') return complement(rng);
-    if (drill === 'mult') return makeQuestion(rng() < 0.5 ? 'mul' : 'div', n, randInt(rng, 2, 100));
+    if (drill === 'mult') {
+      var m = Array.isArray(n) ? n[Math.floor(rng() * n.length)] : n;
+      return makeQuestion(rng() < 0.5 ? 'mul' : 'div', m, randInt(rng, 2, 100));
+    }
     var want = { carry: ['add', 'add-carry'], borrow: ['sub', 'sub-borrow'], cross: ['sub', 'sub-cross100'] }[drill];
     if (!want) throw new Error('Unknown drill ' + drill);
     for (;;) {
@@ -332,6 +342,7 @@
     }
   }
   function makeDrillGenerator(drill, n, rng) {
+    if (drill === 'acc') return makeGenerator(modeSettings('P3'), rng);
     return { next: noRepeat(function () { return drillQuestion(drill, n, rng); }) };
   }
 

@@ -46,7 +46,7 @@ js/tex.js               LaTeX subset → MathML (screens) or plain text (storage
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/coach.js       Road to 60: category stats (windowed medians), Normal frequencies, estimated score + lost time,
                   today's session plan, focus picks, mastery, milestones/gate, time of day; pure, node-testable
-js/stats.js       sessions (= calendar days), averages, trends, fatigue, weak-fact engine,
+js/stats.js       sessions (= days, 05:00 to 05:00), averages, trends, fatigue, weak-fact engine,
                   tables heatmap cells + weighted-tables weights, sessionReport (one day analysed),
                   roundReport (one round analysed, for the end screen)
 js/progression.js steps P2→P3→P4, recommendation, the "Copy report for Claude" text report
@@ -71,11 +71,11 @@ Script order matters: generator → tex → finance-core → finance-templates �
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
 ```js
-{ schemaVersion: 2, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix, finance,
-                                                       coach: { hints, announced /*'mastered:<key>', 'gate60'*/, multN } },
+{ schemaVersion: 3, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix, finance,
+                                                       coach: { hints, announced /*'mastered:<key>', 'mastered:accuracy:<day>', 'gate60'*/, multN } },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
              coach? /*{ block 1–6, test }: a Road to 60 session round*/, extra? /*true: finished after today's session was done*/,
-             questions: [{ op /*add sub mul div iv tr mx fin cp*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped? }] }] }
+             questions: [{ op /*add sub mul div iv tr mx fin cp*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*accuracy round*/ }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
@@ -84,9 +84,11 @@ Script order matters: generator → tex → finance-core → finance-templates �
   (Finance tab, `settings: { kind: sprint|practice|intuition|mixed, duration?, fams?, cat?, diff?, only?, count? }`; `S.effMode` gives
   `FINANCE-sprint-120`, `FINANCE-practice`…; questions `{ op: 'fin', tpl, seed, fam, cat, shown, answer, given, correct, timeMs, wrongAttempts, skipped?, mc? }`), or EXTERNAL
   (scores typed in from zetamac.com, no questions; `linkedMode` says which mode they count as), R60 (a Road to 60 drill,
-  `settings: { drill: comp|carry|borrow|cross|mult, n? }`; `S.effMode` gives `R60-borrow`, `R60-mult-7`; complements are
-  `{ op: 'cp', type: c100|cten, a, b }`, answer b − a). Schema 2 (Road to 60) only added optional fields; `migrate` adds `settings.coach`.
-- A **session = one local calendar day**. Session numbers count days with any round.
+  `settings: { drill: comp|carry|borrow|cross|mult|acc, n? /*7 or [12, 8, 6]*/ }`; `S.effMode` gives `R60-borrow`, `R60-mult-7`,
+  `R60-mult-12-8-6`, `R60-acc`; complements are `{ op: 'cp', type: c100|cten, a, b }`, answer b − a). Schema 2 (Road to 60) only
+  added optional fields; `migrate` adds `settings.coach`. Schema 3 (day ends at 05:00): `migrate` runs `CO.tagExtras` once.
+- A **session = one day, from 05:00 to 05:00 local** (`S.dayKey`, `DAY_START_HOUR`; by the clock, so DST nights are right).
+  Session numbers count days with any round. Time of day (coach `timeOfDay`) stays on the clock.
 - Rounds are immutable once saved and identified by `id`. Merge/sync rely on this.
 - `ui.js` `save()` is the single write funnel (it also notifies sync). Use it for any data change.
 
@@ -248,8 +250,29 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     20,000 questions of the real Normal generator (seed 12345); all at target → 62. Lost time = freq × max(0, median − target).
     `CO.plan(rounds, day)`: blocks 1 warm-up (follows the Weighted tables switch) · 2 P2 ×2 · 3/4 focus drills ×3 · 5 P3 ×4 ·
     6 Normal 120 ×2; every 7th coach day a test day (1, 2, then 4 × Normal 120). Focus picks use data before today (stable all
-    day), one per drill; complements take Focus B while their drill median > 1.2 s or never played; mastered (≤ target at the end
+    day), by family since item 19 (complements no longer picked); mastered (≤ target at the end
     of 3 complete sessions in a row) leaves the pool. Progress is read from today's `coach`-tagged rounds, so reloads resume.
     Milestones 40…60: 2 complete sessions in a row; gate: 3 at 60 (one-time "Next: …" message). Drills show `G.hint(q)` after
     5 s (`opts.hint` in `Game.startZetamac`, Settings can turn it off; answered questions keep `hinted`). End screens of every
     + − × ÷ round also list answers over 8 s with the method (`S.freezes`, `over8`). Report: `## Coach (Road to 60)`.
+19. Road to 60 fixes (user report, export of 11-09):
+    - Day boundary: rounds after midnight were not tagged extra because the session (calendar day) had changed. A day now ends at
+      05:00 across the whole app (`S.dayKey`); schema 3 retro-tags with `CO.tagExtras` (non-coach, non-EXTERNAL rounds started after
+      the day's completing benchmark round).
+    - Focus picks by family (`CO.families`): + and − (add, sub, comp), × big, ÷ big, summed lost time. Focus A/B = drills of the two
+      costliest; + / − picks its costliest drillable key; × / ÷ big gets a mixed drill on its 3 worst N (`settings.n` an array).
+      The complements override is gone (complements have no Normal frequency, so never picked; key 1 only).
+    - Accuracy (`CO.accuracy`): Σ freq × wrong rate × max(0, median wrong − median clean) per category with ≥ 5 wrong and ≥ 5 clean
+      (window widened like medians); overall rate and medians only as text. Takes Focus A when larger than the top family and in the
+      pool (`CO.accuracyState`: out after 3 complete sessions in a row under 8%, that day's own Normal-format answers; back above 12%).
+      Accuracy round = R60 drill `acc`, P3 generator, `opts.strict` in `Game.startZetamac`: the first digit that is not a prefix of
+      the answer saves `{ wrongAttempts: 1, unanswered: true, missed: true }` and moves on. Key 6 on Road to 60.
+    - Trends (`S.trend(sessions, threshold, latest)`): regressed on the session number (the chart's x), not the point index;
+      only sessions within the last 14 of the latest overall, needing 4 spanning 7 days (else "Not enough data yet"); per session.
+      Projection only then: a range from slope ± 1 SE (`S.fit`), 'plateau' when slope ≤ 0.2, slope − SE ≤ 0 or > 90 sessions.
+      `P.trendText` / `P.projectionText` are shared by Progress and the report. Road to 60 has no regression (its category
+      trend compares two windows).
+    - Round-of-the-day chart (`roundChart` in ui.js, every mode panel and the Road to 60 warm-up curve): `S.roundIndexAverages`
+      buckets rounds 12+ together (`ROUND_CAP`) and keeps only round numbers with 2+ days ({ idx, label, avg, n, days }); drawn
+      with `C.line` (`xDomain`, `xTicks` 1 3 6 9 12, `xFmt`, `tips`, series `marks`), no value labels, table twin. Mode panels show
+      "Best (all time)". `tests/e2e/charts.spec.js` checks at 1366 and 390 that no two labels in any chart intersect.
