@@ -181,6 +181,7 @@ label { white-space: nowrap; }
 .road-gap li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .road-gap .f { font-weight: 600; }
 .road-gap .m { color: var(--mid); font-size: var(--t-s); }
+.road-gap .note { flex-basis: 100%; color: var(--mid); font-size: var(--t-xs); }
 .milestones .on { color: var(--fg); font-weight: 700; }
 .road-drill { display: flex; align-items: center; gap: 8px; }
 .road-drill .mode { flex: 1; }
@@ -267,6 +268,7 @@ tr.cv { content-visibility: auto; contain-intrinsic-size: auto 37px; }  /* long 
 .end-more { margin: 20px 0 0; }
 .end td.num, .end td.n { white-space: nowrap; }
 .tbl-scroll { overflow-x: auto; }
+.tbl-scroll table.compact td, .tbl-scroll table.compact th { white-space: nowrap; }   /* scroll sideways on a phone instead of one word per line */
 
 /* ---------- weak list ---------- */
 .weak { list-style: none; padding: 0; margin: 0; counter-reset: w; }

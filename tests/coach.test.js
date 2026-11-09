@@ -130,25 +130,26 @@ function coachDay(day, bench, opts) {
   return out;
 }
 
-test('plan: blocks, focus from lost time, one drill per pick, complements replace Focus B until fast', () => {
+test('plan: blocks; Focus A and B are the two costliest families; complements are never picked', () => {
   const slowQs = [];
   for (let i = 0; i < 20; i++) slowQs.push(q('sub', 27, 45, 3500), q('mul', 7, 86, 4000), q('div', 7, 84, 3900), q('add', 45, 29, 1700));
   const rs = [round('P3', '2026-10-01', slowQs)];
   const p = C.plan(rs, '2026-10-02');
-  // − with borrow loses the most (5% of questions × 1.6 s); complements were never trained, so they take Focus B
+  // + and − lose the most (− with borrow: 5% of questions × 1.6 s), then ÷ big (÷ 7 only: 2% × 1.7 s), then × big (2% × 1.6 s)
   assert.deepStrictEqual(p.blocks.map((b) => [b.block, b.mode || b.drill, b.rounds]),
-    [[1, 'TABLES', 1], [2, 'P2', 2], [3, 'borrow', 3], [4, 'comp', 3], [5, 'P3', 4], [6, 'NORMAL120', 2]]);
+    [[1, 'TABLES', 1], [2, 'P2', 2], [3, 'borrow', 3], [4, 'mult', 3], [5, 'P3', 4], [6, 'NORMAL120', 2]]);
+  const fb = p.blocks.find((b) => b.block === 4);
+  assert.strictEqual(fb.family, 'divbig');
+  assert.deepStrictEqual(fb.n, [7, 12, 11]);   // ÷ 7 loses time; the rest have no data: higher N first
+  assert.strictEqual(C.blockLabel(fb), 'Focus B: × ÷ by 7, 12 and 11');
   assert.strictEqual(p.next.block, 1);
   assert.strictEqual(p.started, false);
-  // fast complements: Focus B is the next drill by lost time; ÷ 7 and × 7 share the × ÷ 7 drill, picked once
+  // complements are never picked, even untrained or slow
   const comp = [];
-  for (let i = 0; i < 20; i++) comp.push({ op: 'cp', type: 'c100', a: 37, b: 100, timeMs: 900, wrongAttempts: 0 });
+  for (let i = 0; i < 20; i++) comp.push({ op: 'cp', type: 'c100', a: 37, b: 100, timeMs: 3000, wrongAttempts: 0 });
   rs.push(round('R60', '2026-10-01', comp, { settings: { drill: 'comp' } }));
-  const picks = C.focusPicks(rs, '2026-10-02');
-  assert.deepStrictEqual(picks.map((x) => [x.drill, x.n]), [['borrow', undefined], ['mult', 7]]);
-  // a slow complement median (over 1.2 s) brings them back
-  rs.push(round('R60', '2026-10-01', comp.map((x) => Object.assign({}, x, { timeMs: 1500 })).concat(comp.map((x) => Object.assign({}, x, { timeMs: 1500 }))), { settings: { drill: 'comp' } }));
-  assert.strictEqual(C.focusPicks(rs, '2026-10-02')[1].drill, 'comp');
+  assert.ok(C.focusPicks(rs, '2026-10-02').every((x) => x.drill !== 'comp'));
+  assert.ok(C.focusPicks([], '2026-10-02').every((x) => x.drill !== 'comp'));
 });
 
 test('plan: progress comes from today\'s coach rounds; every 7th session is a test day', () => {
@@ -231,6 +232,162 @@ test('the report has a Coach section with benchmarks, categories, focus history 
   assert.match(text, /^ {2}sub-borrow \| 160 \| 3\.1 \| 1\.9 \| 0% \| [\d.]+ \| –$/m);
   assert.match(text, /^ {2}no answers yet: add-nocarry, div-big-10, /m);
   assert.match(text, /Focus history: 2026-10-01: carry \+ comp; 2026-10-02: carry \+ comp/);
+  assert.match(text, /^Families \(lost ms a question, points\): \+ and − \d+ ms \([\d.]+\), × big 0 ms \(0\.0\), ÷ big 0 ms \(0\.0\)\.$/m);
+  assert.match(text, /^Accuracy \(per category, lost to wrong attempts\): 0 ms a question \(0\.0 points\); overall 0% wrong, .*; in the focus pool; wrong-attempt rate by session: 2026-10-01 0%, 2026-10-02 0%\.$/m);
   assert.match(text, /Benchmark by time of day: morning 46\.0 \(n2\), afternoon –, evening –, late 42\.0 \(n2\)/);
-  assert.match(text, /Warm-up curve \(Speed by round of the day\): R1 30\.0/);
+  assert.match(text, /Warm-up curve \(Speed by round of the day, 2\+ days each\): R1 30\.0 \(2d\)/);
+  assert.match(text, /^A day runs from 05:00 to 05:00 local/m);
+});
+
+// ---------- the day boundary, extra rounds, families, accuracy ----------
+
+const S = require('../js/stats.js');
+const iso = (y, m, d, h, min) => new Date(y, m - 1, d, h, min || 0).toISOString();
+// n questions of one kind, `wrong` of them with a wrong attempt (wrong ones take wrongMs).
+function mix(make, n, wrong, cleanMs, wrongMs) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(i < wrong ? Object.assign(make(wrongMs), { wrongAttempts: 1 }) : make(cleanMs));
+  return out;
+}
+
+test('a day runs from 05:00 to 05:00 local', () => {
+  assert.strictEqual(S.dayKey(iso(2026, 10, 2, 4, 59)), '2026-10-01');
+  assert.strictEqual(S.dayKey(iso(2026, 10, 2, 5, 0)), '2026-10-02');
+  assert.strictEqual(S.dayKey(iso(2026, 10, 2, 23, 59)), '2026-10-02');
+  assert.strictEqual(S.dayKey(iso(2026, 11, 1, 0, 30)), '2026-10-31');   // across a month
+  assert.strictEqual(S.dayKey(iso(2026, 1, 1, 2, 0)), '2025-12-31');     // and a year
+});
+
+test('tagExtras: rounds started after the day\'s session was complete, including after midnight', () => {
+  const rs = coachDay('2026-11-08', [37, 34], { hour: 18 });   // the session completes with the 2nd benchmark at 18:xx
+  const mk = (idn, mode, at, more) => Object.assign({ id: idn, startedAt: at, mode, score: 20, settings: {}, questions: [] }, more || {});
+  rs.push(
+    mk('before', 'P3', iso(2026, 11, 8, 12)),                                // before the session finished
+    mk('evening', 'NORMAL120', iso(2026, 11, 8, 21)),                        // after: extra
+    mk('night', 'WTABLES', iso(2026, 11, 9, 0, 4)),                          // 00:04 belongs to 11-08: extra
+    mk('ext', 'EXTERNAL', iso(2026, 11, 8, 22), { linkedMode: 'NORMAL120' }),   // typed in: never tagged
+    mk('nextday', 'P3', iso(2026, 11, 9, 9)),                                // 11-09 has no session
+    mk('late-coach', 'P3', iso(2026, 11, 8, 22), { coach: { block: 5, test: false } })
+  );
+  assert.strictEqual(C.tagExtras(rs), 2);
+  const tagged = rs.filter((r) => r.extra).map((r) => r.id).sort();
+  assert.deepStrictEqual(tagged, ['evening', 'night']);
+  assert.strictEqual(C.tagExtras(rs), 0);   // idempotent
+  assert.strictEqual(C.isExtraNow(rs, S.dayKey(iso(2026, 11, 9, 0, 20))), true);
+  assert.strictEqual(C.isExtraNow(rs, S.dayKey(iso(2026, 11, 9, 5, 0))), false);
+});
+
+test('families: many slow × big multipliers beat one + / − category; Focus A is the mix of the 3 worst', () => {
+  const rs = [];
+  const slow = { 12: 5000, 8: 4600, 6: 4400, 7: 4000, 9: 3800 };
+  for (let d = 1; d <= 3; d++) {
+    const qs = [];
+    Object.keys(slow).forEach((n) => { for (let i = 0; i < 6; i++) qs.push(q('mul', +n, 40 + i, slow[n])); });
+    for (let i = 0; i < 6; i++) qs.push(q('sub', 60, 70, 2600));   // − from 100: 13% of questions × 0.6 s, more than any one × N
+    rs.push(round('P3', '2026-10-0' + d, qs));
+  }
+  const est = C.estimate(C.categoryStats(rs));
+  const fams = C.families(est);
+  assert.deepStrictEqual(fams.map((f) => f.id), ['mulbig', 'addsub', 'divbig']);
+  assert.ok(fams[0].rows.every((r) => r.lostMs <= fams[1].lostMs));   // no single × N beats − from 100 alone
+  const picks = C.focusPicks(rs, '2026-10-04');
+  assert.deepStrictEqual(picks.map((p) => [p.drill, p.n, p.family]), [['mult', [12, 8, 6], 'mulbig'], ['cross', undefined, 'addsub']]);
+  assert.deepStrictEqual(picks[0].keys, ['mul-big-12', 'mul-big-8', 'mul-big-6']);
+  // a mastered multiplier leaves its family's total and the mix
+  const without = C.families(est, { 'mul-big-12': '2026-10-01' }).find((f) => f.id === 'mulbig');
+  assert.ok(without.lostMs < fams[0].lostMs);
+  assert.ok(without.rows.every((r) => r.key !== 'mul-big-12'));
+});
+
+test('families: + / − first picks its costliest drill; ÷ big second gives a ÷ family mix; no data still gives 2 picks', () => {
+  const qs = [];
+  for (let i = 0; i < 20; i++) qs.push(q('sub', 60, 70, 3000), q('div', 7, 84, 4500), q('add', 45, 29, 1900));
+  const picks = C.focusPicks([round('P3', '2026-10-01', qs)], '2026-10-02');
+  assert.deepStrictEqual(picks.map((p) => [p.drill, p.family]), [['cross', 'addsub'], ['mult', 'divbig']]);
+  assert.strictEqual(picks[1].n[0], 7);
+  const none = C.focusPicks([], '2026-10-02');
+  assert.deepStrictEqual(none.map((p) => p.drill), ['carry', 'mult']);
+  assert.deepStrictEqual(none[1].n, [12, 11, 10]);
+});
+
+test('mixed × ÷ drill: only the given multipliers, both × and ÷; labels and modes', () => {
+  const gen = G.makeDrillGenerator('mult', [12, 8, 6], G.mulberry32(3)), ops = new Set(), ns = new Set();
+  for (let i = 0; i < 300; i++) {
+    const x = gen.next();
+    ops.add(x.op);
+    ns.add(x.a);   // the multiplier (× a × b, ÷ shown as a·b ÷ a)
+    assert.ok(x.b >= 2 && x.b <= 100);
+  }
+  assert.deepStrictEqual([...ops].sort(), ['div', 'mul']);
+  assert.deepStrictEqual([...ns].sort((a, b) => a - b), [6, 8, 12]);
+  assert.strictEqual(G.drillLabel('mult', [12, 8, 6]), '× ÷ by 12, 8 and 6');
+  assert.strictEqual(G.drillLabel('mult', 7), '× ÷ 7 drill');
+  assert.strictEqual(S.effMode({ mode: 'R60', settings: { drill: 'mult', n: [12, 8, 6] } }), 'R60-mult-12-8-6');
+  assert.strictEqual(S.effMode({ mode: 'R60', settings: { drill: 'mult', n: 7 } }), 'R60-mult-7');
+  const P = require('../js/progression.js');
+  assert.strictEqual(P.modeLabel('R60-mult-12-8-6'), 'Road to 60: × ÷ by 12, 8 and 6');
+  assert.strictEqual(P.modeLabel('R60-mult-7'), 'Road to 60: × ÷ 7 drill');
+  assert.strictEqual(P.modeLabel('R60-acc'), 'Road to 60: Accuracy round');
+  const acc = G.makeDrillGenerator('acc', 0, G.mulberry32(4));   // the Speed generator
+  for (let i = 0; i < 50; i++) assert.ok(['add', 'sub', 'mul', 'div'].includes(acc.next().op));
+});
+
+test('accuracy: per category, Σ freq × wrong rate × (median wrong − median clean), 5 wrong and 5 clean needed', () => {
+  const f = C.frequencies();
+  const cross = (ms) => q('sub', 60, 70, ms), mul7 = (ms) => q('mul', 7, 86, ms);
+  const rs = [round('P3', '2026-10-01', mix(cross, 15, 5, 2000, 5000).concat(mix(mul7, 20, 4, 3000, 9000)))];
+  const a = C.accuracy(rs);
+  assert.deepStrictEqual(a.cats.map((c) => c.key), ['sub-cross100']);   // × 7 has only 4 wrong: adds 0
+  assert.ok(Math.abs(a.lostMs - f['sub-cross100'] * (5 / 15) * 3000) < 1e-9);
+  assert.ok(a.points > 0);
+  assert.strictEqual(a.rate, 9 / 35);   // overall figures, for the text
+});
+
+test('accuracy controls for difficulty: hard questions are slower and more often wrong, but cost only their own gap', () => {
+  const easy = (ms) => q('add', 34, 25, ms), hard = (ms) => q('mul', 7, 86, ms);
+  const rs = [round('P3', '2026-10-01', mix(easy, 25, 5, 1000, 1200).concat(mix(hard, 25, 20, 4000, 4200)))];
+  const a = C.accuracy(rs), f = C.frequencies();
+  const want = f['add-nocarry'] * (5 / 25) * 200 + f['mul-big-7'] * (20 / 25) * 200;
+  assert.ok(Math.abs(a.lostMs - want) < 1e-9);
+  const global = a.rate * (a.medWrong - a.medClean);   // what the overall numbers would claim
+  assert.ok(global > 10 * a.lostMs, global + ' vs ' + a.lostMs);
+});
+
+test('accuracy widens to older days until a category has 5 wrong and 5 clean answers', () => {
+  const cross = (ms) => q('sub', 60, 70, ms);
+  const rs = [
+    round('P3', '2026-10-01', mix(cross, 10, 2, 2000, 5000)),
+    round('P3', '2026-10-02', mix(cross, 10, 1, 2000, 5000)),
+    round('P3', '2026-10-03', mix(cross, 10, 1, 2000, 5000)),
+    round('P3', '2026-10-04', mix(cross, 10, 2, 2000, 5000))
+  ];
+  assert.strictEqual(C.accuracy(rs).cats[0].wrongN, 6);   // days 2–4 have 4 wrong: day 1 is added
+  assert.strictEqual(C.accuracy(rs.slice(1)).lostMs, 0);   // without day 1: not enough
+});
+
+test('accuracy leaves the pool under 8% for 3 complete sessions in a row and comes back above 12%', () => {
+  const add = (ms) => q('add', 34, 25, ms);
+  const at = (pctWrong) => ({ p3: mix(add, 100, pctWrong, 1500, 6000) });
+  const rs = [
+    ...coachDay('2026-10-01', [40, 40], at(5)),
+    ...coachDay('2026-10-02', [40, 40], at(6)),
+    round('TABLES', '2026-10-03', [], { coach: { block: 1, test: false } }), round('P3', '2026-10-03', mix(add, 100, 30, 1500, 6000)),   // incomplete: skipped
+    ...coachDay('2026-10-04', [40, 40], at(7))
+  ];
+  let st = C.accuracyState(rs);
+  assert.strictEqual(st.inPool, false);
+  assert.deepStrictEqual(st.out, ['2026-10-04']);
+  assert.deepStrictEqual(st.rates.map((x) => x.day), ['2026-10-01', '2026-10-02', '2026-10-04']);
+  assert.ok(C.accuracy(rs, { before: '2026-10-05' }).lostMs > 0);
+  assert.ok(C.focusPicks(rs, '2026-10-05').every((p) => p.drill !== 'acc'));   // out of the pool
+  rs.push(...coachDay('2026-10-05', [40, 40], at(10)));
+  assert.strictEqual(C.accuracyState(rs).inPool, false);   // 10%: still out
+  rs.push(...coachDay('2026-10-06', [40, 40], at(13)));
+  st = C.accuracyState(rs);
+  assert.strictEqual(st.inPool, true);
+  assert.strictEqual(st.since, '2026-10-06');
+  // back in, and wrong answers cost more than any family: Focus A is the accuracy round, Focus B the top family
+  const picks = C.focusPicks(rs, '2026-10-07');
+  assert.strictEqual(picks[0].drill, 'acc');
+  assert.strictEqual(picks[1].family, C.families(C.estimate(C.categoryStats(rs, { before: '2026-10-07' }))).at(0).id);
 });

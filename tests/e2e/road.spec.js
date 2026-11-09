@@ -1,19 +1,20 @@
-// Road to 60: today's plan from my data, the session runner block by block, drill hints, the cap and extra rounds,
-// milestones, the 60 gate and test days.
+// Road to 60: today's plan from my data (families, accuracy), the session runner block by block, drill hints, the cap
+// and extra rounds (also after midnight), milestones, the 60 gate, test days and the accuracy round.
 const { test, expect } = require('@playwright/test');
-const { NOW, openApp, tick, answerCurrent, rounds } = require('./helpers');
+const { NOW, openApp, tick, answerCurrent, rounds, solve } = require('./helpers');
 
 const at = (daysAgo, hour, min) => { const d = new Date(NOW); d.setDate(d.getDate() - daysAgo); d.setHours(hour, min || 0, 0, 0); return d.toISOString(); };
 let n = 0;
 const round = (mode, startedAt, more) => Object.assign({ id: 'seed-' + (n++), startedAt, mode, score: 30, settings: { duration: 60 }, questions: [] }, more || {});
 const Q = (op, a, b, timeMs) => ({ op, a, b, shown: '', answer: 0, timeMs, wrongAttempts: 0 });
 
-// 3 days of Speed rounds: − with borrow is slow (3.5 s against 1.9), + without carry is fast. Nothing else has data.
+// 3 days of Speed rounds: − with borrow is slow (3.5 s against 1.9), + without carry is fast, and × 8, × 7, × 9 with a
+// big factor are very slow (6, 5.5, 5 s against 2.4): together × big loses the most. Nothing else has data.
 function history() {
   const out = [];
   for (let d = 3; d >= 1; d--) {
     const qs = [];
-    for (let i = 0; i < 20; i++) qs.push(Q('sub', 27, 45, 3500), Q('add', 34, 25, 1300));
+    for (let i = 0; i < 20; i++) qs.push(Q('sub', 27, 45, 3500), Q('add', 34, 25, 1300), Q('mul', 8, 40 + i, 6000), Q('mul', 7, 40 + i, 5500), Q('mul', 9, 40 + i, 5000));
     out.push(round('P3', at(d, 18), { questions: qs }));
   }
   return out;
@@ -37,9 +38,11 @@ test('the plan comes from my data; block 1 is saved as a session round and a rel
   await openApp(page, 'road', { rounds: history() });
   await expect(page.getByTestId('road-title')).toHaveText('Today’s session');
   const plan = page.getByTestId('road-plan');
-  await expect(plan).toContainText('Focus A: Borrow subtraction');
-  await expect(plan).toContainText('Focus B: Complements');   // never trained: complements take Focus B
+  await expect(plan).toContainText('Focus A: × ÷ by 8, 7 and 9');   // × big costs the most in total: its 3 worst multipliers
+  await expect(plan).toContainText('Focus B: Borrow subtraction');
   await expect(plan.locator('li')).toHaveText([/Warm-up: Tables/, /Warm-up: Foundations/, /Focus A/, /Focus B/, /Main: Speed/, /Benchmark: Normal 120 s/]);
+  await expect(page.getByTestId('road-families').locator('li')).toHaveText([/^× big\d+ ms a question, costs ~\d+ points? \(Focus A\)$/, /^\+ and −.*\(Focus B\)$/, /^÷ big0 ms a question$/]);
+  await expect(page.getByTestId('road-accuracy')).toContainText('0% of answers have a wrong attempt');
   await expect(page.getByTestId('road-gap')).toContainText('− with borrow3.5 s vs 1.9 s target');
   await expect(page.getByTestId('stat-road-estimate')).toBeVisible();
 
@@ -52,7 +55,7 @@ test('the plan comes from my data; block 1 is saved as a session round and a rel
   const r = await lastRound(page);
   expect(r.mode).toBe('TABLES');
   expect(r.coach).toEqual({ block: 1, test: false });
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('arithmeticTrainer.v1')).schemaVersion)).toBe(2);   // migrated from v1
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('arithmeticTrainer.v1')).schemaVersion)).toBe(3);   // migrated from v1
 
   await page.reload();
   await page.goto(page.url().replace(/#.*$/, '#road'));
@@ -61,32 +64,40 @@ test('the plan comes from my data; block 1 is saved as a session round and a rel
   await expect(page.locator('.road-plan li[data-block="2"]')).toHaveClass('cur');
 });
 
-test('a focus drill shows the method after 5 s, and the end screen names the next block', async ({ page }) => {
+test('Focus A is a × ÷ mix of the worst multipliers with the method after 5 s; the end screen names Focus B', async ({ page }) => {
   await openApp(page, 'road', { rounds: history().concat(today({ 1: 1, 2: 2, 3: 2 })) });
   await expect(page.locator('.road-plan li[data-block="3"]')).toHaveClass('cur');
   await page.keyboard.press('Enter');
   await tick(page, 3100);
-  const shown = (await page.getByTestId('game-question').textContent()).trim();
-  const [, m, s] = /^(\d+) − (\d+)$/.exec(shown).map(Number);
-  expect(m < 100 && m % 10 < s % 10).toBe(true);           // a two-digit borrow
-  const method = page.getByTestId('game-method');
+  const q = page.getByTestId('game-question'), method = page.getByTestId('game-method');
+  // a question with a big factor (a table fact has no method line): answer the small ones until one comes
+  let shown;
+  for (let i = 0; i < 30; i++) {
+    shown = (await q.textContent()).trim();
+    const m = /^(\d+) × (\d+)$/.exec(shown) || /^(\d+) ÷ (\d+)$/.exec(shown);
+    const [n, other] = shown.includes('×') ? [+m[1], +m[2]] : [+m[2], +m[1] / +m[2]];
+    expect([8, 7, 9]).toContain(n);
+    if (other > 12) break;
+    await answerCurrent(page);
+  }
   await tick(page, 4000);
   await expect(method).toBeHidden();
   await tick(page, 1200);
   await expect(method).toBeVisible();
-  await expect(method).toHaveText(new RegExp('^' + m + ' − ' + s + ' → ' + s + ' → '));
+  await expect(method).toHaveText(new RegExp('^' + shown.replace(/[×÷]/, '[×÷]') + ' → '));
   await answerCurrent(page);
   await tick(page, 61000);
-  await expect(page.getByTestId('coach-next')).toHaveText('Block done. Next: Focus B: Complements, round 1 of 3.');
+  await expect(page.getByTestId('coach-next')).toHaveText('Block done. Next: Focus B: Borrow subtraction, round 1 of 3.');
   const r = await lastRound(page);
-  expect([r.mode, r.settings.drill, r.coach.block]).toEqual(['R60', 'borrow', 3]);
-  expect(r.questions[0].hinted).toBe(true);
+  expect([r.mode, r.settings.drill, r.settings.n, r.coach.block]).toEqual(['R60', 'mult', [8, 7, 9], 3]);
+  expect(r.questions.some((x) => x.hinted)).toBe(true);
 
   // Enter goes straight on to Focus B
   await tick(page, 500);
   await page.keyboard.press('Enter');
   await tick(page, 3100);
-  await expect(page.getByTestId('game-question')).toHaveText(/^\d+ → \d+$/);
+  const [, m2, s2] = /^(\d+) − (\d+)$/.exec((await q.textContent()).trim()).map(Number);
+  expect(m2 < 100 && m2 % 10 < s2 % 10).toBe(true);           // a two-digit borrow
   await answerCurrent(page);
   await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
   await page.keyboard.press('Escape');
@@ -159,4 +170,53 @@ test('the drills start from keys 1–5, × ÷ N from the picker', async ({ page 
   await tick(page, 3100);
   await expect(page.getByTestId('game-question')).toHaveText(/^(8 × \d+|\d+ ÷ 8)$/);
   await page.keyboard.press('Escape');
+});
+
+test('a day runs until 05:00: after midnight the evening session is still today and rounds are extra', async ({ page }) => {
+  // Yesterday evening's full session (NOW is 21 Oct 10:00; the clock starts at 21 Oct 00:20), and a round from
+  // 00:05 saved before the change, untagged: the migration tags it.
+  const eve = (k) => { const d = new Date(NOW); d.setDate(d.getDate() - 1); d.setHours(18, k, 0, 0); return d.toISOString(); };
+  const done = [];
+  [['TABLES', 1], ['P2', 2], ['P2', 2], ['R60', 3], ['R60', 3], ['R60', 3], ['R60', 4], ['R60', 4], ['R60', 4], ['P3', 5], ['P3', 5], ['P3', 5], ['P3', 5]]
+    .forEach(([mode, b], k) => done.push(round(mode, eve(k), { coach: { block: b, test: false }, settings: mode === 'R60' ? { drill: 'carry', duration: 60 } : { duration: 60 } })));
+  done.push(round('NORMAL120', eve(20), { score: 41, settings: { duration: 120 }, coach: { block: 6, test: false } }));
+  done.push(round('NORMAL120', eve(23), { score: 43, settings: { duration: 120 }, coach: { block: 6, test: false } }));
+  const midnight = new Date(NOW); midnight.setHours(0, 5, 0, 0);
+  done.push(round('WTABLES', midnight.toISOString(), { id: 'old-night' }));
+  const now = new Date(NOW); now.setHours(0, 20, 0, 0);
+  await openApp(page, 'road', { rounds: history().concat(done), now });
+  await expect(page.getByTestId('road-title')).toHaveText('Done for today');
+  expect((await rounds(page)).find((r) => r.id === 'old-night').extra).toBe(true);
+
+  await page.keyboard.press('p');
+  await page.keyboard.press('3');
+  await page.keyboard.press('Enter');
+  await tick(page, 3100);
+  await answerCurrent(page);
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('1');
+  const r = await lastRound(page);
+  expect([r.mode, r.extra, r.coach]).toEqual(['P3', true, undefined]);
+});
+
+test('the accuracy round (key 6): one wrong digit ends the question with no point; right answers still go in', async ({ page }) => {
+  await openApp(page, 'road');
+  await expect(page.getByTestId('road-drill-acc')).toContainText('Accuracy round');
+  await page.locator('main').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('6');
+  await tick(page, 3100);
+  const q = page.getByTestId('game-question'), box = page.getByRole('textbox', { name: 'Answer' });
+  const first = String(solve((await q.textContent()).trim()));
+  await box.pressSequentially(String((+first[0] + 1) % 10 || 1));   // a digit the answer cannot start with
+  await expect(box).toHaveValue('');
+  await expect(page.getByTestId('game-score')).toHaveText('Score: 0');
+  await answerCurrent(page);
+  await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
+  await tick(page, 61000);
+  await expect(page.getByTestId('end-score')).toHaveText('1');
+  const r = await lastRound(page);
+  expect([r.mode, r.settings.drill, r.score]).toEqual(['R60', 'acc', 1]);
+  expect(r.questions[0]).toMatchObject({ missed: true, unanswered: true, wrongAttempts: 1 });
+  expect(r.questions[1].missed).toBeUndefined();
+  await expect(page.getByText('Missed (wrong digit)').first()).toBeAttached();
 });

@@ -262,11 +262,18 @@
     nextQuestion();
   }
 
+  // Accuracy round (opts.strict): the first digit that cannot lead to the answer ends the question, no point.
+  function missZetamac() {
+    st.questions.push(record(st.q, { timeMs: Math.round(now() - st.qStart), wrongAttempts: 1, unanswered: true, missed: true }));
+    nextQuestion();
+  }
+
   function onZetamacInput() {
     if (!st.running) { inEl.value = ''; return; }
     var fr = st.q.frac, ans = fr ? String(fr[0]) : st.q.answerText || String(st.q.answer);
     var typed = cleanInput(inEl, !fr && ans.indexOf('.') >= 0);
     if (!typed) return;
+    if (st.opts.strict && !fr && ans.indexOf(typed) !== 0) { missZetamac(); return; }
     if (typed !== ans && typed !== st.q.answerAlt) { countWrong(typed, ans); return; }   // answerAlt: 2/3 as 0.666
     if (!fr) { accept(); return; }
     // Right numerator: it stays, and the denominator box takes over.
@@ -289,7 +296,7 @@
   }
 
   Game.startZetamac = function (opts) {
-    // opts: { mode, settings, generator, duration, countdown, onEnd(round), onAbort() }
+    // opts: { mode, settings, generator, duration, countdown, onEnd(round), onAbort(), hint?(q), strict? }
     start('zetamac', opts);
     st.skip = (opts.settings.types || []).length > 0;   // trick modes only; plain Zetamac has no skip, like zetamac.com
     zetamacInput(opts);

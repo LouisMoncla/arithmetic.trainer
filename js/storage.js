@@ -6,10 +6,14 @@
 (function () {
   'use strict';
   var AT = typeof window !== 'undefined' ? (window.AT = window.AT || {}) : {};
+  var node = typeof module !== 'undefined';
+  var CO = node ? require('./coach.js') : AT.Coach;
 
   var KEY = 'arithmeticTrainer.v1';
   // 2: Road to 60 (settings.coach; rounds may carry coach: {block, test} and extra: true, both optional).
-  var SCHEMA = 2;
+  // 3: a day runs from 05:00 to 05:00 (S.dayKey): rounds started after their day's coach session was complete are
+  //    tagged extra (CO.tagExtras), which catches the ones played after midnight before this change.
+  var SCHEMA = 3;
 
   function uuid() {
     var b = new Uint8Array(16), i;
@@ -59,8 +63,9 @@
       for (var ck in c) if (out.settings.coach[ck] === undefined) out.settings.coach[ck] = c[ck];
       if (!Array.isArray(out.settings.coach.announced)) out.settings.coach.announced = [];
     }
-    out.schemaVersion = SCHEMA;
     out.rounds.sort(byStart);
+    if (v < 3) CO.tagExtras(out.rounds);
+    out.schemaVersion = SCHEMA;
     return out;
   }
 
