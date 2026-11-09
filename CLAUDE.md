@@ -19,10 +19,10 @@ website with optional accounts. Both ways of running it must keep working.
   `<script>` tags in a fixed order sharing one global `window.AT`, because ES modules fail on
   `file://`. Logic modules also `module.exports` so `node --test` can load them.
 - **Must work from `file://`** (offline, no server). Sync is simply off there.
-- **Black and white only.** Six tokens (`--bg --fg --mid --soft --line --grid`; values in
-  `docs/design.md`), no accent or status colours, no green/red feedback. Emphasis = inversion or weight.
-- **Minimal, keyboard first.** System UI font for words, monospace tabular numbers, 1px rules, square
-  corners, no shadows, no transitions or animations, sentence case (no `text-transform: uppercase`),
+- **Black and white only.** Grey tokens only (`--bg --fg --mid --soft --line --grid --surface --surface-2 --chip --ink-2`;
+  values in `docs/design.md`), no accent or status colours, no green/red feedback. Emphasis = inversion or weight.
+- **Minimal, keyboard first.** System UI font for words and tabular numbers (mono only in `kbd`), soft grey panels to
+  group, rounded corners by hierarchy (`--r-s/m/l/pill`, see `docs/design.md`; changed 11-09 on the owner's request), no shadows, no transitions or animations, sentence case (no `text-transform: uppercase`),
   no "a · b · c" dot-joined strings.
 - **The game screen shows only question, answer box, timer, score.** No flash on a correct answer
   (it costs reaction time; removed on purpose). Zetamac modes auto-accept a correct answer with no Enter.

@@ -93,15 +93,15 @@ Everything works without a mouse.
 ## Do's and Don'ts
 
 ### Color
-- **Do** use only the six tokens; express emphasis by inversion or weight.
+- **Do** use only the colour tokens (black, white, greys); express emphasis by inversion or weight.
 - **Don't** add an accent, a status colour, or green/red feedback.
 
 ### Shape
-- **Do** keep corners square; round only chart bar ends (4px) and dots.
-- **Don't** wrap content in rounded cards.
+- **Do** round corners by the hierarchy in design.md (cells 4–6px, rows and fields 10px, panels 16px, tabs, toggles and the main button as pills).
+- **Don't** give everything one radius, or chop every section into identical cards: panels group lists, not prose.
 
 ### Elevation
-- **Do** separate with 1px rules and space.
+- **Do** group with a soft panel and space; keep 1px rules for data rows.
 - **Don't** use shadows, blur or gradients.
 
 ### Interaction

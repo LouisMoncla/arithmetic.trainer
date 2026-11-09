@@ -22,19 +22,19 @@
   var ui = { sel: null, sort: { col: 'slowness', dir: -1 }, filter: 'all', importPending: null, customError: null };
 
   var MODES = [
-    { id: 'TABLES', label: 'Tables', desc: '× and ÷, 2–12 by 2–12, 60 seconds' },
-    { id: 'P2', label: 'Foundations', desc: '× and ÷, 2–12 by 2–100, 60 seconds' },
-    { id: 'P3', label: 'Speed', desc: 'All four operations, 60 seconds' },
-    { id: 'NORMAL120', label: 'Interview-ready', desc: 'All four operations, 120 seconds, the interview benchmark' },
-    { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts mixed with Foundations, 60 seconds' },
-    { id: 'INTERVIEW', label: 'Interview sim', desc: '80 questions in 8 minutes, answer with Enter' },
-    { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations, ranges and length' },
-    { id: 'SQUARES', label: 'Squares', desc: '11² to 30² by heart, and squares near 50, near 100 or ending in 5, 60 seconds, Tab skips' },
-    { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions to decimals and back, adding and subtracting fractions in lowest terms, 60 seconds, Tab skips' },
-    { id: 'TRICKS', label: 'Mixed tricks', desc: 'Squares, × 11, × 25, products near 100, difference of squares, 60 seconds, Tab skips' }
+    { id: 'TABLES', label: 'Tables', desc: '× and ÷ up to 12 × 12' },
+    { id: 'P2', label: 'Foundations', desc: '× and ÷, one number up to 100' },
+    { id: 'P3', label: 'Speed', desc: 'Zetamac Normal, 60 seconds' },
+    { id: 'NORMAL120', label: 'Interview-ready', desc: 'Zetamac Normal, 120 seconds: the benchmark' },
+    { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts' },
+    { id: 'INTERVIEW', label: 'Interview sim', desc: '80 questions in 8 minutes' },
+    { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations and ranges' },
+    { id: 'SQUARES', label: 'Squares', desc: '11² to 30², and squares near 50 and 100' },
+    { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions and decimals' },
+    { id: 'TRICKS', label: 'Mixed tricks', desc: '× 11, × 25, near 100, squares' }
   ];
   // Row 1 once the tables grid is measured (P.recommend's warmMode): same key, plain Tables moves to T.
-  var WTABLES_MODE = { id: 'WTABLES', label: 'Weighted tables', desc: '× and ÷, 2–12 by 2–12, your slow facts come up more, 60 seconds' };
+  var WTABLES_MODE = { id: 'WTABLES', label: 'Weighted tables', desc: 'Tables, your slow facts more often' };
   function modesFor(rec) { return rec.warmMode === 'WTABLES' ? [WTABLES_MODE].concat(MODES.slice(1)) : MODES; }
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
@@ -362,7 +362,7 @@
     var modes = modesFor(rec);
     // Play is the list of modes, nothing recommended; Road to 60 is where the day is planned.
     if (!ui.sel || !modes.some(function (m) { return m.id === ui.sel; })) ui.sel = modes[0].id;
-    var h = [pageHead('Play', 'Pick a mode to start a round. Want a plan for the day? Use <a href="#road">Road to 60</a>.')];
+    var h = [pageHead('Play', 'One round of any mode. For a plan, use <a href="#road">Road to 60</a>.')];
 
     // Notices: step completion (once), fatigue, backup reminder.
     var notes = [];
@@ -399,15 +399,14 @@
           '<span class="tag"></span></button>' + (ui.sel === m.id && m.id === 'CUSTOM' ? customPanel() : '') + '</li>');
         // Once Weighted tables holds row 1, plain Tables sits under it on key T (outside 1–9 0 and the arrows).
         if (m.id === 'WTABLES') body.push('<li><button type="button" class="mode" data-mode="TABLES" data-testid="play-plain-tables">' +
-          '<span class="k">T</span><span class="nm">Tables</span><span class="ds">' + esc(MODES[0].desc) + ', every fact equally often</span><span class="tag"></span></button></li>');
+          '<span class="k">T</span><span class="nm">Tables</span><span class="ds">Every fact equally often</span><span class="tag"></span></button></li>');
       });
       body.push('</ol>');
     });
     // Matrices last: its own page with its options.
     body.push('<h3 class="group">Matrices</h3><ol class="modes"><li><a class="mode" href="#matrices" data-testid="play-matrices">' +
-      '<span class="k">X</span><span class="nm">Matrices</span><span class="ds">2 × 2 matrix products, your own range, 60 or 120 seconds</span><span class="tag"></span></a></li></ol>');
+      '<span class="k">X</span><span class="nm">Matrices</span><span class="ds">2 × 2 matrix products</span><span class="tag"></span></a></li></ol>');
     h.push('<div data-testid="play-modes">' + body.join('') + '</div>');
-    h.push(keys([['1–9 0', 'choose a mode'], ['↑ ↓', 'move'], ['Enter', 'start']].concat(rec.warmMode === 'WTABLES' ? [['T', 'plain tables']] : [])));
     main.innerHTML = h.join('');
 
     // A click starts the mode; Custom opens its form first.
@@ -563,7 +562,7 @@
 
     // Drills.
     var n = cs.multN || worstN(est);
-    h.push(section('Drills', '<p class="sec-intro">60 seconds each, answers go in by themselves. ' + (cs.hints ? 'The method shows after 5 seconds.' : 'Method hints are off (Settings).') + '</p>' +
+    h.push(section('Drills', '<p class="sec-intro">60 seconds each. ' + (cs.hints ? 'The method shows after 5 seconds.' : 'Method hints are off in Settings.') + '</p>' +
       '<ol class="modes">' + ROAD_DRILLS.map(function (d, i) {
         var pick = d === 'mult' ? ' <select id="mult-n" aria-label="Multiplier">' + [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (x) {
           return '<option value="' + x + '"' + (x === n ? ' selected' : '') + '>× ÷ ' + x + '</option>';
@@ -592,7 +591,6 @@
       '<p class="chart-cap">Speed score by round of the day</p>' + roundChart(curve, 'Average Speed score by round of the day') :
       '<p class="mid">Play Speed rounds on 2 days to see it.</p>', null, 'road-warmup'));
 
-    h.push(keys([['Enter', p.done ? 'extra round' : 'today’s session'], ['1–6', 'drills']]));
     main.innerHTML = h.join('');
 
     function enter() {

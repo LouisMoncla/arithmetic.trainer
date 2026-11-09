@@ -2,13 +2,13 @@
 
 > Always read this file first. For component specs see [design-components.md](design-components.md). For accessibility and do's/don'ts see [design-guidelines.md](design-guidelines.md).
 
-A black-and-white, keyboard-first interface for timed mental-math training. One ink on one surface, 1px rules, no shadows, no motion; hierarchy comes from size and weight, never from colour or capitals. System UI type for words, a monospace with tabular figures for every number. Base spacing unit 8px. Platforms: desktop browsers first (laptop keyboard), responsive down to 360px. Source of truth: `css/style.css`.
+A black-and-white, keyboard-first interface for timed mental-math training. One ink, soft grey surfaces to group things, rounded corners, no shadows, no motion; hierarchy comes from size and weight, never from colour or capitals. System UI type for words and numbers (numbers with tabular figures); monospace only for key caps. Base spacing unit 8px. Platforms: desktop browsers first (laptop keyboard), responsive down to 360px. Source of truth: `css/style.css`.
 
 ---
 
 ## Colors
 
-Six values, no accent. Dark mode is the same tokens inverted, not a separate palette.
+Black, white and greys, no accent. Dark mode is the same tokens inverted, not a separate palette.
 
 ### Ink & surface
 
@@ -17,9 +17,13 @@ Six values, no accent. Dark mode is the same tokens inverted, not a separate pal
 | surface | `--bg` | `#ffffff` | `#000000` | Page, game screen, tooltips, inputs |
 | ink | `--fg` | `#000000` | `#ffffff` | Text, primary buttons, data marks, selected rows, rules under section headings |
 | ink-secondary | `--mid` | `#666666` | `#999999` | Subtitles, labels, descriptions, inactive nav |
-| ink-muted | `--soft` | `#999999` | `#666666` | Notes, captions, kbd borders, axes, empty-cell dots |
-| rule | `--line` | `#e5e5e5` | `#666666` | Table rows, stat dividers, mode rows, borders of secondary icon buttons |
-| grid | `--grid` | `#e5e5e5` | `#111111` | Chart gridlines only: one step off the surface |
+| ink-muted | `--soft` | `#999999` | `#666666` | Notes, captions, input borders, axes, empty-cell dots |
+| rule | `--line` | `#e8e8e8` | `#2a2a2a` | Table rows, form rows, Stats sections, kbd borders |
+| grid | `--grid` | `#ececec` | `#1a1a1a` | Chart gridlines only: one step off the surface |
+| panel | `--surface` | `#f4f4f4` | `#141414` | Grouping: mode lists, today's plan, stat tiles, notices, buttons, nav track, toggles |
+| panel-hover | `--surface-2` | `#e9e9e9` | `#222222` | Hover on a panel row or a secondary button |
+| chip | `--chip` | `#ffffff` | `#2e2e2e` | The chosen item inside a panel: active tab, chosen toggle, current block, key badges |
+| ink-hover | `--ink-2` | `#333333` | `#cccccc` | Primary button hover, key badge on an inverted row |
 
 ### Semantic use (no status colours)
 
@@ -28,8 +32,8 @@ Six values, no accent. Dark mode is the same tokens inverted, not a separate pal
 | Selected / primary | Inversion: ink fill, surface text |
 | Correct answer | Nothing: the next question appears |
 | Wrong answer (Interview) | 3px outline on the answer box for 150 ms |
-| Warning (fatigue, step complete) | `.notice.strong`: 4px ink bar + semibold |
-| Quiet reminder (backup) | `.notice.quiet`: 2px muted bar + secondary ink |
+| Warning (fatigue, step complete) | `.notice.strong`: panel + semibold |
+| Quiet reminder (backup) | `.notice.quiet`: panel + secondary ink |
 | Weak fact | **bold** "weak" in tables |
 | Magnitude (heatmap) | Ink at opacity 0–1 over the surface: white = fast, black = slow |
 
@@ -40,20 +44,20 @@ Six values, no accent. Dark mode is the same tokens inverted, not a separate pal
 ## Typography
 
 Words: `system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`.
-Numbers: `ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace` with `font-variant-numeric: tabular-nums`. A value gets the monospace face only when it is a number; words in value slots ("First time") stay in the text face.
+Numbers: the same face with `font-variant-numeric: tabular-nums`, so columns line up. Key caps (`kbd`) use `ui-monospace, "SF Mono", Menlo, Consolas, monospace`.
 
 | Style | Token | Size | Weight | Line height | Use |
 |-------|-------|------|--------|-------------|-----|
-| Question | — | clamp(48px, 11vw, 120px) mono | 400 | 1.1 | The question during a round |
-| Score | — | 112px mono (88px < 640px) | 600 | 0.9 | End-screen score |
-| Hero | — | 56px (40px < 640px) | 700 | 1.05, −0.02em | Home: the mode to play next |
-| Page title | `--t-xl` | 32px | 700 | 1.15 | `h1` on every page |
-| Stat value | `--t-l` | 24px mono | 600 | 1.3 | Stat blocks, step id, streak |
+| Question | — | clamp(48px, 11vw, 120px), tabular | 500 | 1.1, −0.02em | The question during a round |
+| Score | — | 112px tabular (88px < 640px) | 700 | 0.9, −0.04em | End-screen score |
+| Hero | — | 56px (40px < 640px) | 700 | 1.05, −0.035em | Road to 60: today's session |
+| Page title | `--t-xl` | 32px | 700 | 1.15, −0.02em | `h1` on every page |
+| Stat value | `--t-l` | 24px tabular | 600 | 1.3 | Stat tiles |
 | Section | `--t-m` | 18px | 600 | 1.5 | `h2` section headings, hero description |
 | Body | `--t-s` | 15px | 400 | 1.5 | Default text, sub-headings (600) |
 | Small | `--t-xs` | 13px | 400 | 1.5 | Labels, notes, captions, legends, table headers |
 | Key cap | — | 12px mono | 400 | 18px | `kbd` |
-| Chart label | — | 11px mono | 400 / 600 end label | — | Axis ticks, end-of-line value |
+| Chart label | — | 11px tabular | 400 / 600 end label | — | Axis ticks, end-of-line value |
 
 Rules: sentence case everywhere (no `text-transform`); prose capped at `70ch`; headings `text-wrap: balance`, paragraphs `text-wrap: pretty`; `…` and curly quotes in copy.
 
@@ -63,11 +67,19 @@ Rules: sentence case everywhere (no `text-transform`); prose capped at `70ch`; h
 
 | Token | Radius | Components |
 |-------|--------|------------|
-| None | 0 | Everything: buttons, inputs, cells, cards, tooltips |
+Radius follows the hierarchy, from the smallest thing to the largest. Never one radius on everything.
+
+| Token | Radius | Components |
+|-------|--------|------------|
+| Cell | 4–5px | Heatmap and scale cells, key caps |
+| `--r-s` | 6px | Key badges on mode rows, fraction-grid cells |
+| `--r-m` | 10px | Rows, inputs, secondary buttons, notices, tooltips, answer options |
+| `--r-l` | 16px | Panels (mode lists, today's plan), stat tiles, the answer box in a round |
+| `--r-pill` | 999px | Nav track and tabs, toggles (`.seg`), primary buttons, milestones, icon buttons |
 | Data end | 4px (top corners only) | Chart bars, square at the baseline |
 | Marker | 50% | Chart dots (r = 4px) |
 
-Lines: 1px everywhere; 2px for the active nav underline, chart data lines and focus rings; 4px for strong notice bars.
+Grouping: a soft panel (`--surface`) rather than rules. Rules (1px `--line`) stay for data: table rows, form rows, Stats sections. 2px for chart data lines, focus rings and the answer box. No shadows.
 
 ---
 

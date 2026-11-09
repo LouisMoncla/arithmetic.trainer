@@ -45,7 +45,7 @@ The one bold control on Home. 52px tall, 22px padding, 18px semibold, primary st
 
 ### Text field / number field
 
-Height 36px, 1px ink border, square, mono face (all inputs hold numbers or codes). Always a `<label>` (visible, or `.sr-only`) plus `name` and `autocomplete="off"`. Placeholders show an example and end with `…` ("28, 24, 25…").
+Height 40px, 1px muted border, 10px radius, tabular figures. Always a `<label>` (visible, or `.sr-only`) plus `name` and `autocomplete="off"`. Placeholders show an example and end with `…` ("28, 24, 25…").
 
 | Property | Value |
 |---|---|
@@ -129,12 +129,12 @@ Native input; `::file-selector-button` styled as a secondary button.
 
 ### Top bar
 
-Three-zone grid `1fr auto 1fr`: brand left (`translate="no"`), tabs centred, tools right. Bottom rule 1px `--line`.
+Three-zone grid `1fr auto 1fr`: brand left (`translate="no"`), tabs centred in a pill track (`--surface`), tools right (round icon buttons). No bottom rule.
 
 | Property | Value |
 |---|---|
 | Tab | 17px/15px vertical padding, secondary ink; hover ink |
-| Active tab | `aria-current="page"`, ink, 600, 2px ink underline sitting on the bar's rule |
+| Active tab | `aria-current="page"`, ink, 600, a `--chip` pill in the track |
 | Compact | Brand row, then tabs on their own row |
 | Tabs | Play · Learn · Matrices · Finance · Review · Stats · Settings. Stats sections are not tabs. |
 
@@ -152,7 +152,7 @@ Two groups ("Zetamac" 1–4, "Training" 5–7) under an `h3` in 13px secondary i
 
 | Column | Content |
 |---|---|
-| Key | 24px square, 1px muted border, mono number |
+| Key | 26px badge, 6px radius, `--chip` fill, 13px semibold number |
 | Name | Body 500 (700 when recommended) |
 | Description | 14px secondary ink, plain phrase ("× and ÷, 2–12 by 2–100, 60 seconds") |
 | Tag | 13px, "Recommended" or "Warm up first" |
@@ -177,7 +177,7 @@ Joined outline buttons (30px, 13px); the active one filled, `aria-pressed`. Used
 
 ### Section
 
-`section.sec`: 48px top margin; `h2` 18px semibold with a 1px ink rule below; optional right-aligned aside in 13px secondary ink, only when it carries information (a count, the view toggle). Optional `.sec-intro` sentence.
+`section.sec`: 48px top margin; `h2` 18px semibold, no rule; optional right-aligned aside in 13px secondary ink, only when it carries information (a count, the view toggle). Optional `.sec-intro` sentence.
 
 ---
 
@@ -195,7 +195,7 @@ A `<details>`: ink rule above, `--line` below. The summary is one line: "Step 1:
 
 ### Disclosure section (Stats)
 
-`details.pane`, one per Stats section. Summary: the title as `h2` (32px bold, 24px compact) and, while closed, one line in secondary ink with the single thing worth knowing (`.pane-line`). Marker: `+` closed, `−` open, mono 24px at the right, secondary ink, ink on hover; no animation. Ink rule above each section. Content is rendered on first open; its own headings sit one level down (`h3` sections). Use native `<details>`/`<summary>` so keyboard and screen readers work without script.
+`details.pane`, one per Stats section. Summary: the title as `h2` (32px bold, 24px compact) and, while closed, one line in secondary ink with the single thing worth knowing (`.pane-line`). Marker: `+` closed, `−` open, 24px light at the right, secondary ink, ink on hover; no animation. `--line` rule above each section. Content is rendered on first open; its own headings sit one level down (`h3` sections). Use native `<details>`/`<summary>` so keyboard and screen readers work without script.
 
 ---
 
@@ -209,7 +209,7 @@ Full-screen opaque overlay, `role="dialog" aria-modal`, `h2` title, Close button
 
 ### Stat block
 
-Row of 2–4 blocks separated by 1px rules: 13px label, 24px mono value, optional 13px note. 2-up under 640px. `data-testid="stat-<key>"`.
+Row of 2–4 tiles (`--surface`, 16px radius, 8px gap): 13px label, 24px tabular value, optional 13px note. 2-up under 640px. `data-testid="stat-<key>"`.
 
 ---
 
@@ -259,7 +259,7 @@ Left bar 2px ink, 12px padding. `.strong`: 4px bar + semibold (fatigue, step com
 
 ### App alert
 
-`role="alert"` bar under the top bar, 4px ink rule, semibold. Shown only when saving to the browser fails.
+`role="alert"` panel under the top bar (`--surface`, 10px radius), semibold. Shown only when saving to the browser fails.
 
 ---
 
