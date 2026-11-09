@@ -6,12 +6,11 @@ test('the Tricks group is modes 8, 9 and 0', async ({ page }) => {
   await openApp(page);
   await expect(page.getByRole('heading', { name: 'Tricks' })).toBeVisible();
   await page.keyboard.press('8');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Squares');
+  await expect(page.getByRole('button', { name: /Squares/, pressed: true })).toBeVisible();
   await page.keyboard.press('9');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('% and fractions');
+  await expect(page.getByRole('button', { name: /% and fractions/, pressed: true })).toBeVisible();
   await page.keyboard.press('0');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mixed tricks');
-  await expect(page.getByTestId('home-start-button')).toHaveText(/Start Mixed tricks/);
+  await expect(page.getByRole('button', { name: /Mixed tricks/, pressed: true })).toBeVisible();
 });
 
 test('a Squares round saves trick questions, and D drills its slow ones', async ({ page }) => {
@@ -68,9 +67,12 @@ test('trick rounds stay out of the steps', async ({ page }) => {
   await tick(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await tick(page, 500);
-  await page.keyboard.press('h');
-  await expect(page.getByTestId('home-streak')).toHaveText('□ □ □');
-  await expect(page.getByTestId('home-step')).toContainText('no Foundations rounds yet');
+  // The round is saved, and the step (Foundations) has no qualifying day from it.
+  const step = await page.evaluate(() => {
+    const c = window.AT.Progression.current(window.AT.data.rounds).current;
+    return { id: c.step.id, streak: c.streak, modes: window.AT.data.rounds.map((r) => r.mode) };
+  });
+  expect(step).toEqual({ id: 'P2', streak: 0, modes: ['TRICKS'] });
 });
 
 test('a fraction answer: numerator first, then the denominator, no Enter', async ({ page }) => {

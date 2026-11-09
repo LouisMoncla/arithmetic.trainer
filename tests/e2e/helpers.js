@@ -23,7 +23,9 @@ async function openApp(page, hash, opts) {
       if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, rounds, presets: [], settings: {} }));
     }, { key: 'arithmeticTrainer.v1', rounds: opts.rounds || zetamacSession(NOW.getTime()) });
   }
-  await page.goto(APP_URL + (hash ? '#' + hash : ''));
+  // No hash: Play, where most tests start. '' or null: the bare site, which opens Road to 60.
+  const h = hash === undefined ? 'play' : hash;
+  await page.goto(APP_URL + (h ? '#' + h : ''));
   await expect(page.locator('main')).not.toBeEmpty();
   await page.clock.pauseAt(new Date(now.getTime() + 60000));
 }

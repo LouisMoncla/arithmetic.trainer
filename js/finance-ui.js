@@ -273,7 +273,15 @@
     if (!sess.plan) acts += '<button type="button" id="fq-same" data-testid="finance-same">Same type, new numbers <kbd>S</kbd></button>';
     if (q.related && !sess.plan) acts += '<button type="button" id="fq-rel" data-testid="finance-related">Practise the calculation <kbd>C</kbd></button>';
     return '<div class="fq-result" data-testid="finance-result"><p class="verdict" role="status">' + verdict + '</p>' + stepsHtml(q) +
-      '<div class="row">' + acts + '</div><p class="small mid">Question code <span class="num">' + esc(q.tpl) + ' #' + q.seed + '</span></p></div>';
+      '<div class="row">' + acts + '</div><p class="small mid">Question code <span class="num">' + esc(q.tpl) + ' #' + q.seed + '</span>. ' +
+      '<a href="' + esc(reportUrl(q)) + '" target="_blank" rel="noopener" data-testid="finance-report">Report a mistake in this question</a></p></div>';
+  }
+
+  // A prefilled GitHub issue; the question code lets anyone reopen it at #finance/q/<tpl>/<seed>.
+  function reportUrl(q) {
+    var code = q.tpl + ' #' + q.seed;
+    return 'https://github.com/LouisMoncla/arithmetic.trainer/issues/new?title=' + encodeURIComponent('Finance question ' + code) +
+      '&body=' + encodeURIComponent('Question: https://arithmetictrainer.vercel.app/#finance/q/' + q.tpl + '/' + q.seed + '\n\nWhat is wrong:\n');
   }
 
   function bindSession() {

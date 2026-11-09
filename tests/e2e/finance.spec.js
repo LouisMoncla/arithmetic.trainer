@@ -199,6 +199,8 @@ test('Leaving mid-session saves it; progress, weak spots and Log show finance ro
   await expect(page.getByTestId('finance-result')).toContainText('Not quite.');
   await page.keyboard.press('p');   // leave for Play: the session is saved on the way out
   await expect(page).toHaveURL(/#play$/);
+  // The hash changes at once; the save runs when hashchange routes, so wait for Play to draw.
+  await expect(page.getByTestId('play-modes')).toBeVisible();
   const last = (await rounds(page)).at(-1);
   expect(last).toMatchObject({ mode: 'FINANCE', score: 0 });
   expect(last.questions[0]).toMatchObject({ tpl: 'fin.var.gauss', seed: 42, answer: q.answerText });

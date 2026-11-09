@@ -22,7 +22,7 @@ test('X opens Matrices; options are toggles that persist', async ({ page }) => {
   await page.keyboard.press('x');
   await expect(page).toHaveURL(/#matrices$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Matrices');
-  await expect(page.getByRole('link', { name: 'Matrices' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation', { name: 'Main' }).locator('[aria-current]')).toHaveCount(0);   // no tab of its own; it is the last row of Play
   // default: integers, −9 to 9
   await expect(page.getByTestId('matrix-set-Z')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('matrix-max-9')).toHaveAttribute('aria-pressed', 'true');

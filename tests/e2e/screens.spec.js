@@ -2,17 +2,27 @@
 const { test, expect } = require('@playwright/test');
 const { NOW, openApp, tick, startSelected, answerCurrent, dayKey } = require('./helpers');
 
-test('home: the hero follows the selected mode, and Enter starts it', async ({ page }) => {
+test('the site opens on Road to 60; a new user gets the explanation, not empty numbers', async ({ page }) => {
+  await openApp(page, null);
+  await expect(page).not.toHaveURL(/#/);
+  await expect(page.getByTestId('road-title')).toHaveText('Today’s session');
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Road to 60' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('road-intro')).toContainText('60 or more is a strong score');
+  await expect(page.getByTestId('stat-road-estimate')).toHaveCount(0);
+  await expect(page.getByTestId('road-milestones')).toHaveCount(0);
+  await expect(page.locator('nav a')).toHaveText(['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats', 'Settings']);
+});
+
+test('play: only the modes, no recommendation; number keys and arrows choose, Enter starts', async ({ page }) => {
   await openApp(page);
-  // First visit of the day: Tables is suggested as the warm-up.
-  await expect(page.getByRole('region', { name: 'Tables' }).getByText('Warm up first')).toBeVisible();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tables');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Play');
+  await expect(page.locator('.mode .tag:not(:empty)')).toHaveCount(0);
+  await expect(page.getByText(/Warm up first|Recommended|Step 1/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Tables/, pressed: true })).toBeVisible();   // row 1 selected
 
   await page.keyboard.press('3');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Speed');
-  await expect(page.getByTestId('home-start-button')).toHaveText(/Start Speed/);
+  await expect(page.getByRole('button', { name: /Speed/, pressed: true })).toBeVisible();
   await page.keyboard.press('ArrowDown');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Interview-ready');
   await expect(page.getByRole('button', { name: /Interview-ready/, pressed: true })).toBeVisible();
 
   await startSelected(page);
@@ -20,6 +30,19 @@ test('home: the hero follows the selected mode, and Enter starts it', async ({ p
   await tick(page, 10000);
   await expect(page.getByTestId('game-timer')).toHaveText('1:50');
   await page.keyboard.press('Escape');
+});
+
+test('play: a click starts the mode; Matrices is the last row', async ({ page }) => {
+  await openApp(page);
+  await expect(page.getByTestId('play-matrices')).toContainText('Matrices');
+  await expect(page.locator('[data-testid="play-modes"] .mode').last()).toHaveAttribute('data-testid', 'play-matrices');
+  await page.locator('.mode[data-mode="P3"]').click();
+  await tick(page, 3100);
+  await expect(page.getByTestId('game-question')).not.toHaveText(/^[123]$/);
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('play-modes')).toBeVisible();
+  await page.getByTestId('play-matrices').click();
+  await expect(page).toHaveURL(/#matrices$/);
 });
 
 // Yesterday's Tables round answering `count` grid facts twice each (× pairs first, then ÷).
@@ -33,23 +56,19 @@ function tablesHistory(count) {
 }
 const savedModes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('arithmeticTrainer.v1')).rounds.map((r) => r.mode));
 
-test('home: Tables is the warm-up until 150 of 187 table facts are measured', async ({ page }) => {
-  await openApp(page, '', { rounds: tablesHistory(149) });
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tables');
-  await expect(page.getByTestId('home-hero-note')).toHaveText('149 of 187 table facts measured. Weighted tables becomes the warm-up at 150.');
-  await expect(page.locator('.mode[data-mode="TABLES"]')).toContainText('Warm up first');
+test('play: Tables is row 1 until 150 of 187 table facts are measured', async ({ page }) => {
+  await openApp(page, 'play', { rounds: tablesHistory(149) });
+  await expect(page.locator('.mode[data-mode="TABLES"] .k')).toHaveText('1');
   await expect(page.locator('.mode[data-mode="WTABLES"]')).toHaveCount(0);
-  await expect(page.getByTestId('home-plain-tables')).toHaveCount(0);
+  await expect(page.getByTestId('play-plain-tables')).toHaveCount(0);
 });
 
-test('home: then Weighted tables takes row 1, and T still plays plain Tables', async ({ page }) => {
-  await openApp(page, '', { rounds: tablesHistory(150) });
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Weighted tables');
-  await expect(page.locator('.mode[data-mode="WTABLES"]')).toContainText('Warm up first');
+test('play: then Weighted tables takes row 1, plain Tables moves to T', async ({ page }) => {
+  await openApp(page, 'play', { rounds: tablesHistory(150) });
   await expect(page.locator('.mode[data-mode="WTABLES"] .k')).toHaveText('1');
-  await expect(page.locator('.mode[data-mode="TABLES"]')).toHaveCount(0);
-  await expect(page.locator('.modes .mode')).toHaveCount(10);
-  await expect(page.locator('.mode .k').last()).toHaveText('0');
+  await expect(page.getByTestId('play-plain-tables').locator('.k')).toHaveText('T');
+  await expect(page.locator('.mode[data-mode="TABLES"]')).toHaveCount(1);
+  await expect(page.locator('button.mode .k').last()).toHaveText('0');
 
   // Enter plays Weighted tables
   await startSelected(page);
@@ -58,16 +77,10 @@ test('home: then Weighted tables takes row 1, and T still plays plain Tables', a
   await tick(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   expect((await savedModes(page)).pop()).toBe('WTABLES');
-
-  // warmed up: the step's mode is recommended now
-  await page.keyboard.press('p');
-  await expect(page).toHaveURL(/#play$/);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Foundations');
-  await expect(page.locator('.mode[data-mode="P2"]')).toContainText('Recommended');
 });
 
-test('home: T plays plain Tables once Weighted tables is the warm-up', async ({ page }) => {
-  await openApp(page, '', { rounds: tablesHistory(150) });
+test('play: T plays plain Tables once Weighted tables holds row 1', async ({ page }) => {
+  await openApp(page, 'play', { rounds: tablesHistory(150) });
   await page.keyboard.press('t');
   await tick(page, 3100);
   await answerCurrent(page);
@@ -76,22 +89,14 @@ test('home: T plays plain Tables once Weighted tables is the warm-up', async ({ 
   expect((await savedModes(page)).pop()).toBe('TABLES');
 });
 
-test('home: the Plain tables link starts a plain round', async ({ page }) => {
-  await openApp(page, '', { rounds: tablesHistory(187) });
-  await page.getByTestId('home-plain-tables').click();
+test('play: the plain Tables row starts a plain round', async ({ page }) => {
+  await openApp(page, 'play', { rounds: tablesHistory(187) });
+  await page.getByTestId('play-plain-tables').click();
   await tick(page, 3100);
   await answerCurrent(page);
   await tick(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   expect((await savedModes(page)).pop()).toBe('TABLES');
-});
-
-test('home: the step block shows the step, its rule and the streak', async ({ page }) => {
-  await openApp(page);
-  const step = page.getByTestId('home-step');
-  await expect(step.getByRole('heading', { name: 'Step 1: Foundations' })).toBeVisible();
-  await expect(step).toContainText('Average 18 or more in Foundations, 3 days in a row.');
-  await expect(page.getByTestId('home-streak')).toHaveText('□ □ □');
 });
 
 test('review: V cycles the heatmap views and the URL follows', async ({ page }) => {
@@ -128,7 +133,7 @@ test('today: deep link (old session link too), arrow keys, and A from the end sc
   await page.keyboard.press('p');
   // The play screen renders on hashchange; keys sent before that still go to the session screen.
   await expect(page).toHaveURL(/#play$/);
-  await expect(page.getByTestId('home-start-button')).toBeVisible();
+  await expect(page.getByTestId('play-modes')).toBeVisible();
   await page.keyboard.press('1');
   await startSelected(page);
   await answerCurrent(page);
@@ -207,9 +212,17 @@ test('stats: old links and keys open their section', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible();
 });
 
-test('home: one recommendation, and no backup reminder before there is much to lose', async ({ page }) => {
-  await openApp(page, null, { history: true });   // 8 zetamac rounds
-  await expect(page.getByText('Warm up first, then Foundations')).toBeVisible();
-  await expect(page.locator('.mode .tag:not(:empty)')).toHaveCount(1);
+test('play: no backup reminder before there is much to lose', async ({ page }) => {
+  await openApp(page, 'play', { history: true });   // 8 zetamac rounds
+  await expect(page.getByTestId('play-modes')).toBeVisible();
   await expect(page.getByText(/no backup yet/)).toHaveCount(0);
+});
+
+test('phone width: every tab is on screen, the nav does not scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openApp(page);
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  for (const name of ['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats', 'Settings']) {
+    await expect(nav.getByRole('link', { name })).toBeInViewport({ ratio: 1 });
+  }
 });

@@ -276,3 +276,13 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       buckets rounds 12+ together (`ROUND_CAP`) and keeps only round numbers with 2+ days ({ idx, label, avg, n, days }); drawn
       with `C.line` (`xDomain`, `xTicks` 1 3 6 9 12, `xFmt`, `tips`, series `marks`), no value labels, table twin. Mode panels show
       "Best (all time)". `tests/e2e/charts.spec.js` checks at 1366 and 390 that no two labels in any chart intersect.
+
+20. Road to 60 is the first page; Play is only the modes (owner's call, 11-09). Nav order: Road to 60, Play, Learn, Review,
+    Finance, Stats, Settings; Matrices left the top bar (key X, and the last row of Play, `play-matrices`). The bare URL and unknown
+    hashes route to `road`. With no rounds, Road to 60 shows "How it works" (`road-intro`) instead of Gap to 60 and Milestones.
+    Play: `pageHead` + the mode groups (`play-modes`), no hero, no recommendation tag, no step block (steps are still computed and
+    in the report, just not shown on Play); a click starts a mode (Custom opens its form), 1–9 0 / arrows select, Enter starts.
+    Once Weighted tables holds row 1, plain Tables is a row on key T under it (`play-plain-tables`). End-screen H is labelled Play.
+    `CO.estimate` returns `coverage` (share of Normal's questions in measured categories) and `shown` (≥ `CO.MIN_COVERAGE`, 0.5):
+    below that the estimate is "–", since it would mostly be the targets. E2E `openApp(page)` with no hash opens Play; pass
+    `null` for the bare site.

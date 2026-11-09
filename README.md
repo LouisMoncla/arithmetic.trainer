@@ -40,7 +40,7 @@ Every round is saved automatically on this computer, inside the browser's own st
 
 | # | Mode | What it's for |
 |---|------|---------------|
-| 1 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up; the home screen says "warm-up first" until you play one each day. Once 150 of the 187 table facts have 2+ answers, row 1 becomes **Weighted tables** (the warm-up from then on) and plain Tables moves to `T`. |
+| 1 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up. Once 150 of the 187 table facts have 2+ answers, row 1 becomes **Weighted tables** (the warm-up from then on) and plain Tables moves to a row on `T` under it. |
 | 2 | **Foundations** | ×÷ (2–12)×(2–100), 60 s. One-digit × two-digit and big divisions (637 ÷ 7). |
 | 3 | **Speed** | Zetamac Normal, 60 s. |
 | 4 | **Interview-ready** | Zetamac Normal, 120 s: the real benchmark (step 3). |
@@ -97,9 +97,10 @@ Every 7th session is a test day: the warm-up, then 4 benchmark rounds, no drills
 
 ## Screens
 
-The top bar has seven tabs: **Play**, **Learn**, **Matrices**, **Finance**, **Review**, **Stats** and **Settings**.
+The top bar has seven tabs: **Road to 60**, **Play**, **Learn**, **Review**, **Finance**, **Stats** and **Settings**.
+The site opens on **Road to 60**; with no rounds yet it explains how a day works instead of showing empty numbers.
 
-- **Play** (home): the round to play next, big, with one Start button (it follows whatever mode you select with `1–9`, `0` or `↑ ↓`); then your step as one line with its 3-box streak (open it for the rule and today's count); then all modes. Only one mode is tagged: the warm-up while it is due, then your step's mode.
+- **Play**: every mode, nothing recommended. A click starts a mode (Custom opens its form); or choose with `1–9`, `0` or `↑ ↓` and press `Enter`. **Matrices** is the last row (also key `X`).
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
   median time vs usual, first-try accuracy, rank among all your rounds in that mode, and up to 3
   takeaways (personal best, the operation that cost you most, freezes, a slowdown, wrong attempts).

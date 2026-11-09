@@ -78,7 +78,7 @@ test.describe('Zetamac round', () => {
     const before = (await rounds(page)).length;
     await answerCurrent(page);
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('home-start-button')).toBeVisible();
+    await expect(page.getByTestId('play-modes')).toBeVisible();
     expect((await rounds(page)).length).toBe(before);
   });
 
@@ -97,7 +97,7 @@ test.describe('Interview round', () => {
   test('Enter submits, Tab skips, and a wrong answer costs the penalty', async ({ page }) => {
     await openApp(page);
     await page.keyboard.press('6');
-    await expect(page.getByRole('heading', { level: 1, name: 'Interview sim', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Interview sim/, pressed: true })).toBeVisible();
     await startSelected(page);
 
     await expect(page.getByTestId('game-count')).toHaveText('1 / 80');

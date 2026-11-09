@@ -146,8 +146,8 @@
     var tip = document.querySelector('.chart-tip'); if (tip) tip.hidden = true;
     var hash = location.hash.slice(1), moved = canonical(hash);
     if (moved !== hash) history.replaceState(null, '', '#' + moved);
-    var parts = moved.split('/'), name = parts[0] || 'play';
-    if (!SCREENS[name]) name = 'play';
+    var parts = moved.split('/'), name = parts[0] || 'road';
+    if (!SCREENS[name]) name = 'road';
     Array.prototype.forEach.call(document.querySelectorAll('nav a'), function (a) {
       if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
@@ -215,7 +215,7 @@
     data.settings.theme = isDark() ? 'light' : 'dark';
     applyTheme(); save();
     announce(isDark() ? 'Dark theme' : 'Light theme');
-    if ((location.hash.slice(1).split('/')[0] || 'play') === 'settings' && !main.querySelector('.end')) renderSettings();
+    if ((location.hash.slice(1).split('/')[0] || 'road') === 'settings' && !main.querySelector('.end')) renderSettings();
   }
 
   // ---------- launching rounds ----------
@@ -355,56 +355,14 @@
   // ---------- Play (home) ----------
 
   // The hero names whatever is selected, so the big button and Enter always do the same thing.
-  function heroFor(m, rec, step) {
-    var why = m.id === rec.warmMode && rec.warmup ? 'Warm up first, then ' + label(rec.mode)
-      : m.id === rec.mode ? 'Today’s training, step ' + step.n + ' of ' + P.STEPS.length
-      : 'Your choice';
-    var start = { DRILL: 'Open the drill', INTERVIEW: 'Start Interview sim', CUSTOM: 'Start custom round' }[m.id] || 'Start ' + m.label;
-    var note = {
-      DRILL: 'You see your slowest facts first, then play 60 seconds where about 70% of questions come from them.',
-      INTERVIEW: 'Integers, decimals, fractions, percentages and estimates. Type the answer and press Enter: 0.5, .5 and 1/2 all count. Tab skips. ' +
-        'You get +1 for a right answer, −' + (Number(data.settings.negMark) || 0) + ' for a wrong one, 0 for a skip.',
-      CUSTOM: 'Set the operations, ranges and length below, then start.',
-      NORMAL120: 'This is the score that matters for interviews. Target: 60 or more.',
-      PERCENT: '3 ÷ 8 wants a decimal: 0.375. A fraction answer gets two boxes: type the numerator, then the denominator, in lowest terms.',
-      TRICKS: 'Each question has a shortcut. Freeze on one and the end screen shows how to think it.',
-      TABLES: rec.coverage.measured + ' of ' + rec.coverage.total + ' table facts measured. Weighted tables becomes the warm-up at ' + rec.coverage.need + '.',
-      WTABLES: 'Picked in proportion to your time on each fact, squared. Facts with no data yet count as slow.'
-    }[m.id];
-    var plain = m.id === 'WTABLES' ? '<p class="hero-note"><button type="button" class="link" id="plain-tables" data-testid="home-plain-tables">Plain tables instead <kbd>T</kbd></button></p>' : '';
-    return '<section class="hero" aria-labelledby="hero-mode">' +
-      '<p class="hero-why">' + esc(why) + '</p>' +
-      '<h1 class="hero-mode" id="hero-mode">' + esc(m.label) + '</h1>' +
-      '<p class="hero-desc">' + esc(m.desc) + '</p>' + (note ? '<p class="hero-note" data-testid="home-hero-note">' + esc(note) + '</p>' : '') + plain +
-      '<button type="button" class="primary hero-start" id="hero-start" data-testid="home-start-button">' + esc(start) + ' <kbd>Enter</kbd></button>' +
-      '</section>';
-  }
-
   function renderPlay() {
     var rounds = data.rounds, st = data.settings;
     var info = P.current(rounds, st.stepOverride), cur = info.current, step = cur.step;
     var today = todayKey(), rec = P.recommend(rounds, info, today);
     var modes = modesFor(rec);
-    if (!ui.sel || !modes.some(function (m) { return m.id === ui.sel; })) ui.sel = rec.warmup ? rec.warmMode : rec.mode;
-    var sel = modes.filter(function (m) { return m.id === ui.sel; })[0];
-    var todayRounds = rounds.filter(function (r) { return S.dayKey(r.startedAt) === today; });
-    var stepToday = todayRounds.filter(function (r) { return S.effMode(r) === step.mode; }).map(function (r) { return r.score; });
-    var h = [heroFor(sel, rec, step)];
-
-    // Step progress.
-    var now = stepToday.length
-      ? 'Today: ' + label(step.mode) + ' average ' + f1(S.mean(stepToday)) + ' after ' + plural(stepToday.length, 'round') +
-        (stepToday.length >= 3 ? '. Today counts.' : '. ' + (3 - stepToday.length) + ' more to make today count.')
-      : 'Today: no ' + label(step.mode) + ' rounds yet. Play 3 or more for today to count.';
-    // One line (step, streak, count); the rule and today's count open under it.
-    h.push('<details class="step" aria-label="Step progress" data-testid="home-step"><summary>' +
-      '<h2 class="step-id">Step ' + step.n + ': ' + esc(step.name) + '</h2>' +
-      '<span class="streak" data-testid="home-streak" aria-label="' + cur.streak + ' of 3 days done">' + P.boxes(cur.streak) + '</span>' +
-      '<span class="step-count">' + (info.allDone ? 'All steps complete' : cur.streak + ' of 3 days done') + '</span></summary>' +
-      '<p class="step-rule">Average ' + step.threshold + ' or more in ' + label(step.mode) + ', 3 days in a row.' +
-      (info.overridden ? ' <span class="mid">Set manually in Settings.</span>' : '') + '</p>' +
-      '<p class="step-now">' + (info.allDone ? 'Keep your 120-second average above 60. ' : '') + esc(now) + '</p>' +
-      '</details>');
+    // Play is the list of modes, nothing recommended; Road to 60 is where the day is planned.
+    if (!ui.sel || !modes.some(function (m) { return m.id === ui.sel; })) ui.sel = modes[0].id;
+    var h = [pageHead('Play', 'Pick a mode to start a round. Want a plan for the day? Use <a href="#road">Road to 60</a>.')];
 
     // Notices: step completion (once), fatigue, backup reminder.
     var notes = [];
@@ -434,28 +392,30 @@
     MODE_GROUPS.forEach(function (g) {
       body.push('<h3 class="group">' + g[0] + '</h3><ol class="modes">');
       modes.slice(g[1], g[2]).forEach(function (m, j) {
-        // One tag only: the warm-up while it is due, then the step's mode.
-        var i = g[1] + j, tag = '';
-        if (rec.warmup ? m.id === rec.warmMode : m.id === rec.mode) tag = rec.warmup ? 'Warm up first' : 'Recommended';
-        body.push('<li><button type="button" class="mode' + (ui.sel === m.id ? ' sel' : '') + (tag ? ' rec' : '') + '" data-mode="' + m.id + '"' +
+        var i = g[1] + j;
+        body.push('<li><button type="button" class="mode' + (ui.sel === m.id ? ' sel' : '') + '" data-mode="' + m.id + '"' +
           ' aria-pressed="' + (ui.sel === m.id) + '">' +
           '<span class="k">' + modeKey(i) + '</span><span class="nm">' + esc(m.label) + '</span><span class="ds">' + esc(m.desc) + '</span>' +
-          '<span class="tag">' + tag + '</span></button>' + (ui.sel === m.id && m.id === 'CUSTOM' ? customPanel() : '') + '</li>');
+          '<span class="tag"></span></button>' + (ui.sel === m.id && m.id === 'CUSTOM' ? customPanel() : '') + '</li>');
+        // Once Weighted tables holds row 1, plain Tables sits under it on key T (outside 1–9 0 and the arrows).
+        if (m.id === 'WTABLES') body.push('<li><button type="button" class="mode" data-mode="TABLES" data-testid="play-plain-tables">' +
+          '<span class="k">T</span><span class="nm">Tables</span><span class="ds">' + esc(MODES[0].desc) + ', every fact equally often</span><span class="tag"></span></button></li>');
       });
       body.push('</ol>');
     });
-    h.push(section('All modes', body.join('')));
+    // Matrices last: its own page with its options.
+    body.push('<h3 class="group">Matrices</h3><ol class="modes"><li><a class="mode" href="#matrices" data-testid="play-matrices">' +
+      '<span class="k">X</span><span class="nm">Matrices</span><span class="ds">2 × 2 matrix products, your own range, 60 or 120 seconds</span><span class="tag"></span></a></li></ol>');
+    h.push('<div data-testid="play-modes">' + body.join('') + '</div>');
     h.push(keys([['1–9 0', 'choose a mode'], ['↑ ↓', 'move'], ['Enter', 'start']].concat(rec.warmMode === 'WTABLES' ? [['T', 'plain tables']] : [])));
     main.innerHTML = h.join('');
 
-    $('#hero-start').addEventListener('click', function () { startMode(ui.sel); });
-    if ($('#plain-tables')) $('#plain-tables').addEventListener('click', function () { playStandard('TABLES'); });
-    // A row selects its mode; selecting the already-selected row starts it.
-    $$('.mode').forEach(function (b) {
+    // A click starts the mode; Custom opens its form first.
+    $$('button.mode').forEach(function (b) {
       b.addEventListener('click', function () {
         var id = b.getAttribute('data-mode');
-        if (id === ui.sel && id !== 'CUSTOM') startMode(id);
-        else { ui.sel = id; renderPlay(); var again = $('.mode[data-mode="' + id + '"]'); if (again) again.focus(); }
+        if (id !== 'CUSTOM') { startMode(id); return; }
+        ui.sel = id; renderPlay(); var again = $('.mode[data-mode="' + id + '"]'); if (again) again.focus();
       });
     });
     if (ui.sel === 'CUSTOM') bindCustom();
@@ -510,7 +470,7 @@
     var pairs = [
       ['Benchmark today', s.bench.length ? s.bench.join(', ') + (s.avg !== null ? ', average ' + f1(s.avg) : '') : '–'],
       ['Last 3 sessions', before.length ? 'average ' + f1(S.mean(before)) : 'first session'],
-      ['Estimated score', est.score + (s.avg !== null ? ' (real ' + f1(s.avg) + ')' : '')]
+      ['Estimated score', (est.shown ? String(est.score) : '–') + (s.avg !== null ? ' (real ' + f1(s.avg) + ')' : '')]
     ].concat(rows).concat([[
       'Next milestone', prog.next ? prog.next.m + ': ' + prog.towards + ' of 2 sessions in a row' : prog.gatePassed ? 'All reached, 60 passed' : 'All reached; the gate needs 3 sessions in a row at 60'
     ]]);
@@ -545,7 +505,7 @@
     // Hero: today's plan and the one button.
     var start = p.done ? 'Extra Normal 120 s (does not count)' : (p.started ? 'Continue today’s session' : 'Start today’s session');
     h.push('<section class="hero" aria-labelledby="road-title">' +
-      '<p class="hero-why">Road to 60 · session ' + p.n + (p.test ? ' · test day: no drills, 4 benchmark rounds' : '') + '</p>' +
+      '<p class="hero-why">Road to 60, session ' + p.n + (p.test ? '. Test day: no drills, 4 benchmark rounds' : '') + '</p>' +
       '<h1 class="hero-mode" id="road-title" data-testid="road-title">' + (p.done ? 'Done for today' : 'Today’s session') + '</h1>' +
       '<ol class="road-plan" data-testid="road-plan">' + p.blocks.map(function (b) {
         var full = b.done >= b.rounds, cur = p.next === b;
@@ -557,6 +517,15 @@
       '</section>');
     if (notes.length) h.push('<div class="notices">' + notes.join('') + '</div>');
     if (p.done) h.push(roadSummary(rounds, today, p, prog));
+
+    // No rounds yet: what this is and how a day works, instead of an empty gap and milestones.
+    var fresh = !rounds.length;
+    if (fresh) h.push(section('How it works', '<div data-testid="road-intro">' +
+      '<p>Mental arithmetic for quant interviews. The benchmark is Zetamac Normal over 120 seconds: + − × ÷ as fast as you can. ' +
+      '60 or more is a strong score.</p>' +
+      '<p>Each day, press Enter for today’s session: a warm-up, two focus drills, Speed rounds and two benchmark rounds, about 20 minutes. ' +
+      'Answers go in as soon as they are right, no Enter. Every answer is timed, and from your times the coach picks what to drill next.</p>' +
+      '<p>Want a single round instead? Every mode is in <a href="#play">Play</a>.</p></div>'));
 
     // Gap to 60.
     var done = prog.sessions, real = done.slice(-3).map(function (s) { return s.avg; });
@@ -577,18 +546,18 @@
       (accState.inPool ? cost(acc.lostMs, acc.points, 'accuracy') : 'Mastered: under 8% for 3 sessions in a row; comes back above 12%') + '</span>' +
       (acc.rate !== null ? '<span class="note">' + pct(acc.rate) + ' of answers have a wrong attempt (' + sec(acc.medWrong) + ' vs ' + sec(acc.medClean) + ' clean)' +
         (acc.cats.length ? '' : '. Not enough wrong and clean answers per category yet') + '.</span>' : '') + '</li></ol>';
-    h.push(section('Gap to 60', stats([
-      { label: 'Estimated score', value: String(est.score), note: 'From your median per category', key: 'road-estimate' },
+    if (!fresh) h.push(section('Gap to 60', stats([
+      { label: 'Estimated score', value: est.shown ? String(est.score) : '–', note: est.shown ? 'From your median per category' : 'Play a few Speed rounds to get one', key: 'road-estimate' },
       { label: 'Benchmark', value: real.length ? f1(S.mean(real)) : '–', note: real.length ? 'Last ' + plural(real.length, 'session') : 'No session finished yet', key: 'road-benchmark' },
       { label: 'Before coach', value: pre.length ? f1(S.mean(pre.map(function (s) { return s.stats.avg; }))) : '–', note: 'Normal 120 s, last ' + plural(pre.length, 'day'), key: 'road-before' }
     ]) + famList + '<p class="sec-intro">Costliest categories.</p>' + (top.length ? '<ol class="road-gap" data-testid="road-gap">' + top.map(function (r) {
       return '<li><span class="f">' + esc(CO.catName(r.key)) + '</span><span class="m">' + sec(r.median) + ' vs ' + sec(r.target) + ' target → costs ~' + Math.max(1, Math.round(r.points)) + ' ' + (Math.round(r.points) > 1 ? 'points' : 'point') + '</span></li>';
-    }).join('') + '</ol>' : '<p class="mid" data-testid="road-gap">Every category with enough data is at its target.</p>'), null, 'road-gap-sec'));
+    }).join('') + '</ol>' : '<p class="mid" data-testid="road-gap">' + (est.coverage > 0 ? 'Every category with enough data is at its target.' : 'Not enough data yet. Play a few Speed rounds and your biggest gaps show here.') + '</p>'), null, 'road-gap-sec'));
 
     // Milestones and the gate.
-    h.push(section('Milestones', '<p class="milestones" data-testid="road-milestones">' + prog.milestones.map(function (m) {
+    if (!fresh) h.push(section('Milestones', '<p class="milestones" data-testid="road-milestones">' + prog.milestones.map(function (m) {
       return '<span class="' + (m.day ? 'on' : '') + '">' + (m.day ? '■ ' : '□ ') + m.m + '</span>';
-    }).join(' <span class="mid">·</span> ') + '</p>' +
+    }).join(' ') + '</p>' +
       '<p class="small">A milestone counts when your benchmark average reaches it 2 sessions in a row. 60 is passed at 3 in a row: ' +
       '<span class="streak" aria-label="' + prog.gateRun + ' of 3">' + P.boxes(prog.gateRun) + '</span></p>'));
 
@@ -605,7 +574,7 @@
 
     // Every category.
     var all = est.lost.slice().sort(function (a, b) { return b.lostMs - a.lostMs || b.freq - a.freq; });
-    h.push(section('All categories', '<p class="sec-intro">Median over your last 3 days of Foundations, Speed and Normal 120 s (more days when a category has under ' + CO.MIN_N + ' answers). ' +
+    if (est.coverage > 0) h.push(section('All categories', '<p class="sec-intro">Median over your last 3 days of Foundations, Speed and Normal 120 s (more days when a category has under ' + CO.MIN_N + ' answers). ' +
       'Share is how often Normal asks it.</p><div class="tbl-scroll"><table class="compact" data-testid="road-categories"><tr><th scope="col">Category</th><th scope="col" class="n">Share</th>' +
       '<th scope="col" class="n">Answers</th><th scope="col" class="n">Median</th><th scope="col" class="n">Target</th><th scope="col" class="n">Wrong attempts</th><th scope="col" class="n">Costs</th><th scope="col">Note</th></tr>' +
       all.map(function (r) {
@@ -616,10 +585,10 @@
 
     // Time of day and the warm-up curve.
     var tod = CO.benchByTime(rounds);
-    h.push(section('Benchmark by time of day', '<table class="compact" data-testid="road-tod"><tr><th scope="col">Time</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Average</th></tr>' +
+    if (tod.some(function (x) { return x.n; })) h.push(section('Benchmark by time of day', '<table class="compact" data-testid="road-tod"><tr><th scope="col">Time</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Average</th></tr>' +
       tod.map(function (x) { return '<tr><td>' + TOD_NAMES[x.tod] + '</td><td class="n">' + x.n + '</td><td class="n">' + (x.n ? f1(x.avg) : '–') + '</td></tr>'; }).join('') + '</table>'));
     var curve = CO.warmupCurve(rounds);
-    h.push(section('Warm-up curve', curve.length ? '<p class="sec-intro">Average Speed score by round number within a day (round numbers played on 2 or more days). A flatter start means a shorter warm-up.</p>' +
+    if (curve.length) h.push(section('Warm-up curve', curve.length ? '<p class="sec-intro">Average Speed score by round number within a day (round numbers played on 2 or more days). A flatter start means a shorter warm-up.</p>' +
       '<p class="chart-cap">Speed score by round of the day</p>' + roundChart(curve, 'Average Speed score by round of the day') :
       '<p class="mid">Play Speed rounds on 2 days to see it.</p>', null, 'road-warmup'));
 
@@ -779,7 +748,7 @@
     h.push(endHead(round.score, label(mode), round.coach ? 'Road to 60, block ' + round.coach.block : 'Round ' + nToday + ' today' + (round.extra ? ', extra' : '')));
     if (cn) h.push('<p class="notice strong coach-next" data-testid="coach-next">' + esc(cn.line) + '</p>');
     h.push(endButtons([['again', cn ? cn.label : 'Play again', 'Enter']].concat(slowQs.length && !cn ? [['d', 'Drill these slow questions', 'D']] : [])
-      .concat([['a', 'See today’s analysis', 'A'], ['h', 'Home', 'H']])));
+      .concat([['a', 'See today’s analysis', 'A'], ['h', 'Play', 'H']])));
 
     // Summary: what you read at a glance.
     var avgNote = rep.avg7 === null ? 'First day in this mode' : 'Average ' + f1(rep.avg7);
@@ -882,7 +851,7 @@
     var answered = qs.filter(function (q) { return !q.skipped; }), right = answered.filter(function (q) { return q.correct; });
     var h = ['<div class="end">', '<h1 class="sr-only">Interview sim finished</h1>'];
     h.push(endHead(round.score, 'Interview sim', qs.length + ' of 80 questions reached'));
-    h.push(endButtons([['again', 'Play again', 'Enter'], ['a', 'See today’s analysis', 'A'], ['h', 'Home', 'H']]));
+    h.push(endButtons([['again', 'Play again', 'Enter'], ['a', 'See today’s analysis', 'A'], ['h', 'Play', 'H']]));
     h.push(stats([
       { label: 'Accuracy', value: (answered.length ? Math.round(right.length / answered.length * 100) : 0) + '%', note: right.length + ' of ' + answered.length + ' answered', key: 'accuracy' },
       { label: 'Average time', value: qs.length ? sec(S.mean(qs.map(function (q) { return q.timeMs; }))) : '–', note: 'Per question', key: 'average-time' },

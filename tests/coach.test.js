@@ -114,6 +114,25 @@ test('estimated score: every category at target scores 58–62; a slow one tops 
   assert.strictEqual(Math.floor(120000 / (e.perQ - e.lost[0].lostMs)), at.score);
 });
 
+test('estimated score is hidden until half of Normal is measured', () => {
+  const none = C.estimate({});
+  assert.strictEqual(none.coverage, 0);
+  assert.strictEqual(none.shown, false);   // no data: the score would be the targets, so it is not shown
+  const f = C.frequencies(), keys = Object.keys(f).sort((a, b) => f[b] - f[a]);
+  const stats = {};
+  let cov = 0;
+  for (const k of keys) {
+    if (cov >= C.MIN_COVERAGE) break;
+    stats[k] = { key: k, n: 40, median: 1500, used: 1500, flagged: false, wrong: 0 };
+    cov += f[k];
+  }
+  const some = C.estimate(stats);
+  assert.ok(Math.abs(some.coverage - cov) < 1e-9);
+  assert.strictEqual(some.shown, true);
+  const thin = { 'add-nocarry': { key: 'add-nocarry', n: 5, median: 1500, used: 1400, flagged: true, wrong: 0 } };
+  assert.strictEqual(C.estimate(thin).coverage, 0);   // under MIN_N answers does not count as measured
+});
+
 // A full coach day: `bench` scores for the benchmark; focus drills as given.
 function coachDay(day, bench, opts) {
   opts = opts || {};

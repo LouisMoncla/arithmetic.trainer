@@ -183,6 +183,7 @@ label { white-space: nowrap; }
 .road-gap .m { color: var(--mid); font-size: var(--t-s); }
 .road-gap .note { flex-basis: 100%; color: var(--mid); font-size: var(--t-xs); }
 .milestones .on { color: var(--fg); font-weight: 700; }
+.milestones span { margin-right: 16px; }
 .road-drill { display: flex; align-items: center; gap: 8px; }
 .road-drill .mode { flex: 1; }
 .road-drill select { margin-right: 10px; }
@@ -224,6 +225,7 @@ label { white-space: nowrap; }
   display: grid; grid-template-columns: 34px 9.5em 1fr auto; gap: 12px; align-items: center;
   width: 100%; height: auto; text-align: left; border: 0; padding: 11px 10px; background: var(--bg); color: var(--fg);
 }
+a.mode { text-decoration: none; }   /* a row that opens a page (Matrices on Play) looks like the others */
 .mode .k { width: 24px; height: 24px; line-height: 22px; text-align: center; border: 1px solid var(--soft); font: var(--t-xs) var(--mono); color: var(--mid); }
 .mode .nm { font-weight: 500; }
 .mode .ds { color: var(--mid); font-size: 14px; }
@@ -461,8 +463,9 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
   main, .top-in, .foot { padding-left: 16px; padding-right: 16px; }
   .top-in { grid-template-columns: 1fr auto; padding-top: 12px; }
   .top-in > * { min-width: 0; }
-  .top-in nav { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; margin: 0 -16px; padding: 0 4px; }
-  nav a { padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+  /* Every tab stays visible: the nav wraps onto a second row instead of scrolling sideways. */
+  .top-in nav { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; margin: 0 -10px; }
+  nav a { padding: 12px 10px; white-space: nowrap; }
   .hero-mode { font-size: 40px; }
   .pane-h { font-size: var(--t-l); }
   .heat-side { padding-top: 0; }

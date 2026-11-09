@@ -28,6 +28,8 @@
   var MIN_N = 15, BASE_DAYS = 3, MAX_DAYS = 10;
   // Accuracy: a category needs 5 wrong and 5 clean answers; leaves the pool under 8% in 3 sessions in a row, back above 12%.
   var ACC_MIN = 5, ACC_OUT = 0.08, ACC_BACK = 0.12, ACC_RUN = 3;
+  // Share of Normal's questions that must be measured before the estimate is shown (else it is mostly targets).
+  var MIN_COVERAGE = 0.5;
   var MILESTONES = [40, 45, 50, 55, 60], GATE = 60, GATE_RUN = 3, MILESTONE_RUN = 2, TEST_EVERY = 7, MASTER_RUN = 3;
 
   function family(key) { return key.replace(/-\d+$/, ''); }
@@ -112,19 +114,21 @@
    * Estimated 120 s score from category medians (the target where data is thin), and lost time per category:
    * { perQ (ms), score, lost: [{ key, freq, median, used, target, flagged, n, lostMs, points }] } sorted by lost time.
    * points = the score with that one category at target, minus the score now.
+   * coverage = share of Normal's questions in categories with enough data; shown = coverage ≥ MIN_COVERAGE.
    */
   function estimate(stats) {
-    var f = frequencies(), perQ = 0, rows = [];
+    var f = frequencies(), perQ = 0, coverage = 0, rows = [];
     Object.keys(f).forEach(function (k) {
       var s = stats[k], t = target(k), used = s ? s.used : t;
       perQ += f[k] * used;
+      if (s && !s.flagged) coverage += f[k];
       rows.push({ key: k, freq: f[k], median: s ? s.median : null, used: used, target: t, flagged: !s || s.flagged, n: s ? s.n : 0,
         wrong: s ? s.wrong : null, lostMs: f[k] * Math.max(0, used - t) });
     });
     var exact = 120000 / perQ;
     rows.forEach(function (r) { r.points = r.lostMs > 0 ? 120000 / (perQ - r.lostMs) - exact : 0; });
     rows.sort(function (a, b) { return b.lostMs - a.lostMs || a.key.localeCompare(b.key); });
-    return { perQ: perQ, score: Math.floor(exact), exact: exact, lost: rows };
+    return { perQ: perQ, score: Math.floor(exact), exact: exact, lost: rows, coverage: coverage, shown: coverage >= MIN_COVERAGE };
   }
 
   // Category → the drill that trains it, or null.
@@ -391,7 +395,7 @@
   function isExtraNow(rounds, day) { return sessions(rounds).some(function (s) { return s.day === day && s.complete; }); }
 
   var api = {
-    TARGETS: TARGETS, MILESTONES: MILESTONES, GATE: GATE, MIN_N: MIN_N, TIMES: TIMES, FAMILIES: FAMILIES, ACC_OUT: ACC_OUT, ACC_BACK: ACC_BACK,
+    TARGETS: TARGETS, MILESTONES: MILESTONES, GATE: GATE, MIN_N: MIN_N, MIN_COVERAGE: MIN_COVERAGE, TIMES: TIMES, FAMILIES: FAMILIES, ACC_OUT: ACC_OUT, ACC_BACK: ACC_BACK,
     families: families, familyOf: familyOf, accuracy: accuracy, accuracyState: accuracyState, tagExtras: tagExtras,
     target: target, catName: catName, categoryStats: categoryStats, frequencies: frequencies, estimate: estimate,
     drillFor: drillFor, sessions: sessions, completeSessions: completeSessions, mastered: mastered, focusPicks: focusPicks,

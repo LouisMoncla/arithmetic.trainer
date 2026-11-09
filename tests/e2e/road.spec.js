@@ -122,6 +122,8 @@ test('the last benchmark round ends the session; later rounds are extra and get 
   // A Speed round from Play: no method line, saved as extra
   await page.keyboard.press('p');
   await expect(page).toHaveURL(/#play$/);
+  // The hash changes at once but Play draws on hashchange; a key before that would start Road drill 3.
+  await expect(page.getByTestId('play-modes')).toBeVisible();
   await page.keyboard.press('3');
   await page.keyboard.press('Enter');
   await tick(page, 3100);
@@ -143,10 +145,10 @@ test('milestones, the 60 gate message (once) and the 7th session as a test day',
     pair.forEach((s, k) => done.push(round('NORMAL120', at(day, 10, k), { score: s, settings: { duration: 120 }, coach: { block: 6, test: false } })));
   });
   await openApp(page, 'road', { rounds: history().concat(done) });
-  await expect(page.getByTestId('road-milestones')).toHaveText('■ 40 · ■ 45 · ■ 50 · ■ 55 · ■ 60');
+  await expect(page.getByTestId('road-milestones')).toHaveText('■ 40 ■ 45 ■ 50 ■ 55 ■ 60');
   await expect(page.getByTestId('road-gate-message')).toHaveText('60 reached. Next: squares to 25, fractions, percentages, Optiver-style.');
   await expect(page.getByTestId('stat-road-benchmark')).toContainText('61.5');
-  await expect(page.locator('.hero-why')).toContainText('session 7 · test day');
+  await expect(page.locator('.hero-why')).toContainText('session 7. Test day');
   await expect(page.getByTestId('road-plan').locator('li')).toHaveText([/Warm-up/, /Warm-up/, /Test day benchmark: Normal 120 s.*0 \/ 4/]);
   await page.keyboard.press('p');
   await page.keyboard.press('c');
@@ -189,6 +191,7 @@ test('a day runs until 05:00: after midnight the evening session is still today 
   expect((await rounds(page)).find((r) => r.id === 'old-night').extra).toBe(true);
 
   await page.keyboard.press('p');
+  await expect(page.getByTestId('play-modes')).toBeVisible();   // Play draws on hashchange
   await page.keyboard.press('3');
   await page.keyboard.press('Enter');
   await tick(page, 3100);
@@ -219,4 +222,13 @@ test('the accuracy round (key 6): one wrong digit ends the question with no poin
   expect(r.questions[0]).toMatchObject({ missed: true, unanswered: true, wrongAttempts: 1 });
   expect(r.questions[1].missed).toBeUndefined();
   await expect(page.getByText('Missed (wrong digit)').first()).toBeAttached();
+});
+
+test('a new user sees no made-up estimate and no empty tables', async ({ page }) => {
+  await openApp(page, 'road');
+  await expect(page.getByTestId('road-intro')).toBeVisible();
+  await expect(page.getByTestId('stat-road-estimate')).toHaveCount(0);   // no rounds: no gap section to show
+  await expect(page.getByTestId('road-categories')).toHaveCount(0);
+  await expect(page.getByTestId('road-tod')).toHaveCount(0);
+  await expect(page.locator('.hero-why')).toHaveText('Road to 60, session 1');
 });
