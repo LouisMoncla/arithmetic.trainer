@@ -124,7 +124,7 @@ test('the last benchmark round ends the session; later rounds are extra and get 
   await expect(page).toHaveURL(/#play$/);
   // The hash changes at once but Play draws on hashchange; a key before that would start Road drill 3.
   await expect(page.getByTestId('play-modes')).toBeVisible();
-  await page.keyboard.press('3');
+  await page.keyboard.press('4');   // Speed
   await page.keyboard.press('Enter');
   await tick(page, 3100);
   await tick(page, 6000);
@@ -192,7 +192,7 @@ test('a day runs until 05:00: after midnight the evening session is still today 
 
   await page.keyboard.press('p');
   await expect(page.getByTestId('play-modes')).toBeVisible();   // Play draws on hashchange
-  await page.keyboard.press('3');
+  await page.keyboard.press('4');   // Speed
   await page.keyboard.press('Enter');
   await tick(page, 3100);
   await answerCurrent(page);
@@ -202,26 +202,35 @@ test('a day runs until 05:00: after midnight the evening session is still today 
   expect([r.mode, r.extra, r.coach]).toEqual(['P3', true, undefined]);
 });
 
-test('the accuracy round (key 6): one wrong digit ends the question with no point; right answers still go in', async ({ page }) => {
+test('the accuracy round (key 6): a wrong digit loses the point, the question stays until you fix it', async ({ page }) => {
   await openApp(page, 'road');
   await expect(page.getByTestId('road-drill-acc')).toContainText('Accuracy round');
   await page.locator('main').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('6');
   await tick(page, 3100);
-  const q = page.getByTestId('game-question'), box = page.getByRole('textbox', { name: 'Answer' });
-  const first = String(solve((await q.textContent()).trim()));
-  await box.pressSequentially(String((+first[0] + 1) % 10 || 1));   // a digit the answer cannot start with
-  await expect(box).toHaveValue('');
-  await expect(page.getByTestId('game-score')).toHaveText('Score: 0');
+  const q = page.getByTestId('game-question'), box = page.getByRole('textbox', { name: 'Answer' }), score = page.getByTestId('game-score');
+  const shown = (await q.textContent()).trim(), ans = String(solve(shown));
+  const bad = String((+ans[0] + 1) % 10 || 1);   // a digit the answer cannot start with
+  // typing fast after the slip: the digits stay in this question's box, nothing jumps to the next one
+  await box.pressSequentially(bad + ans.slice(1));
+  await expect(q).toHaveText(shown);
+  await expect(box).toHaveValue(bad + ans.slice(1));
+  // fix it: the answer goes in, with no point
+  await box.fill('');
+  await box.pressSequentially(ans);
+  await expect(q).not.toHaveText(shown);
+  await expect(score).toHaveText('Score: 0');
   await answerCurrent(page);
-  await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
+  await expect(score).toHaveText('Score: 1');
   await tick(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
+  await expect(page.getByTestId('stat-accuracy')).toContainText('50%');   // 1 of the 2 answers was right first time
   const r = await lastRound(page);
   expect([r.mode, r.settings.drill, r.score]).toEqual(['R60', 'acc', 1]);
-  expect(r.questions[0]).toMatchObject({ missed: true, unanswered: true, wrongAttempts: 1 });
-  expect(r.questions[1].missed).toBeUndefined();
-  await expect(page.getByText('Missed (wrong digit)').first()).toBeAttached();
+  expect(r.questions[0]).toMatchObject({ noPoint: true, wrongAttempts: 1 });
+  expect(r.questions[0].unanswered).toBeUndefined();
+  expect(r.questions[1].noPoint).toBeUndefined();
+  await expect(page.getByText('No point (wrong digit)').first()).toBeAttached();
 });
 
 test('a new user sees no made-up estimate and no empty tables', async ({ page }) => {

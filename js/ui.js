@@ -21,11 +21,12 @@
   var data, main, screenKeys = null, endShownAt = 0, leaveHook = null;
   var ui = { sel: null, sort: { col: 'slowness', dir: -1 }, filter: 'all', importPending: null, customError: null };
 
+  // Play's first page and first mode is the benchmark, Zetamac Normal 120 s (key 1).
   var MODES = [
+    { id: 'NORMAL120', label: 'Interview-ready', desc: 'Zetamac Normal, 120 seconds: the benchmark' },
     { id: 'TABLES', label: 'Tables', desc: '× and ÷ up to 12 × 12' },
     { id: 'P2', label: 'Foundations', desc: '× and ÷, one number up to 100' },
     { id: 'P3', label: 'Speed', desc: 'Zetamac Normal, 60 seconds' },
-    { id: 'NORMAL120', label: 'Interview-ready', desc: 'Zetamac Normal, 120 seconds: the benchmark' },
     { id: 'DRILL', label: 'Weak-fact drill', desc: 'Your slowest facts' },
     { id: 'INTERVIEW', label: 'Interview sim', desc: '80 questions in 8 minutes' },
     { id: 'CUSTOM', label: 'Custom', desc: 'Your own operations and ranges' },
@@ -33,9 +34,11 @@
     { id: 'PERCENT', label: '% and fractions', desc: 'Percentages, fractions and decimals' },
     { id: 'TRICKS', label: 'Mixed tricks', desc: '× 11, × 25, near 100, squares' }
   ];
-  // Row 1 once the tables grid is measured (P.recommend's warmMode): same key, plain Tables moves to T.
+  // Takes the Tables row (row 2) once the tables grid is measured (P.recommend's warmMode): same key, plain Tables moves to T.
   var WTABLES_MODE = { id: 'WTABLES', label: 'Weighted tables', desc: 'Tables, your slow facts more often' };
-  function modesFor(rec) { return rec.warmMode === 'WTABLES' ? [WTABLES_MODE].concat(MODES.slice(1)) : MODES; }
+  function modesFor(rec) {
+    return rec.warmMode === 'WTABLES' ? MODES.map(function (m) { return m.id === 'TABLES' ? WTABLES_MODE : m; }) : MODES;
+  }
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
   var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
@@ -117,6 +120,8 @@
 
   // ---------- routing ----------
 
+  // The first page: the bare URL, unknown hashes and the logo go here.
+  var HOME = 'play';
   var SCREENS = { play: renderPlay, road: renderRoad, learn: renderLearn, matrices: renderMatrices, review: renderReview, drill: renderDrill, stats: renderStats, settings: renderSettings };
   // Old links keep working: these hash prefixes moved (Session became Day, inside Stats).
   // Stats was three sections (Today, Progress, Log); their links land on the one page, #log on the zetamac form.
@@ -145,8 +150,8 @@
     var tip = document.querySelector('.chart-tip'); if (tip) tip.hidden = true;
     var hash = location.hash.slice(1), moved = canonical(hash);
     if (moved !== hash) history.replaceState(null, '', '#' + moved);
-    var parts = moved.split('/'), name = parts[0] || 'road';
-    if (!SCREENS[name]) name = 'road';
+    var parts = moved.split('/'), name = parts[0] || HOME;
+    if (!SCREENS[name]) name = HOME;
     Array.prototype.forEach.call(document.querySelectorAll('nav a, #settings-link'), function (a) {
       if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
@@ -209,7 +214,7 @@
     data.settings.theme = isDark() ? 'light' : 'dark';
     applyTheme(); save();
     announce(isDark() ? 'Dark theme' : 'Light theme');
-    if ((location.hash.slice(1).split('/')[0] || 'road') === 'settings' && !main.querySelector('.end')) renderSettings();
+    if ((location.hash.slice(1).split('/')[0] || HOME) === 'settings' && !main.querySelector('.end')) renderSettings();
   }
 
   // ---------- launching rounds ----------
@@ -265,8 +270,8 @@
   // ---------- Road to 60: drills and today's session ----------
 
   // A Road to 60 drill (60 s, auto-accept). The method shows after 5 s unless hints are off in Settings.
-  // mult: n is one multiplier or a list ([12, 8, 6]). acc: the accuracy round, Normal 60 s where one wrong digit ends
-  // the question (no hints).
+  // mult: n is one multiplier or a list ([12, 8, 6]). acc: the accuracy round, Normal 60 s where a wrong digit loses the
+  // point and the question stays until it is right (no hints).
   function playDrill(drill, n, tag) {
     var s = { drill: drill, duration: 60 };
     if (drill === 'mult') s.n = n;
@@ -391,7 +396,7 @@
           ' aria-pressed="' + (ui.sel === m.id) + '">' +
           '<span class="k">' + modeKey(i) + '</span><span class="nm">' + esc(m.label) + '</span><span class="ds">' + esc(m.desc) + '</span>' +
           '<span class="tag"></span></button>' + (ui.sel === m.id && m.id === 'CUSTOM' ? customPanel() : '') + '</li>');
-        // Once Weighted tables holds row 1, plain Tables sits under it on key T (outside 1–9 0 and the arrows).
+        // Once Weighted tables holds the Tables row, plain Tables sits under it on key T (outside 1–9 0 and the arrows).
         if (m.id === 'WTABLES') body.push('<li><button type="button" class="mode" data-mode="TABLES" data-testid="play-plain-tables">' +
           '<span class="k">T</span><span class="nm">Tables</span><span class="ds">Every fact equally often</span><span class="tag"></span></button></li>');
       });
@@ -799,7 +804,7 @@
     if (rep.slowest.length) {
       h.push(section('Slowest questions', '<table class="compact"><tr><th scope="col">Question</th><th scope="col" class="n">Time</th><th scope="col">Note</th></tr>' + rep.slowest.map(function (q) {
         return '<tr><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="mid">' +
-          (q.skipped ? 'Skipped' : q.missed ? 'Missed (wrong digit)' : q.unanswered ? 'Not answered' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
+          (q.skipped ? 'Skipped' : q.missed ? 'Missed (wrong digit)' : q.unanswered ? 'Not answered' : q.noPoint ? 'No point (wrong digit)' : q.wrongAttempts ? plural(q.wrongAttempts, 'wrong attempt') : '') + '</td></tr>';
       }).join('') + '</table>'));
     }
     if (rep.slower.length || rep.faster.length) {
@@ -817,7 +822,7 @@
       h.push(section('Every question', '<div class="tbl-scroll"><table class="compact" data-testid="end-all-questions"><tr><th scope="col" class="n">#</th><th scope="col">Question</th><th scope="col" class="n">Time</th>' +
         '<th scope="col" class="n">Wrong</th><th scope="col">Note</th></tr>' + round.questions.map(function (q, i) {
           return '<tr><td class="n">' + (i + 1) + '</td><td class="num">' + esc(q.shown) + ' = ' + q.answer + '</td><td class="n">' + sec(q.timeMs) + '</td><td class="n">' +
-            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.skipped ? 'Skipped' : q.missed ? 'Missed (wrong digit)' : q.unanswered ? 'Not answered' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
+            (q.wrongAttempts || '') + '</td><td class="mid">' + (q.skipped ? 'Skipped' : q.missed ? 'Missed (wrong digit)' : q.unanswered ? 'Not answered' : q.noPoint ? 'No point (wrong digit)' : frozen.indexOf(q) >= 0 ? 'Freeze' : '') + '</td></tr>';
         }).join('') + '</table></div>'));
     }
     h.push('</div>');
@@ -1049,8 +1054,9 @@
   // Three different questions of this trick, each with its worked shortcut.
   function examples(type) {
     var rng = G.mulberry32(seed()), out = [], seen = {};
+    var opts = type === 'sqmem' ? { sq: practiceRange() } : null;
     for (var i = 0; i < 50 && out.length < 3; i++) {
-      var q = G.trickQuestion(type, rng);
+      var q = G.trickQuestion(type, rng, opts);
       if (!seen[q.shown]) { seen[q.shown] = 1; out.push(q); }
     }
     return out;
@@ -1065,6 +1071,7 @@
     var h = [pageHead(name, '<a href="#learn">Learn</a>, ' + esc(group.name.toLowerCase()),
       '<button type="button" id="practise" class="primary" data-testid="learn-practise-button">Practise <kbd>Enter</kbd></button>' +
       '<button type="button" id="timed" data-testid="learn-timed-button">Timed round <kbd>F</kbd></button>', 'learn-title')];
+    if (type === 'sqmem') h.push(squaresRangeForm());
     h.push(section('The rule', '<p class="lesson-rule">' + esc(lesson.rule) + '</p><p class="mid">Why it works: ' + esc(lesson.why) + '</p>'));
     h.push(section('Worked examples', '<table class="compact" data-testid="learn-examples"><tr><th scope="col">Question</th><th scope="col">How to think it</th></tr>' +
       examples(type).map(function (q) {
@@ -1077,6 +1084,7 @@
     ]) : '<p class="mid">Nothing yet. Practise first: ' + PRACTICE_COUNT + ' questions, no clock, and the method appears whenever you miss or press Tab.</p>'));
     h.push(keys([['Enter', 'practise'], ['F', 'timed round'], ['N', 'all lessons']]));
     main.innerHTML = h.join('');
+    if (type === 'sqmem') bindSquaresRange();
     $('#practise').addEventListener('click', function () { playPractice(type); });
     $('#timed').addEventListener('click', function () { playLearnRound(type); });
     screenKeys = function (e) {
@@ -1135,6 +1143,45 @@
   // A lesson is a trick type, or 'fractions' (fd + df, the pairs you are slow on or have not seen come up more).
   function lessonName(id) { return id === 'fractions' ? AT.Lessons.HEART.name : G.trickNames()[id]; }
   function lessonSettings(id) { return id === 'fractions' ? { types: ['fd', 'df'], lesson: 'fractions' } : { types: [id] }; }
+
+  // ---------- Squares 11–30: your own practice range ----------
+  // Practice only (never saved), so Stats and Review keep one meaning of Squares; the timed round and Play stay 11–30.
+
+  // The saved range, 11–30 by default.
+  function practiceRange() {
+    var o = data.settings.learnSquares || {};
+    return G.validSquares(o) ? [o.from, o.to] : [11, 30];
+  }
+  // What the boxes say now: { from, to }, NaN for an empty box; the saved range when the form is not on screen.
+  function readSquaresRange() {
+    var f = $('#learn-sq-from'), t = $('#learn-sq-to'), r = practiceRange();
+    if (!f || !t) return { from: r[0], to: r[1] };
+    return { from: f.value === '' ? NaN : Number(f.value), to: t.value === '' ? NaN : Number(t.value) };
+  }
+  function squaresRangeForm() {
+    var r = practiceRange();
+    function n(id, v, what) {
+      return '<label class="field" for="' + id + '">' + what + '<input type="number" min="' + G.SQ_MIN + '" max="' + G.SQ_MAX + '" step="1" id="' + id +
+        '" name="' + id + '" autocomplete="off" value="' + v + '" data-testid="' + id + '"></label>';
+    }
+    return '<form class="form" id="learn-sq-range" novalidate data-testid="learn-squares-range">' +
+      frow('Practice range', '<div class="inline-form">' + n('learn-sq-from', r[0], 'From') + n('learn-sq-to', r[1], 'To') + '</div>' +
+        '<p class="err" id="learn-sq-err" aria-live="polite"></p>', 'Practice only, up to ' + G.SQ_MAX + '². The timed round and Squares on Play stay 11² to 30².') +
+      '<button type="submit" hidden tabindex="-1">Practise</button></form>';
+  }
+  // Valid changes are saved (the examples follow on the next visit); Enter in a box practises.
+  function bindSquaresRange() {
+    var form = $('#learn-sq-range');
+    form.addEventListener('submit', function (e) { e.preventDefault(); playPractice('sqmem'); });
+    $$('#learn-sq-range input').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var o = readSquaresRange(), ok = G.validSquares(o);
+        $('#learn-sq-err').textContent = ok ? '' : 'Choose From below To, both between ' + G.SQ_MIN + ' and ' + G.SQ_MAX + '.';
+        if (!ok) return;
+        data.settings.learnSquares = o; save();
+      });
+    });
+  }
   function lessonGenerator(id, s) {
     var rng = G.mulberry32(seed());
     if (id !== 'fractions') return G.makeGenerator(s, rng);
@@ -1144,6 +1191,16 @@
   // Untimed, not saved: the method shows after a miss or on Tab.
   function playPractice(id) {
     var s = lessonSettings(id);
+    if (id === 'sqmem') {
+      var o = readSquaresRange();
+      if (!G.validSquares(o)) {
+        var err = $('#learn-sq-err'); if (err) err.textContent = 'Choose From below To, both between ' + G.SQ_MIN + ' and ' + G.SQ_MAX + '.';
+        var f = $('#learn-sq-from'); if (f) f.focus();
+        return;
+      }
+      data.settings.learnSquares = o; save();
+      s.sq = [o.from, o.to];
+    }
     Game.startPractice({
       mode: 'LEARN', settings: s, count: PRACTICE_COUNT, advice: G.trickAdvice, generator: lessonGenerator(id, s),
       onEnd: function (round) { showPracticeEnd(id, round); },
@@ -1162,7 +1219,8 @@
     var helped = qs.filter(function (q) { return q.method; });
     var h = ['<div class="end">'];
     h.push('<h1 class="sr-only">Practice finished</h1>');
-    h.push(endHead(first, lessonName(type), 'Of ' + qs.length + ' right first time, without the method'));
+    var sq = round.settings && round.settings.sq, title = sq && (sq[0] !== 11 || sq[1] !== 30) ? 'Squares ' + sq[0] + '–' + sq[1] : lessonName(type);
+    h.push(endHead(first, title, 'Of ' + qs.length + ' right first time, without the method'));
     h.push(endButtons([['again', 'Practise again', 'Enter'], ['f', 'Timed round', 'F'], ['n', 'All lessons', 'N']]));
     h.push('<p class="small mid end-more">Practice is not saved, so it does not change your stats.</p>');
     h.push(section(helped.length ? 'Where you needed the method' : 'No method needed',
@@ -1252,21 +1310,23 @@
 
     // Three numbers.
     var last = ss[ss.length - 1], goal = m === 'NORMAL120' ? 60 : null, t = S.trend(ss, goal, allDays.length);
+    // Two different bests: the tile is the all-time best round (with its day); the chart's dots are each day's best.
     var best = Math.max.apply(null, ss.map(function (s) { return s.stats.best; }));
+    var bestDay = ss.filter(function (s) { return s.stats.best === best; })[0].day;
     h.push(stats([
       { label: 'Last day', value: f1(last.stats.avg), note: esc(fmtDay(last.day)) + ', ' + plural(last.scores.length, 'round'), key: 'stats-last' },
-      { label: 'Best round', value: String(best), note: 'All time', key: 'stats-best' },
+      { label: 'Best (all time)', value: String(best), note: esc(fmtDay(bestDay)), key: 'stats-best' },
       { label: 'Trend', value: t.ok ? signed(t.slope) : '–', note: t.ok ? 'Points per day played' : 'Needs 4 days over a week', key: 'stats-trend' }
     ]));
 
     // The progress chart: one point per day you played this mode.
-    var lg = [{ kind: 'line', label: 'Day average' }, { kind: 'dots', label: 'Best round' }];
+    var lg = [{ kind: 'line', label: 'Day average' }, { kind: 'dots', label: 'Best of the day' }];
     if (goal) lg.push({ kind: 'dash', label: 'Goal ' + goal });
     h.push('<section class="sec" data-testid="stats-chart">' + C.legend(lg) + C.line({
       xs: ss.map(function (s) { return s.number; }), xName: 'Day ', endLabel: true,
-      series: [{ ys: ss.map(function (s) { return s.stats.avg; }), kind: 'line', name: 'average' }, { ys: ss.map(function (s) { return s.stats.best; }), kind: 'dots', name: 'best' }],
+      series: [{ ys: ss.map(function (s) { return s.stats.avg; }), kind: 'line', name: 'average' }, { ys: ss.map(function (s) { return s.stats.best; }), kind: 'dots', name: 'best of the day' }],
       hline: goal, label: label(m) + ' day averages', h: 180
-    }) + C.table(['Day', 'Average', 'Best', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; })) + '</section>');
+    }) + C.table(['Day', 'Average', 'Best of the day', 'Rounds'], ss.map(function (s) { return [s.number, f1(s.stats.avg), s.stats.best, s.scores.length]; })) + '</section>');
 
     // The calendar and the chosen day.
     h.push('<section class="sec stats-cal">' + calendar(month, ss, allDays, day) +
@@ -1658,7 +1718,7 @@
       var blob = new Blob([Store.serialize(data)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'arithmetic-trainer-' + todayKey() + '.json';
+      a.download = '103-' + todayKey() + '.json';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
       renderSettings();
@@ -1797,7 +1857,7 @@
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
     document.getElementById('help-btn').addEventListener('click', function () { setHelp(true); });
     // The logo always goes home, even from home itself (a plain link to the same hash does nothing).
-    document.querySelector('.brand').addEventListener('click', function (e) { e.preventDefault(); go('road'); });
+    document.querySelector('.brand').addEventListener('click', function (e) { e.preventDefault(); go(HOME); });
     document.getElementById('help-close').addEventListener('click', function () { setHelp(false); });
     // Skip link: focus the content without touching the hash router.
     document.getElementById('skip-link').addEventListener('click', function (e) { e.preventDefault(); main.focus(); });

@@ -1,4 +1,4 @@
-# Arithmetic Trainer Components
+# 103 Components
 
 > Full specifications for all 22 components. Grouped by workflow.
 > For tokens see [design.md](design.md). For rules & accessibility see [design-guidelines.md](design-guidelines.md).

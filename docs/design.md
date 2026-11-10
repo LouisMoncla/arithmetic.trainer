@@ -1,4 +1,4 @@
-# Arithmetic Trainer Design System — Token Reference
+# 103 Design System — Token Reference
 
 > Always read this file first. For component specs see [design-components.md](design-components.md). For accessibility and do's/don'ts see [design-guidelines.md](design-guidelines.md).
 

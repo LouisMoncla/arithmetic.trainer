@@ -2,15 +2,27 @@
 const { test, expect } = require('@playwright/test');
 const { NOW, openApp, tick, startSelected, answerCurrent, dayKey } = require('./helpers');
 
-test('the site opens on Road to 60; a new user gets the explanation, not empty numbers', async ({ page }) => {
+test('the site is 103 and opens on Play, Interview-ready first; Road to 60 is second and explains itself to a new user', async ({ page }) => {
   await openApp(page, null);
   await expect(page).not.toHaveURL(/#/);
+  await expect(page).toHaveTitle('103 Mental Math');
+  await expect(page.locator('.brand')).toHaveText('103');
+  await expect(page.locator('.brand')).toHaveAttribute('href', '#play');
+  await expect(page.locator('.brand .brand-mark')).toBeVisible();   // ∃! before 103, like the favicon
+  await expect(page.locator('.brand')).toHaveAttribute('aria-label', 'There is a unique 103, home');
+  expect(await page.locator('.brand-num').evaluate((e) => parseFloat(getComputedStyle(e).fontSize))).toBe(30);   // the name, bigger than the tabs
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Play');
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Play' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('button.mode').first()).toHaveAttribute('data-mode', 'NORMAL120');
+  await expect(page.locator('button.mode').first().locator('.k')).toHaveText('1');
+  await expect(page.getByRole('button', { name: /Interview-ready/, pressed: true })).toBeVisible();
+  await expect(page.locator('nav a')).toHaveText(['Play', 'Road to 60', 'Learn', 'Review', 'Finance', 'Stats']);
+  // a new user on Road to 60 gets the explanation, not empty numbers
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Road to 60' }).click();
   await expect(page.getByTestId('road-title')).toHaveText('Today’s session');
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Road to 60' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByTestId('road-intro')).toContainText('60 or more is a strong score');
   await expect(page.getByTestId('stat-road-estimate')).toHaveCount(0);
   await expect(page.getByTestId('road-milestones')).toHaveCount(0);
-  await expect(page.locator('nav a')).toHaveText(['Road to 60', 'Play', 'Learn', 'Review', 'Finance', 'Stats']);
   // Settings is a gear beside the theme toggle, marked current on its page
   const gear = page.getByRole('link', { name: 'Settings' });
   await expect(gear).toHaveAttribute('href', '#settings');
@@ -24,11 +36,12 @@ test('play: only the modes, no recommendation; number keys and arrows choose, En
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Play');
   await expect(page.locator('.mode .tag:not(:empty)')).toHaveCount(0);
   await expect(page.getByText(/Warm up first|Recommended|Step 1/)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Tables/, pressed: true })).toBeVisible();   // row 1 selected
+  await expect(page.getByRole('button', { name: /Interview-ready/, pressed: true })).toBeVisible();   // row 1 selected
 
   await page.keyboard.press('3');
-  await expect(page.getByRole('button', { name: /Speed/, pressed: true })).toBeVisible();
-  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('button', { name: /Foundations/, pressed: true })).toBeVisible();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
   await expect(page.getByRole('button', { name: /Interview-ready/, pressed: true })).toBeVisible();
 
   await startSelected(page);
@@ -62,21 +75,22 @@ function tablesHistory(count) {
 }
 const savedModes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('arithmeticTrainer.v1')).rounds.map((r) => r.mode));
 
-test('play: Tables is row 1 until 150 of 187 table facts are measured', async ({ page }) => {
+test('play: Tables is row 2 until 150 of 187 table facts are measured', async ({ page }) => {
   await openApp(page, 'play', { rounds: tablesHistory(149) });
-  await expect(page.locator('.mode[data-mode="TABLES"] .k')).toHaveText('1');
+  await expect(page.locator('.mode[data-mode="TABLES"] .k')).toHaveText('2');
   await expect(page.locator('.mode[data-mode="WTABLES"]')).toHaveCount(0);
   await expect(page.getByTestId('play-plain-tables')).toHaveCount(0);
 });
 
-test('play: then Weighted tables takes row 1, plain Tables moves to T', async ({ page }) => {
+test('play: then Weighted tables takes row 2, plain Tables moves to T', async ({ page }) => {
   await openApp(page, 'play', { rounds: tablesHistory(150) });
-  await expect(page.locator('.mode[data-mode="WTABLES"] .k')).toHaveText('1');
+  await expect(page.locator('.mode[data-mode="WTABLES"] .k')).toHaveText('2');
   await expect(page.getByTestId('play-plain-tables').locator('.k')).toHaveText('T');
   await expect(page.locator('.mode[data-mode="TABLES"]')).toHaveCount(1);
   await expect(page.locator('button.mode .k').last()).toHaveText('0');
 
-  // Enter plays Weighted tables
+  // 2 then Enter plays Weighted tables
+  await page.keyboard.press('2');
   await startSelected(page);
   await expect(page.getByTestId('game-question')).toHaveText(/^\d+ [×÷] \d+$/);
   await answerCurrent(page);
@@ -85,7 +99,7 @@ test('play: then Weighted tables takes row 1, plain Tables moves to T', async ({
   expect((await savedModes(page)).pop()).toBe('WTABLES');
 });
 
-test('play: T plays plain Tables once Weighted tables holds row 1', async ({ page }) => {
+test('play: T plays plain Tables once Weighted tables holds row 2', async ({ page }) => {
   await openApp(page, 'play', { rounds: tablesHistory(150) });
   await page.keyboard.press('t');
   await tick(page, 3100);
@@ -139,7 +153,7 @@ test('stats: a day link (old session link too), A from the end screen, and arrow
   // Play one Interview-ready round today, then A on the end screen opens today in that mode.
   await page.keyboard.press('p');
   await expect(page.getByTestId('play-modes')).toBeVisible();
-  await page.keyboard.press('4');
+  await page.keyboard.press('1');
   await startSelected(page);
   await answerCurrent(page);
   await tick(page, 121000);
