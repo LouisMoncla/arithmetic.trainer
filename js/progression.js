@@ -25,7 +25,7 @@
   var MODE_LABELS = {
     TABLES: 'Tables', WTABLES: 'Weighted tables', P2: 'Foundations', P3: 'Speed', NORMAL120: 'Interview-ready', DRILL: 'Drill',
     INTERVIEW: 'Interview sim', CUSTOM: 'Custom',
-    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks', MATRIX: 'Matrices', FINANCE: 'Finance'
+    SQUARES: 'Squares', PERCENT: '% and fractions', TRICKS: 'Mixed tricks', COMBI: 'Combinatorics', MATRIX: 'Matrices', FINANCE: 'Finance'
   };
   var FIN_KIND = { practice: 'Finance practice', intuition: 'Finance intuition', mixed: 'Finance interview mix' };
 
@@ -88,7 +88,7 @@
   function sec(ms) { return ms === null || ms === undefined ? '–' : (ms / 1000).toFixed(1); }
   function pct(x) { return x === null || x === undefined ? '–' : Math.round(x * 100) + '%'; }
 
-  var REPORT_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
+  var REPORT_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS', 'COMBI'];
   // REPORT_MODES plus every matrix variant played ("MATRIX-N9-60", …), in a stable order.
   function reportModes(rounds) {
     var mx = {}, fin = {};

@@ -52,8 +52,9 @@ Every round is saved automatically on this computer, inside the browser's own st
 | 8 | **Squares** | 60 s of squares: 11² to 30² by heart, ending in 5 (65²), near 50 (47²), near 100 (97², 104²). Tab skips a question (no point; it counts as a miss in Review). |
 | 9 | **% and fractions** | 60 s: percent of a number (15% of 80), swapped percentages (8% of 25 = 25% of 8), fractions as decimals (3 ÷ 8 = 0.375; `.375` works too), decimals as fractions (0.375 → 3/8) and adding or subtracting fractions (1/4 + 1/8 → 3/8). A fraction answer gets two boxes: type the numerator, and once it is right the cursor moves to the denominator; no Enter. Answers are in lowest terms (the screen says so under the boxes). Tab skips. |
 | 0 | **Mixed tricks** | 60 s mixing the shortcuts: squares, × 11, × 25, products near 100 (97 × 96), difference of squares (47 × 53 = 50² − 3²). Tab skips. |
+| K | **Combinatorics** | 60 s of factorials (3! to 10!) and n choose k (n 4 to 10, k 2 to n − 2): `7!`, `10 choose 3`. The answer goes in as soon as it is right; Tab skips. Last row of Play, under Matrices. |
 
-Modes 8, 9 and 0 are training only: they don't count toward the steps. Each question records which trick it
+Modes 8, 9, 0 and K are training only: they don't count toward the steps. Each question records which trick it
 trains (fact key `tr-sq5`, `tr-x11`…), so slow tricks show in Review, and a freeze shows the shortcut
 worked on that exact question ("Ends in 5: 6 × 7 = 42, then 25 → 4225").
 

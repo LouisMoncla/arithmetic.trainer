@@ -42,13 +42,15 @@
     // Trick modes: training only, outside the steps.
     SQUARES:   { label: 'Squares',      types: ['sqmem', 'sq5', 'sq50', 'sq100'], duration: 60 },
     PERCENT:   { label: '% and fractions', types: ['pct', 'pctswap', 'frac', 'dec2frac', 'fracadd', 'fracsub'], duration: 60 },
-    TRICKS:    { label: 'Mixed tricks', types: ['sq5', 'sq50', 'sq100', 'diff', 'x11', 'x25', 'near100', 'pctswap'], duration: 60 }
+    TRICKS:    { label: 'Mixed tricks', types: ['sq5', 'sq50', 'sq100', 'diff', 'x11', 'x25', 'near100', 'pctswap'], duration: 60 },
+    COMBI:     { label: 'Combinatorics', types: ['fact', 'binom'], weights: [1, 2], duration: 60 }   // 1/3 n!, 2/3 n choose k
   };
 
   // Fresh copy of a mode's settings (callers may mutate it).
   function modeSettings(mode) {
     var m = MODES[mode] || MODES.P3;
     var s = m.types ? { types: m.types, duration: m.duration } : { ops: m.ops, ranges: m.ranges, duration: m.duration };
+    if (m.weights) s.weights = m.weights;
     return JSON.parse(JSON.stringify(s));
   }
 
@@ -65,10 +67,19 @@
   }
 
   function generate(settings, rng) {
-    if (settings.types) return trickQuestion(settings.types[randInt(rng, 0, settings.types.length - 1)], rng, settings);
+    if (settings.types) return trickQuestion(pickType(settings, rng), rng, settings);
     var op = settings.ops[randInt(rng, 0, settings.ops.length - 1)];
     var r = (op === 'add' || op === 'sub') ? settings.ranges.add : settings.ranges.mul;
     return makeQuestion(op, randInt(rng, r.a[0], r.a[1]), randInt(rng, r.b[0], r.b[1]));
+  }
+
+  // A trick type: uniform, or by settings.weights (one per type) when given.
+  function pickType(settings, rng) {
+    var t = settings.types, w = settings.weights;
+    if (!w || w.length !== t.length) return t[randInt(rng, 0, t.length - 1)];
+    var total = w.reduce(function (a, x) { return a + x; }, 0), r = rng() * total;
+    for (var i = 0; i < t.length; i++) { r -= w[i]; if (r < 0) return t[i]; }
+    return t[t.length - 1];
   }
 
   // Wrap a question source so the same question never appears twice in a row.
@@ -489,6 +500,7 @@
    *   fracsub  n1/d1 − n2/d2, the same, never below zero
    *   fd       a fraction from the by-heart set (HEART), answered as a decimal: 3/7 → 0.429
    *   df       the same decimal, answered as the fraction: 0.429… → 3/7
+   *   fact     n!, n 3–10                          binom    n choose k, n 4–10, k 2 to n − 2
    * By-heart decimals (heartDecimal): exact when the fraction terminates (3/16 = 0.1875), otherwise
    * 3 places, rounded or cut off both accepted (q.answerAlt), and shown with "…" when it is a question.
    * Fraction answers carry q.frac = [numerator, denominator]: the game asks for one, then the other.
@@ -510,8 +522,14 @@
     fracadd: { name: 'Adding fractions' },
     fracsub: { name: 'Subtracting fractions' },
     fd:      { name: 'Fraction to decimal' },
-    df:      { name: 'Decimal to fraction' }
+    df:      { name: 'Decimal to fraction' },
+    fact:    { name: 'Factorials' },
+    binom:   { name: 'n choose k' }
   };
+
+  function factorial(n) { var f = 1; for (var i = 2; i <= n; i++) f *= i; return f; }
+  // n choose k, exact: multiply then divide one step at a time (each partial result is itself a binomial).
+  function choose(n, k) { var c = 1; for (var i = 1; i <= k; i++) c = c * (n - k + i) / i; return Math.round(c); }
 
   /*
    * The by-heart squares are 11–30 everywhere that is saved (Squares, the Learn timed round). Only Learn practice, which is
@@ -561,6 +579,8 @@
       q.shown = a[0] + '/' + a[1] + (plus ? ' + ' : ' − ') + b[0] + '/' + b[1];
       setFrac(q, a[0] * b[1] + (plus ? 1 : -1) * b[0] * a[1], a[1] * b[1]);
     }
+    else if (type === 'fact') { q.shown = a + '!'; q.answer = factorial(a); }
+    else if (type === 'binom') { q.shown = a + ' choose ' + b; q.answer = choose(a, b); }
     else { q.shown = a + ' × ' + b; q.answer = a * b; }
     if (q.b === undefined) delete q.b;
     return q;
@@ -604,6 +624,8 @@
         den = FRAC_DENS[randInt(rng, 0, FRAC_DENS.length - 1)];
         do { num = randInt(rng, 1, den - 1); } while (gcd(num, den) !== 1);
         return makeTrick(type, num, den);
+      case 'fact': return makeTrick(type, randInt(rng, 3, 10));
+      case 'binom': n = randInt(rng, 4, 10); return makeTrick(type, n, randInt(rng, 2, n - 2));
       case 'fd':
       case 'df':
         var hp = HEART[randInt(rng, 0, HEART.length - 1)];
@@ -655,6 +677,13 @@
       case 'fd':
       case 'df':
         return heartAdvice(a, b, q.type === 'fd');
+      case 'fact': return a + '! = ' + a + ' × ' + (a - 1) + '! = ' + a + ' × ' + factorial(a - 1) + ' → ' + factorial(a) + '.';
+      case 'binom':
+        // Work it with the smaller k: 8 choose 5 = 8 choose 3 = (8 × 7 × 6) ÷ (3 × 2 × 1).
+        var k = Math.min(b, a - b), top = [], bot = [];
+        for (var i = 0; i < k; i++) { top.push(a - i); bot.push(k - i); }
+        return (k !== b ? a + ' choose ' + b + ' = ' + a + ' choose ' + k + ' = ' : a + ' choose ' + b + ' = ') +
+          '(' + top.join(' × ') + ') ÷ (' + bot.join(' × ') + ') → ' + choose(a, b) + '.';
       case 'fracadd':
       case 'fracsub':
         var l = lcm(a[1], b[1]), x = a[0] * l / a[1], y = b[0] * l / b[1], sign = q.type === 'fracadd' ? ' + ' : ' − ';

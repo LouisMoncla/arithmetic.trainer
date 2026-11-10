@@ -327,3 +327,9 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     (SIL OFL, licence in `fonts/OFL.txt`): the one exception to the system font, for the logo only. A click on the
     logo always goes home (`go(HOME)` in ui.js, even from home itself). Home is `HOME` (`'play'`), used by the
     bare URL, unknown hashes and the logo: change it there to change the first page.
+
+25. Combinatorics (11-10): trick mode `COMBI` (Play's last row, key K, under Matrices; `play-combi`), trick types `fact`
+    (n!, n 3–10, shown `7!`) and `binom` (n choose k, n 4–10, k 2…n−2, shown `10 choose 3`), built by `makeTrick` with
+    `factorial`/`choose` in generator.js. Advice works binom with the smaller k (8 choose 5 = 8 choose 3 = (8 × 7 × 6) ÷
+    (3 × 2 × 1)). Lessons group "Combinatorics" in lessons.js (so Learn has both). Outside the steps like the other tricks;
+    in `LOG_MODES` and `REPORT_MODES`.

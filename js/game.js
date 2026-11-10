@@ -185,6 +185,13 @@
     inEl.focus();
   }
 
+  // The question. n choose k is drawn as a column vector, n over k in tall parentheses; the rest is text.
+  function showQuestion(q) {
+    if (q.type === 'binom') {
+      qEl.innerHTML = '<span class="binom" role="img" aria-label="' + q.a + ' choose ' + q.b + '"><span>' + Number(q.a) + '</span><span>' + Number(q.b) + '</span></span>';
+    } else qEl.textContent = q.shown;
+  }
+
   function nextQuestion() {
     if (st.kind === 'matrix') { nextMatrix(); return; }
     if (st.kind === 'finance') { nextFinance(); return; }
@@ -193,7 +200,7 @@
     st.wrongSeen = {};
     st.wrong = 0;
     st.noPoint = false; st.off = false;
-    qEl.textContent = st.q.shown;
+    showQuestion(st.q);
     inEl.value = ''; denEl.value = '';
     var fr = !!st.q.frac;
     ansEl.classList.toggle('frac', fr);

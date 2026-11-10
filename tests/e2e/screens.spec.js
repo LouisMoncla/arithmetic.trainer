@@ -51,10 +51,13 @@ test('play: only the modes, no recommendation; number keys and arrows choose, En
   await page.keyboard.press('Escape');
 });
 
-test('play: a click starts the mode; Matrices is the last row', async ({ page }) => {
+test('play: a click starts the mode; Matrices, then Combinatorics (K), close the list', async ({ page }) => {
   await openApp(page);
   await expect(page.getByTestId('play-matrices')).toContainText('Matrices');
-  await expect(page.locator('[data-testid="play-modes"] .mode').last()).toHaveAttribute('data-testid', 'play-matrices');
+  const rows = page.locator('[data-testid="play-modes"] .mode');
+  await expect(rows.nth(-2)).toHaveAttribute('data-testid', 'play-matrices');
+  await expect(rows.last()).toHaveAttribute('data-testid', 'play-combi');
+  await expect(rows.last().locator('.k')).toHaveText('K');
   await page.locator('.mode[data-mode="P3"]').click();
   await tick(page, 3100);
   await expect(page.getByTestId('game-question')).not.toHaveText(/^[123]$/);
@@ -87,7 +90,7 @@ test('play: then Weighted tables takes row 2, plain Tables moves to T', async ({
   await expect(page.locator('.mode[data-mode="WTABLES"] .k')).toHaveText('2');
   await expect(page.getByTestId('play-plain-tables').locator('.k')).toHaveText('T');
   await expect(page.locator('.mode[data-mode="TABLES"]')).toHaveCount(1);
-  await expect(page.locator('button.mode .k').last()).toHaveText('0');
+  await expect(page.locator('.mode[data-mode="TRICKS"] .k')).toHaveText('0');   // the tenth numbered mode
 
   // 2 then Enter plays Weighted tables
   await page.keyboard.press('2');

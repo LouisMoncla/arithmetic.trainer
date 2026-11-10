@@ -12,10 +12,21 @@
     { name: 'Squares', types: ['sqmem', 'sq5', 'sq50', 'sq100'] },
     { name: 'Products', types: ['diff', 'x11', 'x25', 'near100'] },
     { name: 'Percentages', types: ['pct', 'pctswap'] },
-    { name: 'Fractions', types: ['frac', 'dec2frac', 'fracadd', 'fracsub'] }
+    { name: 'Fractions', types: ['frac', 'dec2frac', 'fracadd', 'fracsub'] },
+    { name: 'Combinatorics', types: ['fact', 'binom'] }
   ];
 
   var LESSONS = {
+    fact: {
+      short: '3! to 10! by heart, each from the one before',
+      rule: 'Know 3! to 10! by heart: 6, 24, 120, 720, 5040, 40320, 362880, 3628800. Each is n times the one before: 8! = 8 × 5040 = 40320.',
+      why: 'n! = n × (n − 1)!. Two anchors carry the rest: 5! = 120 and 10! = 3628800.'
+    },
+    binom: {
+      short: '10 choose 3 → 10 × 9 × 8 over 3 × 2 × 1',
+      rule: 'For n choose k, multiply k numbers down from n, then divide by k!. 10 choose 3 → 720 ÷ 6 = 120. Take the smaller k: 10 choose 7 = 10 choose 3.',
+      why: 'n choose k = n! ÷ (k! (n − k)!), and (n − k)! cancels the bottom of n!. Picking k is the same as leaving out n − k, so the two are equal.'
+    },
     sqmem: {
       short: 'By heart, built from the square before',
       rule: 'Learn 11² to 30² by heart. They come up all the time, and the other square tricks lean on them.',

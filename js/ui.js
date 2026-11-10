@@ -41,7 +41,7 @@
   }
   // Keys 1–9 then 0 choose a mode, in this order.
   var MODE_GROUPS = [['Zetamac', 0, 4], ['Training', 4, 7], ['Tricks', 7, 10]];
-  var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS'];
+  var LOG_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120', 'DRILL', 'INTERVIEW', 'CUSTOM', 'SQUARES', 'PERCENT', 'TRICKS', 'COMBI'];
   // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions"),
   function logModes() {
     var played = {};
@@ -405,6 +405,9 @@
     // Matrices last: its own page with its options.
     body.push('<h3 class="group">Matrices</h3><ol class="modes"><li><a class="mode" href="#matrices" data-testid="play-matrices">' +
       '<span class="k">X</span><span class="nm">Matrices</span><span class="ds">2 × 2 matrix products</span><span class="tag"></span></a></li></ol>');
+    // Combinatorics under it: a trick mode (n!, n choose k) on key K, outside 1–9 0 and the arrows.
+    body.push('<h3 class="group">Combinatorics</h3><ol class="modes"><li><button type="button" class="mode" data-mode="COMBI" data-testid="play-combi">' +
+      '<span class="k">K</span><span class="nm">Combinatorics</span><span class="ds">n! and n choose k, n up to 10</span><span class="tag"></span></button></li></ol>');
     h.push('<div data-testid="play-modes">' + body.join('') + '</div>');
     main.innerHTML = h.join('');
 
@@ -421,6 +424,7 @@
     screenKeys = function (e) {
       var ids = modes.map(function (m) { return m.id; }), i = ids.indexOf(ui.sel);
       if ((e.key === 't' || e.key === 'T') && rec.warmMode === 'WTABLES') { playStandard('TABLES'); return true; }
+      if (e.key === 'k' || e.key === 'K') { playStandard('COMBI'); return true; }
       if (/^[0-9]$/.test(e.key) && ids[(+e.key + 9) % 10]) { ui.sel = ids[(+e.key + 9) % 10]; renderPlay(); return true; }
       if (e.key === 'ArrowDown') { ui.sel = ids[(i + 1) % ids.length]; renderPlay(); return true; }
       if (e.key === 'ArrowUp') { ui.sel = ids[(i + ids.length - 1) % ids.length]; renderPlay(); return true; }

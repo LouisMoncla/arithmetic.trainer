@@ -149,8 +149,12 @@ const TRICK_RULES = {
   fracadd: (q) => q.frac[1] > 1 && q.frac[1] <= 60,
   fracsub: (q) => q.answer > 0 && q.frac[1] > 1 && q.frac[1] <= 60,
   fd: (q) => q.a < q.b && gcd(q.a, q.b) === 1 && (q.b <= 12 || [16, 20, 25].includes(q.b)),
-  df: (q) => q.a < q.b && gcd(q.a, q.b) === 1 && q.frac[0] === q.a && q.frac[1] === q.b
+  df: (q) => q.a < q.b && gcd(q.a, q.b) === 1 && q.frac[0] === q.a && q.frac[1] === q.b,
+  fact: (q) => q.a >= 3 && q.a <= 10 && q.shown === q.a + '!' && q.answer === [...Array(q.a)].reduce((f, _, i) => f * (i + 1), 1),
+  binom: (q) => q.a >= 4 && q.a <= 10 && q.b >= 2 && q.b <= q.a - 2 && q.shown === q.a + ' choose ' + q.b &&
+    q.answer === fac(q.a) / (fac(q.b) * fac(q.a - q.b))
 };
+const fac = (n) => (n <= 1 ? 1 : n * fac(n - 1));
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
 test('every trick type gives the right answer, in range, and clean', () => {
@@ -180,6 +184,7 @@ test('every trick type gives the right answer, in range, and clean', () => {
         assert.ok(Math.abs(n / d - value) < 1e-9, type + ': ' + q.shown + ' = ' + q.answerText);
         if (type === 'df') assert.ok(Math.abs(parseFloat(q.shown) - value) <= 0.0005, q.shown);
       }
+      else if (type === 'fact' || type === 'binom') { /* checked by its rule above */ }
       else { assert.strictEqual(q.shown, `${q.a} × ${q.b}`); assert.strictEqual(q.answer, q.a * q.b); }
       // The worked advice ends on the answer, so it can't drift from the question.
       // By heart (fd, df) may name the answer without an arrow ("Know it by heart: 1/25 = 0.04.").
@@ -317,4 +322,12 @@ test('Squares 11–30: Learn practice takes your own range (2 to 50); without on
   for (const bad of [{ from: 1, to: 20 }, { from: 11, to: 51 }, { from: 20, to: 20 }, { from: 30, to: 11 }, { from: NaN, to: 30 }, { from: 11.5, to: 30 }]) {
     assert.ok(!G.validSquares(bad), JSON.stringify(bad));
   }
+});
+
+test('Combinatorics: about 1/3 factorials and 2/3 n choose k', () => {
+  const s = G.modeSettings('COMBI'), rng = G.mulberry32(11), n = 6000;
+  assert.deepStrictEqual(s.types, ['fact', 'binom']);
+  let fact = 0;
+  for (let i = 0; i < n; i++) if (G.generate(s, rng).type === 'fact') fact++;
+  assert.ok(Math.abs(fact / n - 1 / 3) < 0.03, String(fact / n));
 });
