@@ -1796,6 +1796,8 @@
     applyTheme();
     document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
     document.getElementById('help-btn').addEventListener('click', function () { setHelp(true); });
+    // The logo always goes home, even from home itself (a plain link to the same hash does nothing).
+    document.querySelector('.brand').addEventListener('click', function (e) { e.preventDefault(); go('road'); });
     document.getElementById('help-close').addEventListener('click', function () { setHelp(false); });
     // Skip link: focus the content without touching the hash router.
     document.getElementById('skip-link').addEventListener('click', function (e) { e.preventDefault(); main.focus(); });

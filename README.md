@@ -1,6 +1,6 @@
-# Arithmetic Trainer
+# 103
 
-A Zetamac-style mental-math trainer for quant interviews. Black and white, keyboard first.
+103: a Zetamac-style mental-math trainer for quant interviews. Black and white, keyboard first.
 
 **▶ Practise now: [arithmetictrainer.vercel.app](https://arithmetictrainer.vercel.app/)**
 

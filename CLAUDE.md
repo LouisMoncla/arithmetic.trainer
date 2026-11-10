@@ -297,3 +297,8 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     screen A, E, ← →): a day link keeps the current or remembered mode if it was played that day, else the day's last
     round's mode (`pickMode`). `#stats/<MODE>[/<date>]` also works. G and L keys are gone. "Copy report for Claude" moved
     to Settings › Backup. Today/Progress/Log panes, `PANES`, `paneLine` and statsOpen are gone.
+
+22. The name is **103** (11-10, owner's logo): the brand link in the top bar (`.brand`, index.html and privacy.html),
+    `<title>` and og:title. Set in **Monaspace Argon** Regular, self-hosted at `fonts/MonaspaceArgon-Regular.woff2`
+    (SIL OFL, licence in `fonts/OFL.txt`): the one exception to the system font, for the logo only. A click on the
+    logo always goes home (`go('road')`, even from Road to 60 itself).
