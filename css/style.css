@@ -1,5 +1,5 @@
 /*
- * Arithmetic Trainer — black, white, greys. Soft grey surfaces instead of rules, rounded corners, no shadows, no motion.
+ * 103 — black, white, greys. Soft grey surfaces instead of rules, rounded corners, no shadows, no motion.
  * Radius follows the hierarchy: pills for tabs, toggles and the main button, 10px for rows and fields, 16px for panels.
  * Hierarchy comes from size and weight (a fixed type scale), never from capitals or colour.
  * One bold element per screen: today's session on Road to 60, the score on the end screen, the question in a round.
@@ -68,7 +68,7 @@ kbd {
   max-width: var(--w); margin: 0 auto; padding: 0 24px;
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
 }
-.brand { justify-self: start; font-weight: 700; font-size: var(--t-s); text-decoration: none; letter-spacing: -0.01em; }
+.brand { justify-self: start; font-weight: 700; font-size: var(--t-xl); line-height: 1; text-decoration: none; letter-spacing: -0.03em; }
 nav { display: flex; gap: 2px; padding: 4px; border-radius: var(--r-pill); background: var(--surface); }
 nav a {
   display: block; padding: 6px 14px; border-radius: var(--r-pill);

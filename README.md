@@ -1,6 +1,6 @@
-# Arithmetic Trainer
+# 103
 
-A Zetamac-style mental-math trainer for quant interviews. Black and white, keyboard first.
+**103 Mental Math**: a Zetamac-style mental-math trainer for quant interviews. Black and white, keyboard first.
 
 **▶ Practise now: [arithmetictrainer.vercel.app](https://arithmetictrainer.vercel.app/)**
 
@@ -20,7 +20,7 @@ A Zetamac-style mental-math trainer for quant interviews. Black and white, keybo
 
 ## Back up your data
 
-Settings (`S`) → **Export JSON** downloads `arithmetic-trainer-YYYY-MM-DD.json`.
+Settings (`S`) → **Export JSON** downloads `103-YYYY-MM-DD.json` (older backups named `arithmetic-trainer-…json` import the same way).
 **Copy report for Claude** (same section) copies a text report of your rules, days and weak facts to paste into a chat.
 **Import JSON** shows a preview ("142 rounds, 12 days") and lets you *Replace* everything
 or *Merge* (rounds are matched by id, so merging the same file twice adds nothing).
@@ -41,11 +41,11 @@ Every round is saved automatically on this computer, inside the browser's own st
 
 | # | Mode | What it's for |
 |---|------|---------------|
-| 1 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up. Once 150 of the 187 table facts have 2+ answers, row 1 becomes **Weighted tables** (the warm-up from then on) and plain Tables moves to a row on `T` under it. |
-| 2 | **Foundations** | ×÷ (2–12)×(2–100), 60 s. One-digit × two-digit and big divisions (637 ÷ 7). |
-| 3 | **Speed** | Zetamac Normal, 60 s. |
-| 4 | **Interview-ready** | Zetamac Normal, 120 s: the real benchmark (step 3). |
-| – | **Weighted tables** | From Review (`W`), and row 1 of Play after the switch above. Tables, but every × fact and every ÷ (each direction on its own) comes up in proportion to (your median time on it)², so slow facts appear far more often. Facts with no data count as slowest until seen. Counts as the daily warm-up. |
+| 1 | **Interview-ready** | Zetamac Normal, 120 s: the real benchmark (step 3). |
+| 2 | **Tables** | ×÷ (2–12)×(2–12), 60 s. Warm-up. Once 150 of the 187 table facts have 2+ answers, row 2 becomes **Weighted tables** (the warm-up from then on) and plain Tables moves to a row on `T` under it. |
+| 3 | **Foundations** | ×÷ (2–12)×(2–100), 60 s. One-digit × two-digit and big divisions (637 ÷ 7). |
+| 4 | **Speed** | Zetamac Normal, 60 s. |
+| – | **Weighted tables** | From Review (`W`), and row 2 of Play after the switch above. Tables, but every × fact and every ÷ (each direction on its own) comes up in proportion to (your median time on it)², so slow facts appear far more often. Facts with no data count as slowest until seen. Counts as the daily warm-up. |
 | 5 | **Weak-fact drill** | Shows your top 10 weak facts, then 60 s: ~70% from them (weighted by slowness, with their fact families), ~30% normal Foundations. |
 | 6 | **Interview sim** | Optiver-style: 80 questions in 8 min. Integers, decimals, fractions, percentages, estimates. Type and press Enter (`0.5`, `.5`, `1/2` all accepted); Tab skips; +1 / −1 (penalty set in Settings) / 0. |
 | 7 | **Custom** | Every Zetamac setting: operations, 4 ranges, 30/60/120/300 s. Save named presets. |
@@ -89,7 +89,7 @@ Every 7th session is a test day: the warm-up, then 4 benchmark rounds, no drills
 - **Categories.** Every + − × ÷ question gets one: + with or without carry, − with or without borrow, − from 100 or more, × and ÷ tables, and × and ÷ by each number 2–12 with the other factor over 12. Each has a target median (1.0 s for tables up to 2.4 s for big ×).
 - **Gap to 60.** Your median per category (from Foundations, Speed and Normal 120 s, last 3 days, more if a category has under 15 answers), how often Normal asks each one, the estimated score this gives, the lost time per family, accuracy, and the top 5 categories by lost time ("− with borrow: 3.1 s vs 1.9 s target → costs ~4 points").
 - **Families.** Lost time adds up in 3 families: + and − (with complements), × big (every × N) and ÷ big (every ÷ N). One × N is only about 2% of Normal's questions, so the families are compared, not single categories. For + and − the drill is its costliest category (cross-100, borrow or carry); for × big or ÷ big it is a × ÷ drill on that family's 3 worst multipliers (for example × ÷ by 12, 8 and 6).
-- **Accuracy.** Time lost to wrong attempts, per category so hard questions don't count twice: how often you get it wrong × how much longer those answers take than clean ones (only categories with 5 wrong and 5 clean answers). When it costs more than the top family, Focus A is the **accuracy round**: Normal 60 s where one wrong digit ends the question with no point. Accuracy leaves the pool after 3 sessions in a row under 8% wrong attempts and comes back above 12%.
+- **Accuracy.** Time lost to wrong attempts, per category so hard questions don't count twice: how often you get it wrong × how much longer those answers take than clean ones (only categories with 5 wrong and 5 clean answers). When it costs more than the top family, Focus A is the **accuracy round**: Normal 60 s where a wrong digit loses the point; the question stays until you fix it and type the answer, so you learn to correct yourself and fast typing never spills into the next question. Accuracy leaves the pool after 3 sessions in a row under 8% wrong attempts and comes back above 12%.
 - **Drills** (keys 1–6): Complements (37 → 100, and 237 → 240), Carry addition, Borrow subtraction, Cross-100 subtraction, × ÷ by one number, and the accuracy round. Complements are never picked for you any more: play them here. After 5 seconds on a question a grey line shows the method (never the answer); turn it off in Settings.
 - **Milestones** 40 · 45 · 50 · 55 · 60: reached when your benchmark average is there 2 sessions in a row. 60 counts at 3 in a row.
 - **Mastered.** A category at its target 3 sessions in a row stops being picked as a focus.
@@ -98,8 +98,9 @@ Every 7th session is a test day: the warm-up, then 4 benchmark rounds, no drills
 
 ## Screens
 
-The top bar has six tabs: **Road to 60**, **Play**, **Learn**, **Review**, **Finance** and **Stats**. **Settings** is the gear at the top right, next to the light/dark toggle (`S`).
-The site opens on **Road to 60**; with no rounds yet it explains how a day works instead of showing empty numbers.
+The top bar has six tabs: **Play**, **Road to 60**, **Learn**, **Review**, **Finance** and **Stats**. **Settings** is the gear at the top right, next to the light/dark toggle (`S`).
+The site opens on **Play**, with Interview-ready (Zetamac Normal, 120 s) as mode 1: a first visit is one real round, no plan
+needed. **Road to 60** is the second tab; with no rounds yet it explains how a day works instead of showing empty numbers.
 
 - **Play**: every mode, nothing recommended. A click starts a mode (Custom opens its form); or choose with `1–9`, `0` or `↑ ↓` and press `Enter`. **Matrices** is the last row (also key `X`).
 - **End of round**: a summary first: score, vs your average over your last 7 days played (and the step threshold),
@@ -112,7 +113,8 @@ The site opens on **Road to 60**; with no rounds yet it explains how a day works
 - **Learn** (`N`): one lesson per trick (the 14 behind Squares, % and fractions and Mixed tricks), in four groups, each with
   your status on it. A lesson (`#learn/x11`) gives the rule, why it works, 3 fresh worked examples and your numbers.
   `Enter` **practises**: 10 questions, no clock, nothing saved; a wrong answer or `Tab` shows the method under the box,
-  then you type the answer to go on, and the end shows where you needed it. `F` plays a **timed round**: 60 s of that
+  then you type the answer to go on, and the end shows where you needed it. On **Squares 11–30** you can set your own practice
+  range (From and To, 2 to 50, remembered); the timed round and Squares on Play stay 11² to 30², so your stats keep one meaning. `F` plays a **timed round**: 60 s of that
   trick, saved as mode `LEARN` and compared only with rounds of the same trick (shown as "Learn: × 11").
   **Fractions by heart** (`#learn/fractions`): all 49 fractions with a denominator up to 12, plus 1/16, 3/16, 1/20 and 1/25,
   both ways: 3/7 → type the decimal; 0.429… → type 3/7 in the two boxes. Repeating decimals take 3 places, rounded
@@ -150,8 +152,8 @@ The site opens on **Road to 60**; with no rounds yet it explains how a day works
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
 - **Stats** (`A`): one mode at a time. Pick the mode at the top (the modes you have played; your choice is remembered
-  in this browser). Under it: your last day's average, best round and trend (points per day played, needs 4 days over a
-  week); the progress chart (day average, best round, the 60 goal on Interview-ready); a **calendar** of the days you
+  in this browser). Under it: your last day's average, best round of all time (with its day) and trend (points per day played, needs 4 days over a
+  week); the progress chart (day average, best of the day, the 60 goal on Interview-ready); a **calendar** of the days you
   played that mode, with the chosen day beside it: its scores (× deletes a round), median time against your usual, wrong
   answers, your pace from the first to the last third of the clock, and the 5 slowest or wrong questions with how to think
   them. Then speed per operation (last day against the days before) and the round-of-the-day chart (warm-up and fatigue,
@@ -207,7 +209,7 @@ Clone the repo and open `index.html`: there is no build step and the app has no 
 
 - Progress lives in each person's browser (or their account), never in the repo. Each clone starts
   empty. Sign-in only works over http(s), not from `file://`.
-- Never commit an export: it is your personal history. `.gitignore` skips `arithmetic-trainer-*.json`.
+- Never commit an export: it is your personal history. `.gitignore` skips `103-*.json` and the older `arithmetic-trainer-*.json`.
 - Tests need Node 18+ and Google Chrome. `npm ci` installs the exact Playwright and Supabase client
   versions from `package-lock.json` (the app itself loads the client from jsDelivr with an integrity
   hash; tests serve the same file). `node_modules/` and `test-results/` are not committed.

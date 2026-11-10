@@ -5,7 +5,8 @@ the engineering context: what exists, why it is built this way, and the rules to
 
 ## What it is
 
-A Zetamac-style mental-math trainer for quant-interview prep. Live at
+**103** ("103 Mental Math" in the tab, a name, so capitalised despite the sentence-case rule): a Zetamac-style mental-math trainer for quant-interview prep. It was called
+Arithmetic Trainer until 11-10; storage keys, the repo and the URL keep the old name on purpose. Live at
 **https://arithmetictrainer.vercel.app/** (Vercel, auto-deploys `main`). Repo:
 `github.com/LouisMoncla/arithmetic.trainer`. Two people work on it (owner + a friend), both with
 Claude Code. MIT licensed.
@@ -29,7 +30,7 @@ website with optional accounts. Both ways of running it must keep working.
 - **Features, modes, keys and the saved-data format don't change casually.** Old exports must still
   import (`Storage.migrate`). If the schema must change, bump `SCHEMA` and migrate.
 - **Never seed or ship personal data.** New users start empty (the owner's old scores used to be
-  seeded; removed). Exports (`arithmetic-trainer-*.json`) are git-ignored.
+  seeded; removed). Exports (`103-*.json`, older `arithmetic-trainer-*.json`) are git-ignored.
 - Don't add dependencies to the app. `package.json` dev dependencies are for tests only.
 
 ## Layout
@@ -71,11 +72,11 @@ Script order matters: generator → tex → finance-core → finance-templates �
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
 ```js
-{ schemaVersion: 3, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, matrix, finance,
+{ schemaVersion: 3, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, learnSquares, matrix, finance,
                                                        coach: { hints, announced /*'mastered:<key>', 'mastered:accuracy:<day>', 'gate60'*/, multN } },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
              coach? /*{ block 1–6, test }: a Road to 60 session round*/, extra? /*true: finished after today's session was done*/,
-             questions: [{ op /*add sub mul div iv tr mx fin cp*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*accuracy round*/ }] }] }
+             questions: [{ op /*add sub mul div iv tr mx fin cp*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*old accuracy rounds*/, noPoint? /*accuracy round*/ }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
@@ -265,8 +266,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     - Accuracy (`CO.accuracy`): Σ freq × wrong rate × max(0, median wrong − median clean) per category with ≥ 5 wrong and ≥ 5 clean
       (window widened like medians); overall rate and medians only as text. Takes Focus A when larger than the top family and in the
       pool (`CO.accuracyState`: out after 3 complete sessions in a row under 8%, that day's own Normal-format answers; back above 12%).
-      Accuracy round = R60 drill `acc`, P3 generator, `opts.strict` in `Game.startZetamac`: the first digit that is not a prefix of
-      the answer saves `{ wrongAttempts: 1, unanswered: true, missed: true }` and moves on. Key 6 on Road to 60.
+      Accuracy round = R60 drill `acc`, P3 generator, `opts.strict` in `Game.startZetamac`. Key 6 on Road to 60. (Changed in item 22.)
     - Trends (`S.trend(sessions, threshold, latest)`): regressed on the session number (the chart's x), not the point index;
       only sessions within the last 14 of the latest overall, needing 4 spanning 7 days (else "Not enough data yet"); per session.
       Projection only then: a range from slope ± 1 SE (`S.fit`), 'plateau' when slope ≤ 0.2, slope − SE ≤ 0 or > 90 sessions.
@@ -277,7 +277,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       with `C.line` (`xDomain`, `xTicks` 1 3 6 9 12, `xFmt`, `tips`, series `marks`), no value labels, table twin. Mode panels show
       "Best (all time)". `tests/e2e/charts.spec.js` checks at 1366 and 390 that no two labels in any chart intersect.
 
-20. Road to 60 is the first page; Play is only the modes (owner's call, 11-09). Nav order: Road to 60, Play, Learn, Review,
+20. Road to 60 is the first page (reversed in item 23); Play is only the modes (owner's call, 11-09). Nav order: Road to 60, Play, Learn, Review,
     Finance, Stats, Settings; Matrices left the top bar (key X, and the last row of Play, `play-matrices`). The bare URL and unknown
     hashes route to `road`. With no rounds, Road to 60 shows "How it works" (`road-intro`) instead of Gap to 60 and Milestones.
     Play: `pageHead` + the mode groups (`play-modes`), no hero, no recommendation tag, no step block (steps are still computed and
@@ -289,7 +289,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
 
 21. Restyle (11-09): soft grey panels and rounded corners by hierarchy (tokens in docs/design.md), numbers in the text face.
     Stats reworked (it was 3 collapsible sections repeating every mode, ~11,000 px with 2 weeks of data): one mode at a
-    time (`renderStats`, `.seg` of `playedModes`, remembered in localStorage `arithmeticTrainer.statsMode`), 3 tiles, the
+    time (`renderStats`, `.seg` of `playedModes`, remembered in localStorage `arithmeticTrainer.statsMode`), 3 tiles (Best (all time) with its day; the chart's dots are Best of the day), the
     progress chart (goal line only on NORMAL120), a month calendar (`calendar`) beside the day panel (`dayPanel`:
     `S.sessionReport` on that mode's rounds only, score chips with × delete, pace sentence, top 5 mistakes), speed per
     operation (`S.timeByOp` of the mode: last day vs before), round of the day (`roundChart`, 3+ points), and the zetamac
@@ -297,3 +297,27 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     screen A, E, ← →): a day link keeps the current or remembered mode if it was played that day, else the day's last
     round's mode (`pickMode`). `#stats/<MODE>[/<date>]` also works. G and L keys are gone. "Copy report for Claude" moved
     to Settings › Backup. Today/Progress/Log panes, `PANES`, `paneLine` and statsOpen are gone.
+
+22. Accuracy round and the Squares practice range (owner's report, 11-10):
+    - Accuracy round: the first wrong digit used to end the question (`{ unanswered, missed }`), so fast typing spilled the
+      next digits into the next question (a second miss) and the end screen's first-try accuracy, which only counts answered
+      questions, read 100%. Now a digit that is not a prefix of the answer loses the point (`st.noPoint`) and the question stays
+      until the answer is typed: saved answered with `noPoint: true`, no score; each slip from a right prefix to a wrong one is
+      one wrong attempt (`strictCheck` in game.js). Old `missed` questions still show "Missed (wrong digit)".
+    - Squares practice range (Learn, `#learn/sqmem` only): From and To (2 to 50, From < To, `G.validSquares`) above the rule,
+      remembered in `settings.learnSquares` { from, to } (saved on each valid change and when practice starts; read with
+      defaults by `practiceRange`, no migration). Practice passes `sq: [from, to]` in its settings and `trickQuestion(type, rng,
+      settings)` reads it; the worked examples use it too. Enter in a box practises (form submit). The timed Learn round, Squares
+      on Play and every saved round stay 11–30, so Stats, Review (`tr-sqmem`) and the report keep one meaning. A range form on
+      Play's Squares (each choice its own mode) was built first and dropped on the owner's call: too much for the stats.
+
+23. Play first, and the name 103 (owner's call, 11-10): a new user's first and only game should not need the coach.
+    - The bare URL, unknown hashes and the brand go to `#play`; nav order Play, Road to 60, Learn, Review, Finance, Stats;
+      help dialog "P C N R Q A S". Road to 60 keeps its "How it works" intro for a user with no rounds.
+    - Play's `MODES` start with NORMAL120 (key 1, selected on first open), then Tables 2, Foundations 3, Speed 4; the rest
+      unchanged. `modesFor` swaps the TABLES entry for Weighted tables by id (row 2), plain Tables stays on `T`.
+    - The top-bar brand `103` is 32px bold (`--t-xl`, weight 700), much bigger than the tabs.
+    - Name: brand `103`, `<title>` and og:title "103 Mental Math", privacy page, report heading `# 103 report`, import error,
+      docs headings. Export downloads `103-YYYY-MM-DD.json` (`.gitignore` has both patterns). Kept on purpose: localStorage
+      keys `arithmeticTrainer.*` (renaming loses everyone's data), `arithmetictrainer.vercel.app` (Vercel project and
+      Supabase redirects; to move later), package.json and the repo name.

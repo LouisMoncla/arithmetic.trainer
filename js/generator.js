@@ -65,7 +65,7 @@
   }
 
   function generate(settings, rng) {
-    if (settings.types) return trickQuestion(settings.types[randInt(rng, 0, settings.types.length - 1)], rng);
+    if (settings.types) return trickQuestion(settings.types[randInt(rng, 0, settings.types.length - 1)], rng, settings);
     var op = settings.ops[randInt(rng, 0, settings.ops.length - 1)];
     var r = (op === 'add' || op === 'sub') ? settings.ranges.add : settings.ranges.mul;
     return makeQuestion(op, randInt(rng, r.a[0], r.a[1]), randInt(rng, r.b[0], r.b[1]));
@@ -307,7 +307,7 @@
     borrow: { label: 'Borrow subtraction', desc: 'Two-digit subtraction where the units always borrow' },
     cross:  { label: 'Cross-100 subtraction', desc: 'Subtraction from 100 or more' },
     mult:   { label: 'Multiplier drill', desc: '× and ÷ by one number, the other 2–100' },
-    acc:    { label: 'Accuracy round', desc: 'Normal 60 s; one wrong digit ends the question' }
+    acc:    { label: 'Accuracy round', desc: 'Normal 60 s; a wrong digit loses the point, fix it to go on' }
   };
   // n: one multiplier (7) or several ([12, 8, 6]: "× ÷ by 12, 8 and 6").
   function drillLabel(drill, n) {
@@ -478,7 +478,7 @@
 
   /*
    * op "tr", with a `type` naming the trick it trains (fact key "tr-<type>"):
-   *   sqmem    n², n 11–30, to know by heart      sq5      n5², 15–95
+   *   sqmem    n², n 11–30 (Learn practice: sq), by heart  sq5  n5², 15–95
    *   sq50     (50 ± d)², d 1–9                    sq100    (100 ± d)², d 1–12
    *   diff     (m − d)(m + d), m a multiple of 10  x11      11 × n, n 12–99
    *   x25      25 × n, n 12–99                     near100  a × b, both 88–99
@@ -512,6 +512,15 @@
     fd:      { name: 'Fraction to decimal' },
     df:      { name: 'Decimal to fraction' }
   };
+
+  /*
+   * The by-heart squares are 11–30 everywhere that is saved (Squares, the Learn timed round). Only Learn practice, which is
+   * never saved, takes your own range: settings.sq = [from, to], From < To, both 2 to 50 (validSquares).
+   */
+  var SQ_MIN = 2, SQ_MAX = 50, SQ_DEFAULT_RANGE = [11, 30];
+  function validSquares(o) {
+    return Number.isInteger(o.from) && Number.isInteger(o.to) && o.from >= SQ_MIN && o.to <= SQ_MAX && o.from < o.to;
+  }
 
   // Fractions to know by heart: every n/d in lowest terms with d 2–12, plus a few common larger ones.
   var HEART = (function () {
@@ -571,10 +580,11 @@
     return [n, d];
   }
 
-  function trickQuestion(type, rng) {
-    var d = randInt(rng, 1, 9), n, ab;
+  // opts: the round's settings; Learn practice of sqmem may carry sq = [from, to], your own range.
+  function trickQuestion(type, rng, opts) {
+    var d = randInt(rng, 1, 9), n, ab, sq = (opts && opts.sq) || SQ_DEFAULT_RANGE;
     switch (type) {
-      case 'sqmem': return makeTrick(type, randInt(rng, 11, 30));
+      case 'sqmem': return makeTrick(type, randInt(rng, sq[0], sq[1]));
       case 'sq5': return makeTrick(type, 10 * randInt(rng, 1, 9) + 5);
       case 'sq50': return makeTrick(type, rng() < 0.5 ? 50 - d : 50 + d);
       case 'sq100': d = randInt(rng, 1, 12); return makeTrick(type, rng() < 0.5 ? 100 - d : 100 + d);
@@ -749,7 +759,7 @@
     makeMixedGenerator: makeMixedGenerator, advice: advice,
     interviewQuestion: interviewQuestion, makeInterviewGenerator: makeInterviewGenerator,
     parseAnswer: parseAnswer, checkInterview: checkInterview, hasCarry: hasCarry, hasBorrow: hasBorrow,
-    makeTrick: makeTrick, trickQuestion: trickQuestion, trickAdvice: trickAdvice, trickNames: trickNames,
+    makeTrick: makeTrick, trickQuestion: trickQuestion, validSquares: validSquares, SQ_MIN: SQ_MIN, SQ_MAX: SQ_MAX, trickAdvice: trickAdvice, trickNames: trickNames,
     makeMatrix: makeMatrix, matrixRange: matrixRange, matrixQuestion: matrixQuestion, makeMatrixGenerator: makeMatrixGenerator,
     matProduct: matProduct, matrixAdvice: matrixAdvice,
     classify: classify, DRILLS: DRILLS, drillLabel: drillLabel, drillQuestion: drillQuestion, makeDrillGenerator: makeDrillGenerator, hint: hint

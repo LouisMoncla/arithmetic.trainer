@@ -106,7 +106,7 @@
     var rounds = data.rounds, L = [];
     var today = S.dayKey(new Date(nowMs).toISOString());
     var ctx = { rounds: rounds, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
-    L.push('# Arithmetic Trainer report (' + today + ')');
+    L.push('# 103 report (' + today + ')');
     [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rLatest, rFatigue].forEach(function (fn) {
       L.push('');
       fn(ctx, L);

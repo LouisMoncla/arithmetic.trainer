@@ -296,3 +296,25 @@ test('Matrix rounds count per variant and stay out of the weak-fact drill', () =
   assert.strictEqual(P.modeLabel('MATRIX-m12_m2-60'), 'Matrices, −12 to −2, 60 s');
   assert.deepStrictEqual(S.drillTargets([{ key: 'mx', cat: 'mx', status: 'weak', slowness: 3 }]), []);
 });
+
+test('Squares 11–30: Learn practice takes your own range (2 to 50); without one it is 11–30', () => {
+  const rng = G.mulberry32(7), seen = new Set();
+  for (let i = 0; i < 400; i++) {
+    const q = G.trickQuestion('sqmem', rng, { sq: [31, 40] });
+    assert.ok(q.type === 'sqmem' && q.a >= 31 && q.a <= 40 && q.answer === q.a * q.a, q.shown);
+    seen.add(q.a);
+  }
+  assert.strictEqual(seen.size, 10);   // every n in the range comes up
+  // the practice settings go through the normal generator
+  const gen = G.makeGenerator({ types: ['sqmem'], sq: [2, 5] }, G.mulberry32(1));
+  for (let i = 0; i < 50; i++) { const q = gen.next(); assert.ok(q.a >= 2 && q.a <= 5); }
+  // no range (Squares on Play, the timed Learn round, older rounds): 11–30 as before
+  for (let i = 0; i < 200; i++) { const q = G.trickQuestion('sqmem', G.mulberry32(i)); assert.ok(q.a >= 11 && q.a <= 30); }
+  const play = G.makeGenerator(G.modeSettings('SQUARES'), G.mulberry32(3));
+  for (let i = 0; i < 300; i++) { const q = play.next(); if (q.type === 'sqmem') assert.ok(q.a >= 11 && q.a <= 30); }
+
+  assert.ok(G.validSquares({ from: 2, to: 50 }) && G.validSquares({ from: 11, to: 12 }));
+  for (const bad of [{ from: 1, to: 20 }, { from: 11, to: 51 }, { from: 20, to: 20 }, { from: 30, to: 11 }, { from: NaN, to: 30 }, { from: 11.5, to: 30 }]) {
+    assert.ok(!G.validSquares(bad), JSON.stringify(bad));
+  }
+});

@@ -4,6 +4,8 @@
  *   startZetamac:  answers auto-accept the moment the typed value is correct. A fraction answer
  *                  (q.frac) shows two boxes: the numerator first, then the denominator, each auto-accepted.
  *                  Trick modes: Tab skips a question (stored unanswered + skipped, no point).
+ *                  Accuracy round (opts.strict): a digit that cannot lead to the answer loses the point; the
+ *                  question stays until it is answered right (stored with noPoint, no score).
  *   startPractice: the Learn tab. The same input, but no clock and a fixed number of questions.
  *                  A wrong full-length answer, or Tab, shows the method under the box; typing the
  *                  right answer then moves on. Nothing is saved (ui.js decides), so timing stats stay clean.
@@ -190,6 +192,7 @@
     st.qStart = now();
     st.wrongSeen = {};
     st.wrong = 0;
+    st.noPoint = false; st.off = false;
     qEl.textContent = st.q.shown;
     inEl.value = ''; denEl.value = '';
     var fr = !!st.q.frac;
@@ -249,8 +252,9 @@
     var extra = { timeMs: Math.round(now() - st.qStart), wrongAttempts: st.wrong };
     if (st.kind === 'practice') extra.method = st.method;
     if (st.opts.hint && st.method) extra.hinted = true;   // a Road to 60 drill showed the method
+    if (st.noPoint) extra.noPoint = true;                 // accuracy round: answered, but after a wrong digit
     st.questions.push(record(st.q, extra));
-    st.score++;
+    if (!st.noPoint) st.score++;
     if (st.kind === 'practice') { if (st.questions.length >= st.opts.count) finish(false); else nextQuestion(); return; }
     scoreEl.textContent = 'Score: ' + st.score;
     nextQuestion();
@@ -262,19 +266,22 @@
     nextQuestion();
   }
 
-  // Accuracy round (opts.strict): the first digit that cannot lead to the answer ends the question, no point.
-  function missZetamac() {
-    st.questions.push(record(st.q, { timeMs: Math.round(now() - st.qStart), wrongAttempts: 1, unanswered: true, missed: true }));
-    nextQuestion();
+  // Accuracy round (opts.strict): a digit that cannot lead to the answer loses the point. The question stays: fix it and
+  // type the answer to go on. Each slip off the answer (from a right start to a wrong one) is one wrong attempt.
+  // Older rounds have { unanswered, missed } questions, from when the first wrong digit ended the question.
+  function strictCheck(typed, ans) {
+    var off = ans.indexOf(typed) !== 0;
+    if (off && !st.off) { st.wrong++; st.noPoint = true; }
+    st.off = off;
   }
 
   function onZetamacInput() {
     if (!st.running) { inEl.value = ''; return; }
     var fr = st.q.frac, ans = fr ? String(fr[0]) : st.q.answerText || String(st.q.answer);
     var typed = cleanInput(inEl, !fr && ans.indexOf('.') >= 0);
+    if (st.opts.strict && !fr) strictCheck(typed, ans);
     if (!typed) return;
-    if (st.opts.strict && !fr && ans.indexOf(typed) !== 0) { missZetamac(); return; }
-    if (typed !== ans && typed !== st.q.answerAlt) { countWrong(typed, ans); return; }   // answerAlt: 2/3 as 0.666
+    if (typed !== ans && typed !== st.q.answerAlt) { if (!st.opts.strict) countWrong(typed, ans); return; }   // answerAlt: 2/3 as 0.666
     if (!fr) { accept(); return; }
     // Right numerator: it stays, and the denominator box takes over.
     inEl.readOnly = true; st.part = 'den';

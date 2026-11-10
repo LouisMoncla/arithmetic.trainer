@@ -32,6 +32,7 @@
       lastExport: null,     // ISO timestamp
       announced: [],        // step ids whose completion message was shown
       custom: null,         // last-used custom settings
+      learnSquares: null,   // Learn, Squares 11–30: the practice range { from, to } (2–50; practice is never saved)
       matrix: null,         // last-used Matrices options { set: 'N'|'Z', max: 9|12|'custom', customLo, customHi, duration: 60|120 }
       finance: null,        // last-used Finance options { mode, fams, cat, diff, duration, answer, weak }
       coach: defaultCoach() // Road to 60
@@ -97,7 +98,7 @@
   function parseBackup(text) {
     var obj;
     try { obj = JSON.parse(text); } catch (e) { throw new Error('File is not valid JSON.'); }
-    if (!obj || !Array.isArray(obj.rounds)) throw new Error('File has no rounds; is it an Arithmetic Trainer export?');
+    if (!obj || !Array.isArray(obj.rounds)) throw new Error('File has no rounds; is it a 103 export?');
     return migrate(obj);
   }
 
