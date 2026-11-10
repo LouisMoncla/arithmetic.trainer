@@ -23,6 +23,52 @@ test('N opens Learn: every trick has a lesson, grouped, and a lesson has its rul
   await expect(page).toHaveURL(/#learn$/);
 });
 
+test('Squares 11–30: practice takes your own range (remembered, never saved); the timed round stays 11–30', async ({ page }) => {
+  await openApp(page, 'learn/sqmem');
+  const from = page.getByTestId('learn-sq-from'), to = page.getByTestId('learn-sq-to');
+  await expect(from).toHaveValue('11');
+  await expect(to).toHaveValue('30');
+  const q = page.getByTestId('game-question'), timer = page.getByTestId('game-timer');
+  const n = async () => +(/^(\d+)²$/.exec((await q.textContent()).trim()) || [])[1];
+
+  // a range that cannot work: the error, and Practise does not start
+  await to.fill('51');
+  await to.press('Tab');
+  await expect(page.locator('#learn-sq-err')).toHaveText('Choose From below To, both between 2 and 50.');
+  await page.getByTestId('learn-practise-button').click();
+  await expect(q).toBeHidden();
+
+  // 31 to 35, started with Enter in the box
+  await from.fill('31');
+  await to.fill('35');
+  await to.press('Enter');
+  await expect(timer).toHaveText('1 / 10');
+  for (let i = 1; i <= 10; i++) {
+    const k = await n();
+    expect(k >= 31 && k <= 35, 'asked ' + k + '²').toBe(true);
+    await answerCurrent(page);
+  }
+  await expect(page.getByTestId('end-score')).toHaveText('10');
+  await expect(page.locator('.end-head')).toContainText('Squares 31–35');
+  expect(await rounds(page)).toHaveLength(0);
+
+  // remembered on the lesson page; the timed round still asks 11² to 30² and is saved without a range
+  await page.goto(page.url().replace(/#.*$/, '#learn'));
+  await page.getByTestId('learn-lesson-sqmem').click();
+  await expect(page.getByTestId('learn-sq-from')).toHaveValue('31');
+  await page.keyboard.press('f');
+  await tick(page, 3100);
+  for (let i = 0; i < 5; i++) {
+    const k = await n();
+    expect(k >= 11 && k <= 30, 'timed round asked ' + k + '²').toBe(true);
+    await answerCurrent(page);
+  }
+  await tick(page, 61000);
+  const saved = (await rounds(page))[0];
+  expect(saved.mode).toBe('LEARN');
+  expect(saved.settings.sq).toBeUndefined();
+});
+
 test('practice: no clock, the method shows after a miss or Tab, and nothing is saved', async ({ page }) => {
   await openApp(page, 'learn/x11');
   await page.keyboard.press('Enter');

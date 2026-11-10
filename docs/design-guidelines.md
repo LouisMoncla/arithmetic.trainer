@@ -1,4 +1,4 @@
-# Arithmetic Trainer Guidelines — Accessibility & Do's/Don'ts
+# 103 Guidelines — Accessibility & Do's/Don'ts
 
 > See [design.md](design.md) for token values. See [design-components.md](design-components.md) for component specs.
 

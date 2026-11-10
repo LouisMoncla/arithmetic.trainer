@@ -5,7 +5,7 @@ const { openApp, tick, solve, startSelected, answerBox, answerCurrent, rounds } 
 test.describe('Zetamac round', () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page);
-    await page.keyboard.press('1'); // Tables
+    await page.keyboard.press('2'); // Tables
     await startSelected(page);
   });
 

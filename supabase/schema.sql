@@ -1,4 +1,4 @@
--- Arithmetic Trainer: tables for optional account sync.
+-- 103: tables for optional account sync.
 -- Run once in the Supabase dashboard: SQL Editor → New query → paste → Run.
 -- Row-level security makes every row visible and writable only by the account that owns it.
 

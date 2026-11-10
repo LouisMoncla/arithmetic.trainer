@@ -64,7 +64,11 @@ for (const [w, h] of [[1366, 900], [390, 844]]) {
     await table.locator('summary').click();
     await expect(table.locator('tr').nth(12)).toContainText('12+');
     await expect(table.locator('tr').first()).toHaveText(/Round of the dayAverageDaysRounds/);
-    await expect(page.getByTestId('stat-stats-best')).toContainText('All time');
+    // two bests, never confused: the tile is the all-time best round; the chart's dots and table column are each day's best
+    await expect(page.getByTestId('stat-stats-best')).toContainText('Best (all time)');
+    const progressChart = page.getByTestId('stats-chart');
+    await expect(progressChart).toContainText('Best of the day');
+    await expect(progressChart.locator('tr').first()).toHaveText(/DayAverageBest of the dayRounds/);
 
     let o = await overlaps(page);
     expect(o.bad).toEqual([]);

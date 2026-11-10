@@ -10,6 +10,7 @@ playwright/.cache/
 
 # Personal data exports: your training history, never commit
 arithmetic-trainer-*.json
+103-*.json
 
 # OS and editor files
 Thumbs.db
