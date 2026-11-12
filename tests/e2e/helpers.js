@@ -45,6 +45,9 @@ function solve(shown) {
 
 // Advance time, firing every timer due on the way (the game ticks every 50 ms).
 const tick = (page, ms) => page.clock.runFor(ms);
+// Let a round run out: one jump to the end of the clock (due timers fire once), instead of every 50 ms tick on the
+// way. Much faster, so long rounds no longer time out when the whole suite runs in parallel.
+const endRound = (page, ms) => page.clock.fastForward(ms);
 
 // Start whatever the home screen has selected, and skip the 3-2-1 countdown.
 async function startSelected(page) {
@@ -83,4 +86,4 @@ async function answerCurrent(page) {
 const rounds = page => page.evaluate(() => window.AT.data.rounds);
 const dayKey = d => { d = new Date(d); if (d.getHours() < 5) d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };   // a day runs 05:00 to 05:00, like S.dayKey
 
-module.exports = { APP_URL, NOW, openApp, tick, solve, solveFraction, startSelected, answerBox, answerCurrent, rounds, dayKey };
+module.exports = { APP_URL, NOW, openApp, tick, solve, solveFraction, startSelected, answerBox, answerCurrent, rounds, dayKey, endRound };

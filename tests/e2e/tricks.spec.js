@@ -1,6 +1,6 @@
 // Trick modes: Squares, % and fractions (decimal and fraction answers) and Mixed tricks, outside the steps.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, startSelected, answerBox, answerCurrent, solveFraction, rounds } = require('./helpers');
+const { openApp, tick, startSelected, answerBox, answerCurrent, solveFraction, rounds, endRound } = require('./helpers');
 
 test('the Tricks group is modes 8, 9 and 0', async ({ page }) => {
   await openApp(page);
@@ -21,7 +21,7 @@ test('a Squares round saves trick questions, and D drills its slow ones', async 
   await answerCurrent(page);
   await tick(page, 6000);            // slow on the second one
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('2');
 
   const saved = (await rounds(page))[0];
@@ -64,7 +64,7 @@ test('trick rounds stay out of the steps', async ({ page }) => {
   await page.keyboard.press('0');
   await startSelected(page);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await tick(page, 500);
   // The round is saved, and the step (Foundations) has no qualifying day from it.
@@ -127,7 +127,7 @@ test('Tab skips a trick question: no point, saved as skipped, listed on the end 
   await expect(page.getByTestId('game-score')).toHaveText('Score: 0');
   await expect(answerBox(page)).toBeFocused();
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
 
   const saved = (await rounds(page))[0];

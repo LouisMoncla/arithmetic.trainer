@@ -44,6 +44,9 @@ js/finance-core.js      Finance engine: constants, answer parser, tolerances, re
 js/finance-templates.js the procedural Finance templates (arith, quant, fin), each with an independent test reference
 js/finance-bank.js      the curated multiple-choice concept questions (right option first; shuffled by seed)
 js/tex.js               LaTeX subset → MathML (screens) or plain text (storage, alttext); rich() for prose with $…$ maths
+js/taylor.js            Taylor lesson logic: the library (exact rational coefficients), rendering, 6-choice questions and their
+                        wrong choices, estimation, settings, picking, mastery; pure, node-testable
+js/taylor-ui.js         Learn › Taylor expansions (#learn/taylor) on AT.UI.kit: lesson page, Learn and Sprint sessions
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/coach.js       Road to 60: category stats (windowed medians), Normal frequencies, estimated score + lost time,
                   today's session plan, focus picks, mastery, milestones/gate, time of day; snapshot (one
@@ -69,7 +72,7 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → tex → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → app.
+Script order matters: generator → tex → taylor → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
@@ -78,7 +81,7 @@ Script order matters: generator → tex → finance-core → finance-templates �
                                                        coach: { hints, announced /*'mastered:<key>', 'mastered:accuracy:<day>', 'gate60'*/, multN } },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
              coach? /*{ block 1–6, test }: a Road to 60 session round*/, extra? /*true: finished after today's session was done*/,
-             questions: [{ op /*add sub mul div iv tr mx fin cp*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*old accuracy rounds*/, noPoint? /*accuracy round*/ }] }] }
+             questions: [{ op /*add sub mul div iv tr mx fin cp ty*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*old accuracy rounds*/, noPoint? /*accuracy round*/ }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
@@ -365,3 +368,33 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       categoryStats before today, once per render (Road to 60 and the overview).
     - Departures from the spec, on the owner's simplicity rule: English labels (owner's choice), numbers in the text face
       (not mono), coach rounds left out of every mode's round-of-the-day.
+
+27. Learn › Taylor expansions (owner's spec, 11-12), `js/taylor.js` + `js/taylor-ui.js`, route `#learn/taylor`.
+    - Library `T.LIB`: 59 expansions in 4 tiers (24 basics at 0, 14 composed and products, 9 at a ≠ 0, 12 asymptotics and
+      quant). Each is exact rational terms `{ k, c: [num, den], s? }` (s = a symbol from `SYM`: π, √3, ln 2, ln a, α(α − 1)…,
+      n(n − 1), D, C, 1/√(2π)) in a variable (`x`, `h = x − a` shown as (x − a)ᵏ, 1/n, r, σ, Δy, Sσ√T), with an optional
+      prefix (e(…), Stirling's) or head (ln n + γ). `rhs` renders TeX (tex.js, `\operatorname` names, FR or EN) and plain
+      text from the same terms. `tests/taylor.test.js` checks every expansion at every order numerically against functions
+      written in the test: the error ratio at x and x/2 must be ≥ 0.75 × 2ⁿ⁺¹ (o(xⁿ); a zero next coefficient only raises
+      it). The owner's coefficients all passed unchanged.
+    - Questions (`T.question`): f2dl (6 right-hand sides), dl2f (6 function names; formula-only tier 4 items `noReverse`),
+      est (tier 1 with `fn`: 6 values to 4 decimals). Wrong choices from the coefficients (`candidates`): sign flip of a
+      non-leading term, k! ↔ k, a `WRONG` coefficient or ×2 / ÷2, a dropped term, a sibling (`SIBLINGS`) in this variable,
+      the remainder one lower, or one higher only when that is false, expanded in x instead of x − a, f(a) left out;
+      deduplicated on the plain text; last resort a scaled coefficient. Tier 1 asks orders `from`–`to` within its stored
+      terms; tiers 2–4 their own order.
+    - Settings `settings.taylor` (`T.settings` fills defaults: tiers [1], types f2dl dl2f, orders 2–5, FR, penalty 1).
+      Learn: 20 items from `T.pickSet` (unseen in that type 6, weak 4, improving 2, ok 1, mastered 0.3), H shows the method
+      (`hinted`). Sprint 60/120 s on the page (interval + Date.now), Tab skips, no feedback, +1 / −penalty.
+    - Saved as mode LEARN, `settings.lesson` 'taylor-learn' | 'taylor-sprint-60' | 'taylor-sprint-120' (so `S.effMode`
+      gives LEARN-taylor-…, in `logModes()` and Stats › Other › Learn); questions `{ op: 'ty', key, type, order, correct,
+      chosenIndex, timeMs, hinted, shown, answer, given, skipped? }`. Fact key `ty-<key>` (`G.factKeys`); a hinted answer
+      counts as wrong in `factStats`; `ty` is untimed (no stall rule) and out of the drills. Mastery (`T.mastery`): the last
+      3 days with answers on that expansion, Learn and Sprint together (owner's addition), all right (a skip is not), no hint,
+      median under 6 s. Report: `## Taylor expansions (Learn)`.
+    - Relearning loop (owner's addition, `T.relearn`): in Learn, a wrong or hinted answer comes back once, 3–5 questions
+      later in place of the item there (the set stays at 20; the last slot when nearer), as another allowed type, else another
+      order, else the same; comebacks carry `again: true` (shown "Again", saved on the question) and never come back.
+    - Departures from the spec, on the owner's simplicity rule: tex.js instead of vendored KaTeX (no new dependency), English
+      copy, the o(xⁿ) ratio test (≥ rather than ≈ 2ⁿ⁺¹), tiers 2–4 at their own order, estimation on tier 1 without
+      parameters, no "extra term" wrong choice (a higher term under o(xⁿ) is still true), rounds saved as LEARN.

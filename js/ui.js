@@ -45,9 +45,10 @@
   // LOG_MODES, then one entry per lesson played as a Learn timed round ("LEARN-x11", "LEARN-fractions"),
   function logModes() {
     var played = {};
-    var mx = {}, fin = {}, r60 = {};   // one per matrix variant ("MATRIX-m9_9-60"), Finance kind ("FINANCE-sprint-120") and Road to 60 drill ("R60-borrow")
+    var mx = {}, fin = {}, r60 = {}, ty = {};   // one per matrix variant ("MATRIX-m9_9-60"), Finance kind ("FINANCE-sprint-120") and Road to 60 drill ("R60-borrow")
     data.rounds.forEach(function (r) {
       if (r.mode === 'LEARN') played[S.effMode(r)] = 1;
+      if (r.mode === 'LEARN' && /^taylor-/.test(r.settings.lesson || '')) ty[S.effMode(r)] = 1;
       if (r.mode === 'MATRIX') mx[S.effMode(r)] = 1;
       if (r.mode === 'FINANCE') fin[S.effMode(r)] = 1;
       if (r.mode === 'R60') r60[S.effMode(r)] = 1;
@@ -55,7 +56,7 @@
     var drillAt = function (m) { var i = ROAD_DRILLS.indexOf(m.split('-')[1]); return i < 0 ? 99 : i; };
     var drills = Object.keys(r60).sort(function (a, b) { return drillAt(a) - drillAt(b) || (a < b ? -1 : 1); });
     return LOG_MODES.concat(Object.keys(G.trickNames()).concat(['fractions']).map(function (t) { return 'LEARN-' + t; }).filter(function (m) { return played[m]; }))
-      .concat(Object.keys(mx).sort()).concat(Object.keys(fin).sort()).concat(drills);
+      .concat(Object.keys(ty).sort()).concat(Object.keys(mx).sort()).concat(Object.keys(fin).sort()).concat(drills);
   }
   var THRESHOLDS = { P2: 18, P3: 25, NORMAL120: 60 };
   var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷' };
@@ -1052,6 +1053,7 @@
     };
   }
   function renderLearn() {
+    if (ui.lesson === 'taylor' && AT.TaylorUI) return AT.TaylorUI.render();
     if (ui.lesson === 'fractions') return renderFractions();
     if (ui.lesson && AT.Lessons.LESSONS[ui.lesson]) return renderLesson(ui.lesson);
     var names = G.trickNames(), tf = trickFacts();
@@ -1069,6 +1071,12 @@
     h.push(section(HT.name, '<ol class="modes"><li><a class="mode lesson" href="#learn/fractions" data-testid="learn-lesson-fractions">' +
       '<span class="nm">All ' + hc.length + ' pairs</span><span class="ds num">' + esc(HT.short) + '</span>' +
       '<span class="tag">' + (hSeen ? hSeen + ' of ' + hc.length + ' seen' + (hSlow ? ', ' + hSlow + ' slow' : '') : 'Not started') + '</span></a></li></ol>'));
+    // Calculus: the Taylor expansions lesson (taylor.js, taylor-ui.js)
+    var TY = AT.Taylor, tyStates = TY.states(data.rounds, S.factStats(data.rounds), S.dayKey), tyN = TY.LIB.length;
+    var tyM = TY.LIB.filter(function (e) { return tyStates[e.key] === 'mastered'; }).length, tySeen = TY.LIB.filter(function (e) { return tyStates[e.key] !== 'unseen'; }).length;
+    h.push(section('Calculus', '<ol class="modes"><li><a class="mode lesson" href="#learn/taylor" data-testid="learn-lesson-taylor">' +
+      '<span class="nm">Taylor expansions</span><span class="ds">sin x = x − x³/6 + o(x⁴): ' + tyN + ' expansions, 6 choices each</span>' +
+      '<span class="tag">' + (tySeen ? tyM + ' of ' + tyN + ' mastered' : 'Not started') + '</span></a></li></ol>'));
     h.push(keys([['↑ ↓', 'move'], ['Enter', 'open a lesson'], ['N', 'back here from a lesson']]));
     main.innerHTML = h.join('');
     screenKeys = function (e) {

@@ -129,8 +129,12 @@
    *   interview:                  q.keys (e.g. "iv-frac")
    *   tricks:                     "tr-<type>" (e.g. "tr-sq5")
    */
+  // The Taylor lesson (taylor.js) labels and explains its own facts; loaded later in the page, required lazily in Node.
+  function taylor() { return AT.Taylor || (typeof module !== 'undefined' ? require('./taylor.js') : null); }
+
   function factKeys(q) {
     if (q.keys) return q.keys;
+    if (q.op === 'ty') return ['ty-' + q.key];   // one fact per expansion, whatever the question type
     if (q.op === 'mx') return ['mx'];
     if (q.op === 'fin') return [];   // Finance questions have their own stats (S.financeStats), not fact keys
     if (q.op === 'cp') return [q.type === 'cten' ? 'comp-ten' : 'comp-100'];   // Road to 60 complements
@@ -196,6 +200,7 @@
   // Human-readable label for a fact key.
   function keyLabel(key) {
     var m;
+    if ((m = /^ty-(.+)$/.exec(key))) return taylor().label(m[1]);
     // The pair itself: 2x12, 3x8 and 4x6 are separate facts, so they need separate labels.
     if ((m = /^(\d+)x(\d+)$/.exec(key))) return m[1] + '×' + m[2] + ' = ' + m[1] * m[2];
     if ((m = /^(\d+)x(\d+)s$/.exec(key))) return m[1] + ' × ' + m[2] + 's';
@@ -247,6 +252,7 @@
 
   function advice(q) {
     var s, l, tens, ones;
+    if (q.op === 'ty') return taylor().advice(q);
     if (q.op === 'mul' || q.op === 'div') {
       if (Math.max(q.a, q.b) <= 12) {
         var n = q.a * q.b;

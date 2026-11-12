@@ -1,6 +1,6 @@
 // Home, Review, Stats (its sections and old links) and keyboard navigation.
 const { test, expect } = require('@playwright/test');
-const { NOW, openApp, tick, startSelected, answerCurrent, dayKey } = require('./helpers');
+const { NOW, openApp, tick, startSelected, answerCurrent, dayKey, endRound } = require('./helpers');
 
 test('the site is 103 and opens on Play, Interview-ready first; Road to 60 is second and explains itself to a new user', async ({ page }) => {
   await openApp(page, null);
@@ -97,7 +97,7 @@ test('play: then Weighted tables takes row 2, plain Tables moves to T', async ({
   await startSelected(page);
   await expect(page.getByTestId('game-question')).toHaveText(/^\d+ [×÷] \d+$/);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   expect((await savedModes(page)).pop()).toBe('WTABLES');
 });
@@ -107,7 +107,7 @@ test('play: T plays plain Tables once Weighted tables holds row 2', async ({ pag
   await page.keyboard.press('t');
   await tick(page, 3100);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   expect((await savedModes(page)).pop()).toBe('TABLES');
 });
@@ -117,7 +117,7 @@ test('play: the plain Tables row starts a plain round', async ({ page }) => {
   await page.getByTestId('play-plain-tables').click();
   await tick(page, 3100);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   expect((await savedModes(page)).pop()).toBe('TABLES');
 });

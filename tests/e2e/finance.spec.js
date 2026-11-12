@@ -2,7 +2,7 @@
 // saving, end screens with worked answers, progress, Log. Answers come from the same engine in Node:
 // a question is reproducible from (template, seed), which #finance/q/<id>/<seed> opens.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, solve, rounds } = require('./helpers');
+const { openApp, tick, solve, rounds, endRound } = require('./helpers');
 const F = require('../../js/finance-bank.js');
 const TeX = require('../../js/tex.js');
 
@@ -70,7 +70,7 @@ test('Sprint: exact answers are taken as typed, Tab skips, the end screen explai
   }
   await page.keyboard.press('Tab');
   await expect(page.getByTestId('game-score')).toHaveText('Score: 3');
-  await tick(page, 121000);
+  await endRound(page, 121000);
   await expect(page.getByTestId('end-score')).toHaveText('3');
   await expect(page.locator('.end-head')).toContainText('Finance sprint, 120 s');
   const all = page.getByTestId('end-all-questions');
@@ -265,7 +265,7 @@ test('Sprint: H pauses to learn (clock stopped, formula and solution), then the 
   await expect(panel).toBeVisible();
   await page.getByTestId('game-resume').click();
   await expect(panel).toBeHidden();
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('stat-fin-learned')).toContainText('2');
   const all = page.getByTestId('end-all-questions');
   await expect(all.locator('summary').first()).toContainText('Paused to learn');

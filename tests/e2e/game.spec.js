@@ -1,6 +1,6 @@
 // The play loop: the highest-risk behaviour, since every saved statistic comes from it.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, solve, startSelected, answerBox, answerCurrent, rounds } = require('./helpers');
+const { openApp, tick, solve, startSelected, answerBox, answerCurrent, rounds, endRound } = require('./helpers');
 
 test.describe('Zetamac round', () => {
   test.beforeEach(async ({ page }) => {
@@ -30,7 +30,7 @@ test.describe('Zetamac round', () => {
     await box.fill('');
     await box.pressSequentially(right);
     await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
-    await tick(page, 61000);
+    await endRound(page, 61000);
     await expect(page.getByTestId('end-score')).toBeVisible();
     const last = (await rounds(page)).at(-1);
     expect(last.questions[0].shown).toBe(shown);
@@ -42,7 +42,7 @@ test.describe('Zetamac round', () => {
     await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
     await answerCurrent(page);
     await expect(page.getByTestId('game-score')).toHaveText('Score: 2');
-    await tick(page, 61000);
+    await endRound(page, 61000);
 
     await expect(page.getByTestId('end-score')).toHaveText('2');
     await expect(page.getByRole('button', { name: /Play again/ })).toBeVisible();
@@ -60,7 +60,7 @@ test.describe('Zetamac round', () => {
   test('the end screen has a summary first, then the detailed analysis', async ({ page }) => {
     for (let i = 0; i < 3; i++) { await tick(page, 1200); await answerCurrent(page); }
     await expect(page.getByTestId('game-score')).toHaveText('Score: 3');
-    await tick(page, 61000);
+    await endRound(page, 61000);
 
     await expect(page.getByTestId('end-score')).toHaveText('3');
     await expect(page.getByTestId('stat-accuracy')).toContainText('100%');
@@ -83,7 +83,7 @@ test.describe('Zetamac round', () => {
   });
 
   test('Enter on the end screen plays again with the same mode', async ({ page }) => {
-    await tick(page, 61000);
+    await endRound(page, 61000);
     await expect(page.getByTestId('end-score')).toBeVisible();
     await tick(page, 500); // keys are ignored for 400 ms after time runs out
     await page.keyboard.press('Enter');

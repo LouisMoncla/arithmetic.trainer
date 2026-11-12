@@ -1,7 +1,7 @@
 // Matrices tab: 2 × 2 products with four answer boxes. Space moves to the next box, arrows move
 // anywhere, a matrix is accepted as soon as all four entries are right, Enter outlines wrong entries.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, rounds } = require('./helpers');
+const { openApp, tick, rounds, endRound } = require('./helpers');
 
 // Read A and B from the screen ("−3" uses a typographic minus) and return the product, row-major.
 async function product(page) {
@@ -90,7 +90,7 @@ test('Enter outlines a wrong entry until it is edited; wrong attempts are saved'
   await page.keyboard.press(' '); await page.keyboard.type(String(c[3]));
   await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
   await page.keyboard.press('Tab');   // skip the next one
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await expect(page.locator('.end-head')).toContainText('Matrices, −9 to 9, 60 s');
   const last = (await rounds(page)).at(-1);
@@ -114,7 +114,7 @@ test('negative entries take a minus sign; the round shows in Stats, Log', async 
   }
   await cell(page, 0).pressSequentially('a-5-');
   await expect(cell(page, 0)).toHaveValue('-5');   // letters dropped, one leading minus kept
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText(String(solved));
   await tick(page, 500);
   await page.keyboard.press('a');   // from the end screen: Stats on today, in the mode just played
@@ -150,7 +150,7 @@ test('Custom range: From and To, checked, remembered, and used for every entry',
     for (let i = 0; i < 4; i++) { await page.keyboard.type(String(c[i])); if (i < 3) await page.keyboard.press(' '); }
     await expect(page.getByTestId('game-score')).toHaveText('Score: ' + (k + 1));
   }
-  await tick(page, 61000);
+  await endRound(page, 61000);
   const last = (await rounds(page)).at(-1);
   expect(last.settings).toMatchObject({ lo: -3, hi: 4, duration: 60, custom: true });
   await expect(page.locator('.end-head')).toContainText('Matrices, −3 to 4, 60 s');
