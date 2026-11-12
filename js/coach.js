@@ -169,7 +169,7 @@
     return out;
   }
 
-  function isWrong(q) { return q.wrongAttempts > 0; }
+  var isWrong = S.isWrong;   // one definition across the app (stats.js)
   function times(qs) { return qs.map(function (q) { return q.timeMs; }); }
 
   /*
@@ -394,13 +394,85 @@
   // being full means the day's session is done.
   function isExtraNow(rounds, day) { return sessions(rounds).some(function (s) { return s.day === day && s.complete; }); }
 
+  // ---------- one computation per render ----------
+
+  /*
+   * Everything Road to 60 and the Stats overview read, computed once: { today, st, est, master, fams, acc, accState, prog,
+   * plan, stBefore } (stBefore = category stats before today, for Today's summary). Recomputing these several times per
+   * render was the main cost of the page.
+   */
+  function snapshot(rounds, today) {
+    var st = categoryStats(rounds), est = estimate(st), master = mastered(rounds);
+    return {
+      today: today, st: st, est: est, master: master, fams: families(est, master), acc: accuracy(rounds, {}, est),
+      accState: accuracyState(rounds), prog: progress(rounds), plan: plan(rounds, today), stBefore: categoryStats(rounds, { before: today })
+    };
+  }
+
+  /*
+   * The Stats headline: the benchmark. value = mean of the last 3 complete sessions' benchmarks (source 'coach').
+   * No complete session yet: the mean of Interview-ready day averages over the last 7 days (source 'fallback'), or null.
+   * arrow = the same series, last 7 calendar days against the 7 before (S.arrow). status from S.trend on the series
+   * (per practice day): 'improving' (slope > 0.2 and slope − 1 SE > 0), 'plateau' with days = calendar days since the
+   * last day that beat the best before it by 1 or more, or 'none' (not enough data).
+   * { source, value, n, arrow, status: { state, slope?, days? }, milestones, next }
+   */
+  var PLATEAU_GAIN = 1;
+  function headline(rounds, today, snap) {
+    snap = snap || snapshot(rounds, today);
+    var w = S.weekWindows(today), series, value, source;
+    if (snap.prog.sessions.length) {
+      source = 'coach';
+      series = snap.prog.sessions.map(function (s) { return { day: s.day, v: s.avg }; });
+      value = S.mean(series.slice(-3).map(function (x) { return x.v; }));
+    } else {
+      series = S.sessionsForMode(rounds, 'NORMAL120').map(function (s) { return { day: s.day, v: s.stats.avg }; });
+      var recent = series.filter(function (x) { return w.now.indexOf(x.day) >= 0; });
+      source = series.length ? 'fallback' : null;
+      value = recent.length ? S.mean(recent.map(function (x) { return x.v; })) : null;
+    }
+    function meanIn(days) {
+      var xs = series.filter(function (x) { return days.indexOf(x.day) >= 0; }).map(function (x) { return x.v; });
+      return xs.length ? S.mean(xs) : null;
+    }
+    var total = S.sessionDays(rounds).length;
+    var t = S.trend(series.map(function (x) { return { number: S.sessionNumber(rounds, x.day), day: x.day, stats: { avg: x.v } }; }), null, total);
+    var status = { state: 'none' };
+    if (t.ok && t.slope > 0.2 && t.slope - t.se > 0) status = { state: 'improving', slope: t.slope };
+    else if (t.ok) {
+      var best = -Infinity, jump = series[0].day;
+      series.forEach(function (x) { if (x.v >= best + PLATEAU_GAIN) jump = x.day; best = Math.max(best, x.v); });
+      status = { state: 'plateau', slope: t.slope, days: S.dayDiff(jump, today) };
+    }
+    return { source: source, value: value, n: series.length, arrow: S.arrow(meanIn(w.now), meanIn(w.before)), status: status,
+      milestones: snap.prog.milestones, next: snap.prog.next };
+  }
+
+  /*
+   * What costs the most, for the Stats overview: the 3 families and accuracy (while in the focus pool), with lost time
+   * above 0, costliest first, at most 3: [{ id, label, lostMs, points }]. Same numbers as Road to 60.
+   * × big / ÷ big name their 3 costliest multipliers ("× 12, × 6, × 8"); + and − names its costliest category.
+   */
+  function costs(snap) {
+    var out = snap.fams.filter(function (f) { return f.lostMs > 0; }).map(function (f) {
+      var rows = f.rows.filter(function (r) { return r.lostMs > 0; }), label;
+      if (f.id === 'addsub') label = catName(rows[0].key);
+      else label = rows.slice(0, 3).map(function (r) { return (f.id === 'mulbig' ? '× ' : '÷ ') + nOf(r.key); }).join(', ');
+      return { id: f.id, label: label, lostMs: f.lostMs, points: f.points };
+    });
+    if (snap.accState.inPool && snap.acc.lostMs > 0) out.push({ id: 'accuracy', label: 'Accuracy', lostMs: snap.acc.lostMs, points: snap.acc.points });
+    out.sort(function (a, b) { return b.lostMs - a.lostMs; });
+    return out.slice(0, 3);
+  }
+
   var api = {
     TARGETS: TARGETS, MILESTONES: MILESTONES, GATE: GATE, MIN_N: MIN_N, MIN_COVERAGE: MIN_COVERAGE, TIMES: TIMES, FAMILIES: FAMILIES, ACC_OUT: ACC_OUT, ACC_BACK: ACC_BACK,
     families: families, familyOf: familyOf, accuracy: accuracy, accuracyState: accuracyState, tagExtras: tagExtras,
     target: target, catName: catName, categoryStats: categoryStats, frequencies: frequencies, estimate: estimate,
     drillFor: drillFor, sessions: sessions, completeSessions: completeSessions, mastered: mastered, focusPicks: focusPicks,
     plan: plan, blockLabel: blockLabel, modeName: modeName, progress: progress, timeOfDay: timeOfDay, benchByTime: benchByTime,
-    warmupCurve: warmupCurve, isExtraNow: isExtraNow, isDrill: isDrill, isNormal: isNormal
+    warmupCurve: warmupCurve, isExtraNow: isExtraNow, isDrill: isDrill, isNormal: isNormal,
+    snapshot: snapshot, headline: headline, costs: costs
   };
   AT.Coach = api;
   if (node) module.exports = api;

@@ -85,8 +85,7 @@ test('projection: a range from slope ± 1 SE, plateau when flat, uncertain or fa
   assert.strictEqual(t.projection.state, 'range');
   assert.ok(t.projection.low <= 10 && t.projection.high >= 10 && t.projection.low < t.projection.high, JSON.stringify(t.projection));
   const P = require('../js/progression.js');
-  assert.match(P.projectionText(t), /^About \d+–\d+ sessions at the current pace$/);
-  assert.strictEqual(P.trendText(t), '+1.0 per session');
+  assert.match(P.projectionText(t), /^About \d+–\d+ practice days at the current pace$/);
   // slope 0.2 or less: plateau
   t = S.trend(sess([1, 4, 7, 10], [30, 30.5, 30.9, 31.5]), 60);
   assert.ok(t.slope <= 0.2);
@@ -98,16 +97,7 @@ test('projection: a range from slope ± 1 SE, plateau when flat, uncertain or fa
   assert.strictEqual(S.trend(sess([1, 4, 7, 10], [20, 21, 22.1, 23]), 60).projection.state, 'plateau');
   // already there
   assert.strictEqual(S.trend(sess([1, 4, 7, 10], [20, 21, 22, 23]), 22).projection.state, 'reached');
-  assert.strictEqual(P.trendText(S.trend(sess([1, 2], [1, 2]), 5)), 'Not enough data yet');
-});
-
-test('estimate120: 2x until calibrated', () => {
-  const rs = [round('P3', '2026-10-01', 20)];
-  assert.strictEqual(S.estimate120(rs).estimate, 40);
-  for (let d = 2; d <= 4; d++) { rs.push(round('P3', `2026-10-0${d}`, 20)); rs.push(round('NORMAL120', `2026-10-0${d}`, 44)); }
-  const e = S.estimate120(rs);
-  assert.ok(e.calibrated);
-  assert.ok(Math.abs(e.estimate - 44) < 1e-9);
+  assert.strictEqual(S.trend(sess([1, 2], [1, 2]), 5).ok, false);
 });
 
 test('weak facts: slow fact is weak, fast facts are not', () => {
@@ -427,4 +417,67 @@ test('tableCoverage: × pairs once, ÷ directions apart, 2 answers to count, rea
   assert.strictEqual(c.ready, false);
   const empty = S.tableCoverage({ mul: {}, div: {} });
   assert.deepStrictEqual([empty.measured, empty.total, empty.need, empty.ready], [0, 187, 150, false]);
+});
+
+// ---------- Stats levels: one definition per idea ----------
+
+test('week windows: the last 7 calendar days and the 7 before, across a month end', () => {
+  const w = S.weekWindows('2026-11-12');
+  assert.deepStrictEqual([w.now[0], w.now[6], w.before[0], w.before[6]], ['2026-11-06', '2026-11-12', '2026-10-30', '2026-11-05']);
+  assert.strictEqual(S.shiftDay('2026-03-02', -6), '2026-02-24');
+  assert.strictEqual(S.dayDiff('2026-10-30', '2026-11-12'), 13);
+});
+
+test('arrow: a move beyond ±0.5, flat inside, none when a window is empty', () => {
+  assert.deepStrictEqual(S.arrow(10, 9.4).dir, 'up');
+  assert.deepStrictEqual(S.arrow(10, 9.5).dir, 'flat');
+  assert.deepStrictEqual(S.arrow(9, 9.6).dir, 'down');
+  assert.deepStrictEqual(S.arrow(null, 3), { diff: null, dir: null });
+  assert.deepStrictEqual(S.arrow(3, undefined), { diff: null, dir: null });
+  assert.strictEqual(S.arrow(0.84, 0.83, 0.005).dir, 'up');   // accuracy: half a percentage point
+});
+
+test('isWrong and accuracy: a wrong attempt, a wrong final answer or a skip; unanswered questions do not count', () => {
+  assert.ok(S.isWrong({ wrongAttempts: 1 }) && S.isWrong({ correct: false }) && S.isWrong({ skipped: true }));
+  assert.ok(!S.isWrong({ wrongAttempts: 0, correct: true }));
+  const r = round('P3', '2026-10-01', 3, [q('add', 2, 3, 900), q('add', 4, 5, 900, 1), { op: 'iv', correct: false, timeMs: 3000 },
+    { op: 'add', a: 1, b: 1, timeMs: 500, unanswered: true }]);
+  assert.ok(Math.abs(S.accuracy([r]) - 1 / 3) < 1e-9);
+  assert.strictEqual(S.accuracy([round('P3', '2026-10-01', 0)]), null);
+});
+
+test('activity and streak: 28 days; the streak ends today, or yesterday while today has no round', () => {
+  const rs = ['2026-11-12', '2026-11-11', '2026-11-10', '2026-11-08'].map((d) => round('P3', d, 20));
+  const a = S.activity(rs, '2026-11-12');
+  assert.strictEqual(a.length, 28);
+  assert.deepStrictEqual(a.slice(-5).map((x) => x.played), [true, false, true, true, true]);
+  assert.strictEqual(S.streak(rs, '2026-11-12'), 3);
+  assert.strictEqual(S.streak(rs.slice(1), '2026-11-12'), 2);   // nothing yet today: counts up to yesterday
+  assert.strictEqual(S.streak(rs.slice(3), '2026-11-12'), 0);
+});
+
+test('time per operation is a median: per day (timeByOp) and over a window (opMedians)', () => {
+  const rs = [round('P3', '2026-10-01', 3, [q('add', 2, 3, 1000), q('add', 4, 5, 1000), q('add', 6, 7, 4000), q('mul', 3, 4, 2000)]),
+    round('P3', '2026-10-02', 1, [q('add', 2, 3, 3000)])];
+  assert.strictEqual(S.timeByOp(rs).add[0].ms, 1000);   // a mean would say 2000
+  const m = S.opMedians(rs, ['2026-10-01']);
+  assert.strictEqual(m.add, 1000);
+  assert.strictEqual(m.mul, 2000);
+  assert.strictEqual(m.div, null);
+});
+
+test('sessionReport: rounds without + − × ÷ get median times from their own questions', () => {
+  const tr = (t) => ({ op: 'tr', type: 'sq5', a: 35, shown: '35²', answer: 1225, timeMs: t, wrongAttempts: 0 });
+  const rs = [round('SQUARES', '2026-10-01', 2, [tr(2000), tr(4000)]), round('SQUARES', '2026-10-02', 2, [tr(1000), tr(3000), tr(5000)])];
+  const rep = S.sessionReport(rs, '2026-10-02');
+  assert.strictEqual(rep.median, 3000);
+  assert.strictEqual(rep.usualMedian, 3000);
+});
+
+test('roundReport asOf: a past round reads as it did then', () => {
+  const a = round('P3', '2026-10-01', 30, [q('add', 2, 3, 900)]), b = round('P3', '2026-10-02', 40, [q('add', 2, 3, 900)]);
+  const now = S.roundReport([a, b], a), then = S.roundReport([a, b], a, a.startedAt);
+  assert.strictEqual(now.rank.of, 2);
+  assert.strictEqual(then.rank.of, 1);
+  assert.strictEqual(then.avg7, null);
 });

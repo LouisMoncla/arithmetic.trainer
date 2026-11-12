@@ -117,6 +117,7 @@ test('rounds saved here are pushed, deletions become tombstones', async ({ page 
   await page.getByRole('button', { name: 'Save rounds' }).click();
   await expect.poll(() => db.rounds.size).toBe(2);
 
+  await page.getByTestId('stats-calendar').locator('.cal-d.on').click();   // the day page lists the rounds
   page.once('dialog', d => d.accept());
   await page.getByRole('button', { name: 'Delete round with score 19' }).click();
   await expect.poll(() => [...db.rounds.values()].filter(r => r.deleted).length).toBe(1);

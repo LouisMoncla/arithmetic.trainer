@@ -10,6 +10,7 @@ test('zetamac.com scores: #log opens the form on Stats; saved scores show on tha
   await expect(page.getByText('Saved 3 rounds to Foundations.')).toBeVisible();
   await expect(page).toHaveURL(/#stats\/add$/);
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Foundations', pressed: true })).toBeVisible();
+  await page.getByTestId('stats-calendar').locator('.cal-d.on').click();   // that day, on its own page
   await expect(page.getByTestId('day-scores')).toContainText('19*');
   await expect(page.getByRole('button', { name: 'Delete round with score 19' })).toBeVisible();
 });

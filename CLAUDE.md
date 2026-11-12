@@ -46,17 +46,19 @@ js/finance-bank.js      the curated multiple-choice concept questions (right opt
 js/tex.js               LaTeX subset → MathML (screens) or plain text (storage, alttext); rich() for prose with $…$ maths
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/coach.js       Road to 60: category stats (windowed medians), Normal frequencies, estimated score + lost time,
-                  today's session plan, focus picks, mastery, milestones/gate, time of day; pure, node-testable
+                  today's session plan, focus picks, mastery, milestones/gate, time of day; snapshot (one
+                  computation per render), the Stats headline and costs; pure, node-testable
 js/stats.js       sessions (= days, 05:00 to 05:00), averages, trends, fatigue, weak-fact engine,
                   tables heatmap cells + weighted-tables weights, sessionReport (one day analysed),
-                  roundReport (one round analysed, for the end screen)
+                  roundReport (one round analysed, for the end screen), the shared definitions (isWrong,
+                  accuracy, week windows and arrows, activity, streak, opMedians)
 js/progression.js steps P2→P3→P4, recommendation, the "Copy report for Claude" text report
 js/storage.js     localStorage load/save (key arithmeticTrainer.v1), migrate, export/import, merge
 js/config.js      Supabase URL + anon key (empty = no accounts)
 js/sync.js        optional account sync (Supabase); pure diff/applyRemote exported for tests
 js/charts.js      inline-SVG line/bar charts, legend, tooltip, keyboard, "Show as table"
 js/game.js        the round loop (timer, input, auto-accept, interview scoring, the 2 × 2 matrix answer grid)
-js/ui.js          every screen, routing, keys, settings, account UI (largest file); Stats sections render via fill()
+js/ui.js          every screen, routing, keys, settings, account UI (largest file); Stats in three levels
 js/finance-ui.js  the Finance tab, built on AT.UI.kit (ui.js's layout helpers) and AT.UI.addScreen
 tools/finance-samples.js  dev only (npm run samples): sample questions per template, not deployed
 js/app.js         bootstrap: load data, UI.init
@@ -270,7 +272,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     - Trends (`S.trend(sessions, threshold, latest)`): regressed on the session number (the chart's x), not the point index;
       only sessions within the last 14 of the latest overall, needing 4 spanning 7 days (else "Not enough data yet"); per session.
       Projection only then: a range from slope ± 1 SE (`S.fit`), 'plateau' when slope ≤ 0.2, slope − SE ≤ 0 or > 90 sessions.
-      `P.trendText` / `P.projectionText` are shared by Progress and the report. Road to 60 has no regression (its category
+      `P.projectionText` is the report's (`P.trendText` was removed with the Progress page, item 26). Road to 60 has no regression (its category
       trend compares two windows).
     - Round-of-the-day chart (`roundChart` in ui.js, every mode panel and the Road to 60 warm-up curve): `S.roundIndexAverages`
       buckets rounds 12+ together (`ROUND_CAP`) and keeps only round numbers with 2+ days ({ idx, label, avg, n, days }); drawn
@@ -333,3 +335,33 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     `factorial`/`choose` in generator.js. Advice works binom with the smaller k (8 choose 5 = 8 choose 3 = (8 × 7 × 6) ÷
     (3 × 2 × 1)). Lessons group "Combinatorics" in lessons.js (so Learn has both). Outside the steps like the other tricks;
     in `LOG_MODES` and `REPORT_MODES`.
+
+26. Stats in three levels, one definition per idea (owner's spec, 11-12, from the report "How stats are built in 103").
+    - Overview `#stats` (`statsOverview`): exactly six blocks (test ids `overview-*`), one 1366 × 768 screen. Headline =
+      `CO.headline`: mean of the last 3 complete sessions' benchmarks (block 6); without one, Interview-ready day averages of
+      the last 7 days (`source: 'fallback'`). Arrows everywhere = `S.arrow` over `S.weekWindows` (last 7 calendar days vs
+      the 7 before, ±0.5; accuracy ±0.5 points). Status from `S.trend` on that series: improving (slope > 0.2 and slope − SE
+      > 0), plateau for N calendar days (since the last day ≥ the best before it + 1), or not enough data. Tiles: Speed,
+      Foundations (mean round score), Accuracy (`S.accuracy` over `CO.isNormal` rounds). Costs = `CO.costs` (top 3 of the
+      families and accuracy, Road to 60's numbers; × ÷ big name their 3 worst multipliers). Activity = `S.activity`,
+      `S.streak` (ends today, or yesterday while today is empty). `D` opens level 2 (shadows the global D only there).
+      Every number is a `.def` with a `.tip` (hover and focus).
+    - Mode `#stats/mode/<mode>` (`statsModePage`): picker from `P.modeGroups` (Zetamac modes; Road to 60 drills, now in
+      `logModes()`; other modes; matrices, Finance, Learn and × ÷ mixes one entry each with a select), tiles (last 7 days,
+      best of all time, trend word), the progress chart (goal 18 / 25 / 60; `picks` makes a click or Enter open the day via
+      a `chartpick` event), calendar beside `<details>` panels: time per operation (`S.opMedians`), round of the day without
+      coach rounds (all modes, one rule), Road to 60 categories (`categoriesTable`, shared with Road to 60) on P2/P3/NORMAL120,
+      weak facts. Interview-ready: "all 120 s rounds", and `ui.benchOnly` ("Benchmark only") keeps coach block 6.
+      The zetamac.com form is here (`#stats/add`).
+    - Day `#stats/day/<date>` (`statsDayPage`, `pickMode` with the day) and round `#stats/round/<id>` (`statsRoundPage`:
+      `endBody` / `interviewBody`, split out of the end screens, with `S.roundReport(rounds, round, asOf)`). Esc: round →
+      day → mode → overview. Old `#stats/<MODE>[/<date>]` → the mode or the day.
+    - One definition per idea: wrong = `S.isWrong` (wrong attempt, `correct: false` or skipped; factStats, coach,
+      sessionReport); accuracy = 1 − share with a wrong attempt; freeze (in a round) / stall (in history) / above target
+      (coach) in the UI copy; time aggregates are medians (`timeByOp`, interview end screen, no "Mean" in Time spread);
+      trend per practice day. `sessionReport` medians fall back to all answered questions for non-arithmetic modes.
+      `S.estimate120` is gone; the report's estimate is labelled "Coach estimate". `rAbout` states these rules.
+    - `CO.snapshot(rounds, today)`: categoryStats, estimate, mastered, families, accuracy, accuracyState, progress, plan and
+      categoryStats before today, once per render (Road to 60 and the overview).
+    - Departures from the spec, on the owner's simplicity rule: English labels (owner's choice), numbers in the text face
+      (not mono), coach rounds left out of every mode's round-of-the-day.

@@ -47,6 +47,8 @@ for (const [w, h] of [[1366, 900], [390, 844]]) {
     await openApp(page, 'stats/P3', { rounds: history() });
     const progress = page.locator('main');
 
+    await expect(page).toHaveURL(/#stats\/mode\/P3$/);   // the old link lands on the mode page
+    await page.getByTestId('stats-rounds').locator('summary').first().click();   // a detail: closed until asked for
     // Speed: a line with a dot per round number, ticks 1 3 6 9 12+ only, no value printed on the chart
     const speed = progress.locator('svg[aria-label="Speed average score by round of the day"]');
     await expect(speed).toHaveCount(1);
@@ -77,6 +79,12 @@ for (const [w, h] of [[1366, 900], [390, 844]]) {
     // Foundations, played on 3 days with one round each: no round-of-the-day chart
     await page.getByTestId('stats-modes').getByRole('button', { name: 'Foundations' }).click();
     await expect(page.getByTestId('stats-rounds')).toHaveCount(0);
+    o = await overlaps(page);
+    expect(o.bad).toEqual([]);
+
+    // the overview: no chart label overlaps there either
+    await page.goto(page.url().replace(/#.*$/, '#stats'));
+    await expect(page.getByTestId('overview-headline')).toBeVisible();
     o = await overlaps(page);
     expect(o.bad).toEqual([]);
 

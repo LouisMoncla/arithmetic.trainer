@@ -98,6 +98,32 @@
   var OP_SYM = { add: '+', sub: '−', mul: '×', div: '÷', iv: 'interview sim', tr: 'tricks', mx: 'matrices', fin: 'finance' };
 
   /*
+   * The Stats mode picker, grouped: { main: [entry], drills: [entry], other: [entry] }, entry = { id, label, variants: [mode] }.
+   * main = the Zetamac modes, one entry each. drills = Road to 60 drills, every × ÷ mix ("R60-mult-…") in one entry.
+   * other = everything else, with every matrix range, Finance kind and Learn lesson in one entry each.
+   * Only the modes given (the played ones) appear, in their order.
+   */
+  var MAIN_MODES = ['TABLES', 'WTABLES', 'P2', 'P3', 'NORMAL120'];
+  var GROUPED = [
+    { re: /^R60-mult-/, id: 'R60-mult', label: 'Road to 60: × ÷ drill' },
+    { re: /^MATRIX-/, id: 'MATRIX', label: 'Matrices' },
+    { re: /^FINANCE-/, id: 'FINANCE', label: 'Finance' },
+    { re: /^LEARN-/, id: 'LEARN', label: 'Learn' }
+  ];
+  function modeGroups(modes) {
+    var out = { main: [], drills: [], other: [] }, byId = {};
+    modes.forEach(function (m) {
+      var list = MAIN_MODES.indexOf(m) >= 0 ? out.main : /^R60-/.test(m) ? out.drills : out.other;
+      var g = GROUPED.filter(function (x) { return x.re.test(m); })[0];
+      var id = g ? g.id : m;
+      if (!byId[id]) { byId[id] = { id: id, label: g ? g.label : modeLabel(m), variants: [] }; list.push(byId[id]); }
+      byId[id].variants.push(m);
+    });
+    Object.keys(byId).forEach(function (k) { if (byId[k].variants.length === 1) byId[k].label = modeLabel(byId[k].variants[0]); });
+    return out;
+  }
+
+  /*
    * Plain-text coaching report to paste into a chat. Self-explanatory: it states the rules
    * before the numbers. Each list is capped so the whole stays at a few hundred lines.
    */
@@ -128,7 +154,7 @@
     });
     var st = CO.categoryStats(rs), est = CO.estimate(st);
     var reached = prog.milestones.filter(function (m) { return m.day; }).map(function (m) { return m.m; });
-    L.push('Estimated score now ' + est.score + '. Milestones reached: ' + (reached.length ? reached.join(', ') : 'none') +
+    L.push('Coach estimate (120 s, from category medians) ' + (est.shown ? est.score : 'not shown yet (under half of Normal measured)') + '. Milestones reached: ' + (reached.length ? reached.join(', ') : 'none') +
       (prog.next ? ' (next ' + prog.next.m + ', ' + prog.towards + '/2 in a row)' : '') + '. Gate 60: ' + prog.gateRun + '/3' + (prog.gatePassed ? ', passed ' + prog.gatePassed : '') + '.');
     L.push('Families (lost ms a question, points): ' + CO.families(est, CO.mastered(rs)).map(function (f) {
       return f.name + ' ' + Math.round(f.lostMs) + ' ms (' + f1(f.points) + ')';
@@ -181,13 +207,21 @@
     L.push('Mental-math trainer for Zetamac-style quant interview tests. Score = correct answers in the time limit.');
     L.push('Modes: Tables (× ÷ 2–12, 60 s), Weighted tables (same, slow facts come up more), ' +
       STEPS.map(function (s) { return 'Step ' + s.n + ' ' + s.name + ' (' + s.desc + ')'; }).join(', ') +
-      ', Drill (weak facts), Squares, Percentages and Mixed tricks (shortcut training, outside the steps), Interview sim (Optiver-style: harder mixed questions, wrong answers penalised), Custom.');
-    L.push('A day runs from 05:00 to 05:00 local (a round at 00:30 counts for the evening before), with any round. Day numbers count those days; trends are per day played (session).');
+      ', Drill (weak facts), Custom, Interview sim (Optiver-style: harder mixed questions, wrong answers penalised); ' +
+      'outside the steps: Squares, Percentages and fractions, Mixed tricks, Combinatorics, Learn (one trick per lesson), Matrices (2 × 2 products), ' +
+      'Finance (sprints and practice), Road to 60 drills (one category, 60 s).');
+    L.push('A day runs from 05:00 to 05:00 local (a round at 00:30 counts for the evening before), with any round. Day numbers count those days; ' +
+      'trends are per practice day (a regression on the day number, needing 4 practice days within the last 14).');
     L.push('Steps: a day qualifies with >= ' + MIN_ROUNDS + ' rounds of the step mode; the step is done after ' +
       IN_A_ROW + ' qualifying days in a row with average >= threshold.');
-    L.push('Facts: weak = slow vs my own median for that operation (or often wrong, or > 4 s recently); ' +
-      'improving = a good day since; mastered = 3 good days in a row.');
-    L.push('Freeze = an answer taking > 3x the round median. Times are in seconds. * = round entered from zetamac.com (no per-question data).');
+    L.push('Benchmark = the Road to 60 benchmark: block 6 (Normal 120 s) of complete coach sessions. Other Normal 120 s rounds count in the mode\'s own averages, not in it.');
+    L.push('Wrong attempt = a wrong full answer typed before the right one (or a wrong or skipped final answer where those exist). ' +
+      'Accuracy = 1 − share of answered questions with a wrong attempt. Time figures are medians.');
+    L.push('Freeze = in a round, an answer over 3x the round median and over 1.5 s (+ − × ÷ answers over 8 s are also listed with their method). ' +
+      'Stall = an answer over 3x my median for that operation (all history) and over 1.5 s. Above target = a Road to 60 category median over its target time.');
+    L.push('Facts: weak = slow vs my own median for that operation (slowness >= 1.5, often wrong counts more) or a stall in the last 2 days; ' +
+      'improving = a good day since; mastered = 3 good days in a row. Attempts older than 21 days weigh half.');
+    L.push('Times are in seconds. * = round entered from zetamac.com (no per-question data).');
   }
 
   function rOverview(ctx, L) {
@@ -205,16 +239,13 @@
       (rec.warmup ? 'warm up with ' + modeLabel(rec.warmMode) + ', then ' : '') + modeLabel(rec.mode) + '.');
   }
 
-  // Trend lines shared by the Progress page and the report (S.trend: per session, last 14 sessions).
-  function trendText(t) {
-    return t.ok ? (t.slope >= 0 ? '+' : '−') + Math.abs(t.slope).toFixed(1) + ' per session' : 'Not enough data yet';
-  }
+  // The report's projection line (S.trend with a threshold: per practice day, last 14 practice days).
   function projectionText(t) {
     var p = t.projection;
     if (!p) return '–';
     if (p.state === 'reached') return 'Reached';
     if (p.state === 'plateau') return 'Plateau — no projection';
-    return 'About ' + (p.low === p.high ? p.low : p.low + '–' + p.high) + ' sessions at the current pace';
+    return 'About ' + (p.low === p.high ? p.low : p.low + '–' + p.high) + ' practice days at the current pace';
   }
 
   function rSteps(ctx, L) {
@@ -227,13 +258,11 @@
       line += p.completed ? 'Done on day ' + p.completedAt + '. ' : 'Streak ' + boxes(p.streak) + ' ' + p.streak + ' of ' + IN_A_ROW + '. ';
       line += 'Qualifying days ' + p.qualifying.length + ', all days ' + ss.length + '.';
       if (ss.length) {
-        line += tr.ok ? ' Trend ' + (tr.slope >= 0 ? '+' : '') + tr.slope.toFixed(2) + ' per session (± ' + tr.se.toFixed(2) + ', sessions ' + tr.first + '–' + tr.last +
-          ', ' + tr.n + ' days played); to threshold: ' + projectionText(tr).toLowerCase() + '.' : ' Trend: not enough data yet (needs 4 sessions over 7 days within the last 14).';
+        line += tr.ok ? ' Trend ' + (tr.slope >= 0 ? '+' : '') + tr.slope.toFixed(2) + ' per practice day (± ' + tr.se.toFixed(2) + ', days ' + tr.first + '–' + tr.last +
+          ', ' + tr.n + ' days played); to threshold: ' + projectionText(tr).toLowerCase() + '.' : ' Trend: not enough data yet (needs 4 practice days within the last 14, spanning 7).';
       }
       L.push(line);
     });
-    var est = S.estimate120(ctx.rounds);
-    if (est) L.push('Estimated 120 s score from Speed: ' + f1(est.estimate) + (est.calibrated ? ' (calibrated x' + est.factor.toFixed(2) + ')' : ' (2x rule)') + '.');
     if (ctx.info.allDone) L.push('All steps complete.');
   }
 
@@ -271,9 +300,9 @@
     var t = S.timeByOp(ctx.rounds), nums = {};
     ['add', 'sub', 'mul', 'div'].forEach(function (op) { t[op].forEach(function (x) { nums[x.number] = 1; }); });
     var sess = Object.keys(nums).map(Number).sort(function (a, b) { return a - b; }).slice(-10);
-    if (!sess.length) L.push('Mean answer time: none yet');
+    if (!sess.length) L.push('Median answer time: none yet');
     else {
-      L.push('Mean answer time (s) per day, last 10 days with question data:');
+      L.push('Median answer time (s) per day, last 10 days with question data:');
       ['add', 'sub', 'mul', 'div'].forEach(function (op) {
         if (!t[op].length) return;
         L.push('  ' + OP_SYM[op] + ': ' + sess.map(function (n) {
@@ -376,7 +405,7 @@
   }
 
   var api = {
-    STEPS: STEPS, MODE_LABELS: MODE_LABELS, modeLabel: modeLabel, trendText: trendText, projectionText: projectionText, qualifying: qualifying, stepProgress: stepProgress,
+    STEPS: STEPS, MODE_LABELS: MODE_LABELS, modeLabel: modeLabel, modeGroups: modeGroups, MAIN_MODES: MAIN_MODES, projectionText: projectionText, qualifying: qualifying, stepProgress: stepProgress,
     current: current, recommend: recommend, boxes: boxes, summary: summary, fatigueNotes: fatigueNotes, f1: f1
   };
   AT.Progression = api;

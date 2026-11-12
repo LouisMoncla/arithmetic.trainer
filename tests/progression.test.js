@@ -147,3 +147,26 @@ test('storage: rounds with trick questions survive export and import', () => {
   assert.deepStrictEqual(back.rounds[0].questions[0], data.rounds[0].questions[0]);
   assert.match(P.summary(back, '2026-10-20'), /Percentages/);
 });
+
+test('mode groups: Zetamac modes apart, Road to 60 drills and the rest grouped; × ÷ drills, matrices, Finance and Learn in one entry each', () => {
+  const g = P.modeGroups(['P3', 'TABLES', 'R60-borrow', 'R60-mult-7', 'R60-mult-12-8-6', 'SQUARES', 'MATRIX-m9_9-60', 'MATRIX-0_12-120',
+    'FINANCE-sprint-120', 'LEARN-x11', 'LEARN-fractions', 'COMBI']);
+  assert.deepStrictEqual(g.main.map((e) => e.id), ['P3', 'TABLES']);
+  assert.deepStrictEqual(g.drills.map((e) => e.id), ['R60-borrow', 'R60-mult']);
+  assert.deepStrictEqual(g.drills[1].variants, ['R60-mult-7', 'R60-mult-12-8-6']);
+  assert.deepStrictEqual(g.other.map((e) => e.id), ['SQUARES', 'MATRIX', 'FINANCE', 'LEARN', 'COMBI']);
+  assert.strictEqual(g.other[1].label, 'Matrices');
+  assert.deepStrictEqual(g.other[3].variants, ['LEARN-x11', 'LEARN-fractions']);
+  assert.strictEqual(g.other[0].label, 'Squares');
+  assert.deepStrictEqual(P.modeGroups([]), { main: [], drills: [], other: [] });
+});
+
+test('report: one definition per idea in About this data; no Speed × 2 estimate', () => {
+  const txt = P.summary({ rounds: session('P3', '2026-10-01', [20, 21, 22]), settings: {} });
+  assert.match(txt, /Benchmark = the Road to 60 benchmark: block 6/);
+  assert.match(txt, /Freeze = in a round, an answer over 3x the round median and over 1\.5 s/);
+  assert.match(txt, /Stall = an answer over 3x my median/);
+  assert.doesNotMatch(txt, /> 4 s recently/);
+  assert.doesNotMatch(txt, /Estimated 120 s score from Speed/);
+  assert.match(txt, /Combinatorics/);
+});
