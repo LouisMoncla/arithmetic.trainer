@@ -33,6 +33,7 @@
       announced: [],        // step ids whose completion message was shown
       custom: null,         // last-used custom settings
       learnSquares: null,   // Learn, Squares 11–30: the practice range { from, to } (2–50; practice is never saved)
+      taylor: null,         // Learn, Taylor expansions: { tiers, types, from, to, notation, penalty }, read through Taylor.settings
       matrix: null,         // last-used Matrices options { set: 'N'|'Z', max: 9|12|'custom', customLo, customHi, duration: 60|120 }
       finance: null,        // last-used Finance options { mode, fams, cat, diff, duration, answer, weak }
       coach: defaultCoach() // Road to 60

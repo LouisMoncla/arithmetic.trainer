@@ -31,6 +31,8 @@
 
   // Name of a mode as S.effMode gives it, Learn rounds included ("LEARN-x11" → "Learn: × 11").
   function modeLabel(m) {
+    var ty = /^LEARN-taylor-(learn|sprint-(\d+))$/.exec(m || '');   // the Taylor lesson: Learn sessions and sprints
+    if (ty) return ty[2] ? 'Learn: Taylor sprint, ' + ty[2] + ' s' : 'Learn: Taylor expansions';
     var t = /^LEARN-(\w+)$/.exec(m || '');
     if (t) return 'Learn: ' + (t[1] === 'fractions' ? 'fractions by heart' : G.trickNames()[t[1]] || t[1]);
     var x = /^MATRIX-(m?\d+)_(m?\d+)-(\d+)$/.exec(m || '');   // "MATRIX-m9_9-60" → "Matrices, −9 to 9, 60 s"
@@ -133,7 +135,7 @@
     var today = S.dayKey(new Date(nowMs).toISOString());
     var ctx = { rounds: rounds, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
     L.push('# 103 report (' + today + ')');
-    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rLatest, rFatigue].forEach(function (fn) {
+    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rTaylor, rLatest, rFatigue].forEach(function (fn) {
       L.push('');
       fn(ctx, L);
     });
@@ -200,6 +202,27 @@
     var weak = Object.keys(fs.tpl).filter(function (k) { return fs.tpl[k].n >= 2 && fs.tpl[k].acc < 1; })
       .sort(function (a, b) { return fs.tpl[a].acc - fs.tpl[b].acc || fs.tpl[b].n - fs.tpl[a].n; }).slice(0, 8);
     if (weak.length) L.push('Weakest templates: ' + weak.map(function (k) { var e = fs.tpl[k]; return k + ' ' + pct(e.acc) + ' of ' + e.n; }).join('; '));
+  }
+
+  // Learn › Taylor expansions: mastered and weak per tier, accuracy per question type, sprint scores per day.
+  function rTaylor(ctx, L) {
+    var TY = AT.Taylor || (node ? require('./taylor.js') : null), all = TY.answers(ctx.rounds, false);
+    if (!all.length) return;
+    var states = TY.states(ctx.rounds, S.factStats(ctx.rounds, ctx.nowMs), S.dayKey);
+    L.push('## Taylor expansions (Learn)');
+    L.push('Mastered = the last 3 days with answers on it (Learn and Sprint) all right, no hint, median under 6 s. Weak = the fact engine (key ty-<expansion>); a hinted answer never counts as good.');
+    TY.TIERS.forEach(function (t) {
+      var es = TY.LIB.filter(function (e) { return e.tier === t.n; }), list = function (s) {
+        return es.filter(function (e) { return states[e.key] === s; }).map(function (e) { return e.key; });
+      };
+      var m = list('mastered'), w = list('weak'), seen = es.filter(function (e) { return states[e.key] !== 'unseen'; }).length;
+      L.push('  ' + t.name + ': ' + seen + ' of ' + es.length + ' seen; mastered ' + (m.length ? m.join(', ') : 'none') + '; weak ' + (w.length ? w.join(', ') : 'none') + '.');
+    });
+    var byType = {};
+    all.forEach(function (a) { var b = byType[a.q.type] = byType[a.q.type] || { n: 0, r: 0 }; b.n++; if (a.q.correct) b.r++; });
+    L.push('Accuracy per question type: ' + Object.keys(byType).map(function (k) { return k + ' ' + pct(byType[k].r / byType[k].n) + ' of ' + byType[k].n; }).join(', ') + '.');
+    var sprints = ctx.rounds.filter(function (r) { return TY.isTaylor(r) && /sprint/.test(r.settings.lesson); });
+    if (sprints.length) L.push('Sprints: ' + sprints.slice(-15).map(function (r) { return S.dayKey(r.startedAt) + ' ' + r.settings.duration + ' s: ' + r.score; }).join(', ') + '.');
   }
 
   function rAbout(ctx, L) {

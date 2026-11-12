@@ -45,6 +45,17 @@ function solve(shown) {
 
 // Advance time, firing every timer due on the way (the game ticks every 50 ms).
 const tick = (page, ms) => page.clock.runFor(ms);
+// Move the clock in one step: due timers fire once at the end, instead of every 50 ms game tick on the way (tick).
+// tick over long spans costs seconds even alone and several times that when the suite runs in parallel, which is
+// what made long tests time out. Use jump whenever nothing has to happen on the way; keep tick for short steps.
+const jump = (page, ms) => page.clock.fastForward(ms);
+// Let a round run out.
+const endRound = jump;
+
+// Wait until a Stats level is drawn, not just in the URL: go() sets the hash at once and the page draws on the next
+// hashchange, so a key pressed in between (a second Esc) still reaches the old level and is lost.
+const STATS_MARK = { overview: 'overview-headline', mode: 'stats-chart', day: 'stats-day', round: 'stats-round' };
+const statsLevel = (page, level) => expect(page.getByTestId(STATS_MARK[level])).toBeVisible();
 
 // Start whatever the home screen has selected, and skip the 3-2-1 countdown.
 async function startSelected(page) {
@@ -83,4 +94,4 @@ async function answerCurrent(page) {
 const rounds = page => page.evaluate(() => window.AT.data.rounds);
 const dayKey = d => { d = new Date(d); if (d.getHours() < 5) d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };   // a day runs 05:00 to 05:00, like S.dayKey
 
-module.exports = { APP_URL, NOW, openApp, tick, solve, solveFraction, startSelected, answerBox, answerCurrent, rounds, dayKey };
+module.exports = { APP_URL, NOW, openApp, tick, solve, solveFraction, startSelected, answerBox, answerCurrent, rounds, dayKey, endRound, jump, statsLevel };

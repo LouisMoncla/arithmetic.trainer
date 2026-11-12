@@ -1,7 +1,7 @@
 // Road to 60: today's plan from my data (families, accuracy), the session runner block by block, drill hints, the cap
 // and extra rounds (also after midnight), milestones, the 60 gate, test days and the accuracy round.
 const { test, expect } = require('@playwright/test');
-const { NOW, openApp, tick, answerCurrent, rounds, solve } = require('./helpers');
+const { NOW, openApp, tick, answerCurrent, rounds, solve, endRound } = require('./helpers');
 
 const at = (daysAgo, hour, min) => { const d = new Date(NOW); d.setDate(d.getDate() - daysAgo); d.setHours(hour, min || 0, 0, 0); return d.toISOString(); };
 let n = 0;
@@ -49,7 +49,7 @@ test('the plan comes from my data; block 1 is saved as a session round and a rel
   await page.keyboard.press('Enter');
   await tick(page, 3100);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await expect(page.getByTestId('coach-next')).toHaveText('Block done. Next: Warm-up: Foundations, round 1 of 2.');
   const r = await lastRound(page);
@@ -86,7 +86,7 @@ test('Focus A is a × ÷ mix of the worst multipliers with the method after 5 s;
   await expect(method).toBeVisible();
   await expect(method).toHaveText(new RegExp('^' + shown.replace(/[×÷]/, '[×÷]') + ' → '));
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('coach-next')).toHaveText('Block done. Next: Focus B: Borrow subtraction, round 1 of 3.');
   const r = await lastRound(page);
   expect([r.mode, r.settings.drill, r.settings.n, r.coach.block]).toEqual(['R60', 'mult', [8, 7, 9], 3]);
@@ -110,7 +110,7 @@ test('the last benchmark round ends the session; later rounds are extra and get 
   await tick(page, 3100);
   await expect(page.getByTestId('game-timer')).toHaveText('2:00');
   await answerCurrent(page);
-  await tick(page, 121000);
+  await endRound(page, 121000);
   await expect(page.getByTestId('coach-next')).toContainText('Today’s session is done');
   await expect(page.getByRole('button', { name: /Done for today/ })).toBeVisible();
   await tick(page, 500);
@@ -130,7 +130,7 @@ test('the last benchmark round ends the session; later rounds are extra and get 
   await tick(page, 6000);
   await expect(page.getByTestId('game-method')).toBeHidden();
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   const r = await lastRound(page);
   expect([r.mode, r.extra, r.coach]).toEqual(['P3', true, undefined]);
@@ -151,6 +151,7 @@ test('milestones, the 60 gate message (once) and the 7th session as a test day',
   await expect(page.locator('.hero-why')).toContainText('session 7. Test day');
   await expect(page.getByTestId('road-plan').locator('li')).toHaveText([/Warm-up/, /Warm-up/, /Test day benchmark: Normal 120 s.*0 \/ 4/]);
   await page.keyboard.press('p');
+  await expect(page.getByTestId('play-modes')).toBeVisible();   // really away, then back
   await page.keyboard.press('c');
   await expect(page.getByTestId('road-title')).toBeVisible();
   await expect(page.getByTestId('road-gate-message')).toHaveCount(0);   // shown once
@@ -164,7 +165,7 @@ test('the drills start from keys 1–5, × ÷ N from the picker', async ({ page 
   await tick(page, 3100);
   await expect(page.getByTestId('game-question')).toHaveText(/^(8 × \d+|\d+ ÷ 8)$/);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   const r = await lastRound(page);
   expect([r.mode, r.settings.drill, r.settings.n, r.coach, r.extra]).toEqual(['R60', 'mult', 8, undefined, undefined]);
   await tick(page, 500);
@@ -196,7 +197,7 @@ test('a day runs until 05:00: after midnight the evening session is still today 
   await page.keyboard.press('Enter');
   await tick(page, 3100);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   const r = await lastRound(page);
   expect([r.mode, r.extra, r.coach]).toEqual(['P3', true, undefined]);
@@ -222,7 +223,7 @@ test('the accuracy round (key 6): a wrong digit loses the point, the question st
   await expect(score).toHaveText('Score: 0');
   await answerCurrent(page);
   await expect(score).toHaveText('Score: 1');
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await expect(page.getByTestId('stat-accuracy')).toContainText('50%');   // 1 of the 2 answers was right first time
   const r = await lastRound(page);

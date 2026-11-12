@@ -496,7 +496,8 @@ ef = my median time per
       var w = nowMs - t0 > 21 * DAY ? 0.5 : 1;
       r.questions.forEach(function (q) {
         if (q.unanswered && !q.skipped) return;   // a skipped trick counts as a miss; time running out does not
-        attempts.push({ q: q, day: day, w: w, at: r.startedAt, time: q.timeMs, wrong: isWrong(q) });
+        // a Taylor answer helped by its hint never counts as good
+        attempts.push({ q: q, day: day, w: w, at: r.startedAt, time: q.timeMs, wrong: isWrong(q) || (q.op === 'ty' && !!q.hinted) });
       });
     });
     attempts.sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
@@ -525,7 +526,7 @@ ef = my median time per
     return Object.keys(map).map(function (k) {
       var e = map[k], list = e.list;
       var sw = slownessOf(list);
-      var untimed = e.cat === 'iv' || e.cat === 'tr' || e.cat === 'mx';   // interview, tricks, matrices: no stall rule, they are slower by nature
+      var untimed = e.cat === 'iv' || e.cat === 'tr' || e.cat === 'mx' || e.cat === 'ty';   // interview, tricks, matrices, Taylor: no stall rule, they are slower by nature
 
       // Walk sessions in order.
       var sessDays = [], bySess = {};
@@ -566,7 +567,7 @@ ef = my median time per
   // Facts to drill: weak first, then improving; by slowness. Interview, trick and matrix keys excluded (not Zetamac-style).
   function drillTargets(stats) {
     var rank = { weak: 0, improving: 1 };
-    return stats.filter(function (f) { return rank[f.status] !== undefined && f.cat !== 'iv' && f.cat !== 'tr' && f.cat !== 'mx'; })
+    return stats.filter(function (f) { return rank[f.status] !== undefined && f.cat !== 'iv' && f.cat !== 'tr' && f.cat !== 'mx' && f.cat !== 'ty'; })
       .sort(function (a, b) { return rank[a.status] - rank[b.status] || b.slowness - a.slowness; });
   }
 

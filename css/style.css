@@ -609,3 +609,26 @@ svg.chart[data-picks] { cursor: pointer; }
   .stats-pick .seg { border-radius: var(--r-l); }
   .ov-num { font-size: 40px; }
 }
+
+/* ---------- Learn › Taylor expansions (taylor-ui.js): 6 choices, 2 × 3 (one column on a phone) ---------- */
+.ty-display { margin: 14px 0 0; font-size: 26px; overflow-x: auto; overflow-y: hidden; }
+.ty-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ty-opts .ot { font-size: 18px; }
+.ty-opts .opt.chosen .ot { border-bottom: 2px solid var(--fg); }   /* your wrong pick: underlined; the right one is inverted */
+.ty-hint { margin: 12px 0 0; padding: 10px 14px; border-radius: var(--r-m); background: var(--surface); }
+.ty-full { margin: 12px 0 0; font-size: 22px; overflow-x: auto; overflow-y: hidden; }
+.ty-est { margin-top: 8px; }
+.ty-grid { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; }
+.ty-cell { padding: 6px 10px; border-radius: var(--r-m); border: 1px solid var(--fg); font-size: 15px; line-height: 1.3; }
+.ty-cell.unseen { border: 1px dashed var(--soft); color: var(--mid); }
+.ty-cell.weak { background: var(--fg); color: var(--bg); }
+.ty-cell.mastered { background: var(--surface-2); border-color: var(--surface-2); font-weight: 600; }
+.ty-at { font-size: var(--t-xs); color: var(--mid); }
+.ty-cell.weak .ty-at { color: var(--bg); }
+@media (max-width: 640px) {
+  .ty-opts { grid-template-columns: minmax(0, 1fr); }
+  .ty-display { font-size: 22px; }
+}
+/* maths on an inverted ground (the right option, a weak expansion) takes the ground's opposite */
+.fq-opts .opt.right .tex math, .ty-cell.weak .tex math { color: var(--bg); }
+@media (max-width: 640px) { .ty-full { font-size: 18px; } }

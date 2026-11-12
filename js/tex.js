@@ -5,7 +5,7 @@
  *
  * Supported: numbers, letters (italic), \text{…} (upright words), ^ and _ with a token or {group},
  * \frac \tfrac \sqrt \sum, ( … ) and [ … ] groups (text-size brackets), \left( … \right) (stretchy), Greek
- * (\sigma \Delta \varphi \ell …), operators (\times \cdot \approx \Rightarrow \iff \mid \le \ge \top), functions
+ * (\sigma \Delta \varphi \ell …), operators (\times \cdot \approx \infty \Rightarrow \iff \mid \le \ge \top), functions
  * (\ln \log \exp), spaces (\, \; \  \quad), and any plain character (+ − = < > | , ; % * ' ? !).
  * Anything else throws.
  *
@@ -21,7 +21,7 @@
   };
   var OPS = {
     times: '×', cdot: '·', approx: '≈', Rightarrow: '⇒', iff: '⟺', mid: '∣', le: '≤', ge: '≥', neq: '≠',
-    pm: '±', to: '→', top: '⊤', sum: '∑'
+    pm: '±', to: '→', top: '⊤', sum: '∑', infty: '∞'
   };
   var FUNCS = { ln: 1, log: 1, exp: 1 };
   var SPACES = { ',': '0.17em', ';': '0.28em', ' ': '0.25em', quad: '1em' };

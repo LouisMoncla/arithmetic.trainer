@@ -2,7 +2,7 @@
 // saving, end screens with worked answers, progress, Log. Answers come from the same engine in Node:
 // a question is reproducible from (template, seed), which #finance/q/<id>/<seed> opens.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, solve, rounds } = require('./helpers');
+const { openApp, tick, solve, rounds, endRound, jump } = require('./helpers');
 const F = require('../../js/finance-bank.js');
 const TeX = require('../../js/tex.js');
 
@@ -70,7 +70,7 @@ test('Sprint: exact answers are taken as typed, Tab skips, the end screen explai
   }
   await page.keyboard.press('Tab');
   await expect(page.getByTestId('game-score')).toHaveText('Score: 3');
-  await tick(page, 121000);
+  await endRound(page, 121000);
   await expect(page.getByTestId('end-score')).toHaveText('3');
   await expect(page.locator('.end-head')).toContainText('Finance sprint, 120 s');
   const all = page.getByTestId('end-all-questions');
@@ -215,6 +215,7 @@ test('Leaving mid-session saves it; progress, weak spots and Log show finance ro
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finance');
   expect(await rounds(page)).toHaveLength(1);
   await page.keyboard.press('a');
+  await expect(page.getByTestId('overview-more')).toBeVisible();   // D means the detail only once the overview is drawn (before, it is the drill)
   await page.keyboard.press('d');   // the overview, then the detail: the mode played last, in its group
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Finance practice' })).toBeVisible();
 });
@@ -249,7 +250,7 @@ test('Sprint: H pauses to learn (clock stopped, formula and solution), then the 
   await expect(panel.locator('.fq-formula math')).toBeVisible();
   await expect(panel.locator('li').first()).toBeVisible();
   await expect(page.getByTestId('game-timer')).toHaveText('Paused');
-  await tick(page, 20000);   // reading time: the clock does not move
+  await jump(page, 20000);   // reading time: the clock does not move (one step, not 400 game ticks)
   await expect(page.getByTestId('game-timer')).toHaveText('Paused');
   await page.keyboard.press('Enter');
   await expect(panel).toBeHidden();
@@ -265,7 +266,7 @@ test('Sprint: H pauses to learn (clock stopped, formula and solution), then the 
   await expect(panel).toBeVisible();
   await page.getByTestId('game-resume').click();
   await expect(panel).toBeHidden();
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('stat-fin-learned')).toContainText('2');
   const all = page.getByTestId('end-all-questions');
   await expect(all.locator('summary').first()).toContainText('Paused to learn');

@@ -117,6 +117,16 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
   then you type the answer to go on, and the end shows where you needed it. On **Squares 11–30** you can set your own practice
   range (From and To, 2 to 50, remembered); the timed round and Squares on Play stay 11² to 30², so your stats keep one meaning. `F` plays a **timed round**: 60 s of that
   trick, saved as mode `LEARN` and compared only with rounds of the same trick (shown as "Learn: × 11").
+  **Taylor expansions** (`#learn/taylor`, under Calculus): 59 expansions in four tiers (basics at 0, composed and products,
+  at a ≠ 0, asymptotics and quant), asked as 6-choice questions: the expansion of a function, the function behind an
+  expansion, or an estimate to 4 decimals (off by default). The wrong choices come from the usual mistakes (a sign, k!
+  against k, a sibling function, a wrong coefficient, a missing term, the wrong remainder). Settings on the page: tiers,
+  question types, orders (2 to 7), names (ch, sh, th or cosh, sinh, tanh) and the sprint penalty. `Enter` **learns**: 20
+  questions picked for you (new ones first, then weak ones); `1`–`6` answer, `H` shows the method first (it then counts as
+  helped), and after each answer the full expansion and its method. `F` / `G` **sprint** 60 / 120 s: `1`–`6`, `Tab` skips,
+  +1 right, −1 wrong (or 0 / −0.5), a review at the end. A wrong or helped answer in Learn comes back once, 3 to 5 questions later, as another question type or order. A grid
+  shows each expansion: not seen, seen, weak, or mastered (your last 3 days on it, Learn and Sprint answers together, all
+  right, no hint, median under 6 s). Saved as `LEARN` rounds ("Learn: Taylor sprint, 60 s" in Stats).
   **Fractions by heart** (`#learn/fractions`): all 49 fractions with a denominator up to 12, plus 1/16, 3/16, 1/20 and 1/25,
   both ways: 3/7 → type the decimal; 0.429… → type 3/7 in the two boxes. Repeating decimals take 3 places, rounded
   or cut off (2/3: 0.667 or 0.666); a decimal with … repeats. A grid shows every pair: grey = not seen yet,

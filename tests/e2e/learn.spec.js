@@ -1,6 +1,6 @@
 // Learn tab: lessons for each trick, untimed practice (method on a miss or Tab, nothing saved), timed rounds.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, solve, answerBox, answerCurrent, rounds } = require('./helpers');
+const { openApp, tick, solve, answerBox, answerCurrent, rounds, endRound } = require('./helpers');
 
 test('N opens Learn: every trick has a lesson, grouped, and a lesson has its rule and examples', async ({ page }) => {
   await openApp(page);
@@ -8,7 +8,7 @@ test('N opens Learn: every trick has a lesson, grouped, and a lesson has its rul
   await expect(page).toHaveURL(/#learn$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Learn');
   for (const g of ['Squares', 'Products', 'Percentages', 'Fractions']) await expect(page.getByRole('heading', { name: g, exact: true })).toBeVisible();
-  await expect(page.locator('a.lesson')).toHaveCount(17); // 16 tricks (with n! and n choose k) + fractions by heart
+  await expect(page.locator('a.lesson')).toHaveCount(18); // 16 tricks (with n! and n choose k), fractions by heart, Taylor expansions
   await expect(page.getByTestId('learn-lesson-x11')).toContainText('Not started');
 
   // ↓ moves between lessons, Enter opens the focused one.
@@ -63,7 +63,7 @@ test('Squares 11–30: practice takes your own range (remembered, never saved); 
     expect(k >= 11 && k <= 30, 'timed round asked ' + k + '²').toBe(true);
     await answerCurrent(page);
   }
-  await tick(page, 61000);
+  await endRound(page, 61000);
   const saved = (await rounds(page))[0];
   expect(saved.mode).toBe('LEARN');
   expect(saved.settings.sq).toBeUndefined();
@@ -114,7 +114,7 @@ test('timed round: F plays 60 s of one trick, saved as LEARN and named after the
   await expect(page.getByTestId('game-question')).toHaveText(/25/);
   await answerCurrent(page);
   await answerCurrent(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('2');
   await expect(page.locator('.end-head')).toContainText('Learn: × 25');
 
@@ -127,6 +127,7 @@ test('timed round: F plays 60 s of one trick, saved as LEARN and named after the
   await expect(page.getByRole('heading', { name: 'Your numbers' })).toBeVisible();
   await expect(page.locator('.facts')).toContainText('Timed rounds');
   await page.goto(page.url().replace(/#.*/, '#stats'));
+  await expect(page.getByTestId('overview-more')).toBeVisible();   // D means the detail only once the overview is drawn (before, it is the drill)
   await page.keyboard.press('d');
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Learn: × 25' })).toBeVisible();   // its own mode on Stats
 });
@@ -189,7 +190,7 @@ test('fractions by heart: a timed round is saved as LEARN fractions and fills th
   await answerHeart(page);
   await answerHeart(page);
   await answerHeart(page);
-  await tick(page, 61000);
+  await endRound(page, 61000);
   await expect(page.getByTestId('end-score')).toHaveText('3');
   await expect(page.locator('.end-head')).toContainText('Learn: fractions by heart');
   const saved = (await rounds(page))[0];
