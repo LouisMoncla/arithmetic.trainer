@@ -1,0 +1,1621 @@
+/*
+ * proba-cards.js — the Probability bank: data only (Learn › Probability, engine in proba.js).
+ *
+ * One card:
+ *   { id: "L3-geo-var",           unique and stable forever, /^L[1-6]-[a-z0-9-]+$/, starting with its lecture
+ *     lecture: 3,                  1..6
+ *     game: "laws",                laws | statements | tool | truefalse | formulas | proof | compute
+ *     topic: "discrete laws",      a short tag, shown small
+ *     complement: false,           optional: true = shown only with "Show complements"
+ *     source: "L3 slides; TD3 Ex6",optional, shown under the explanation
+ *     prompt: "…",                 text with inline TeX between $…$ (\$ for a dollar)
+ *     answer: …,                   MCQ games: a string; truefalse: true or false; compute: a number
+ *     distractors: ["…", …],       MCQ games only: 3 to 5 strings, all different from each other and from the answer
+ *     hint: "…",                   optional (without one, H removes half the distractors)
+ *     explain: "…",                required, 1–2 sentences
+ *     tol: 0.002,                  compute only, optional (default max(0.0005, 0.001 × |answer|))
+ *     target: 20 }                 optional: the mastery time target in seconds (default: the game's)
+ * The order of the file is the order of the course: Learn brings new cards in this order.
+ * To update the bank: replace everything from AT.PROBA_META to the closing ]; and keep this header and the wrapper.
+ * Maths between $…$ is drawn by tex.js (a subset, not full LaTeX; anything else makes the card invalid). Supported:
+ *   structures  \frac \dfrac \tfrac \binom \sqrt ^ _ \left( \right) and [ ] | . \{ \} \| (a norm) \bar \overline
+ *               \lfloor \rfloor \lceil \rceil; \frac12 and \frac1n take one digit or letter, \frac{12}{5} a braced group
+ *   operators   \sum \prod \int \lim \limsup \liminf \sup \inf \max \min \log \ln \exp \sin \cos \tan \det
+ *   fonts       \mathbb{N Z Q R C E P} \mathcal{A B F N U …} \mathbf{1} \mathrm{…} \text{…} \operatorname{…}
+ *   Greek       \alpha \beta \gamma \delta \varepsilon \epsilon \eta \theta \kappa \lambda \mu \nu \xi \pi \rho \sigma \tau
+ *               \phi \varphi \chi \psi \omega, and \Gamma \Delta \Theta \Lambda \Pi \Sigma \Phi \Psi \Omega
+ *   relations   \le \ge \ne \approx \sim \equiv \propto \ll \gg \to \mapsto \Rightarrow \Leftarrow \iff \in \notin
+ *               \subset \subseteq \supset \supseteq \mid \pm \times \cdot \circ
+ *   sets, logic \cup \cap \bigcup \bigcap \setminus \emptyset \forall \exists \neg \partial \infty \prime \cdots \ldots
+ *   spaces      \, \; \quad \qquad \!
+ * Drawing notes: write |x| as \left| x \right| (a bare |x| gets a space on each side); an unbraced script takes
+ * one token (x^2, x_n, x^{10}); \infty keeps a small gap next to a sign or bracket; use $…$ for every formula.
+ * tests/proba.test.js validates this file (P.validateCards); a bad card fails `npm test`, and the app skips it.
+ */
+(function () {
+  'use strict';
+  var AT = typeof window !== 'undefined' ? (window.AT = window.AT || {}) : {};
+
+AT.PROBA_META = {
+  version: "2026-11-12-L1L4",
+  lectures: {
+    1: "Countable sets, Fubini, what a probability is",
+    2: "Probability spaces, conditioning, independence",
+    3: "Distributions, expectation, variance, Lᵖ",
+    4: "Inequalities, MGF, CDF",
+    5: "Coupon collector, Gaussian & Beta, order statistics",
+    6: "Convergence, LLN, Monte Carlo"
+  }
+};
+
+AT.PROBA_CARDS = [
+
+  // ================================================================
+  // LECTURE 1 — Countable sets, series, Fubini, what a probability is
+  // ================================================================
+
+  { id: "L1-countable-def", lecture: 1, game: "statements", topic: "countability",
+    prompt: "Course definition: a set $E$ is countable if",
+    answer: "there is an injection $f : E \\to \\mathbb{N}$",
+    distractors: ["there is a bijection $f : E \\to \\mathbb{N}$", "every subset of $E$ is finite", "$E$ is infinite and contained in $\\mathbb{Q}$"],
+    explain: "Injection into $\\mathbb{N}$. With this convention finite sets (and $\\emptyset$) are countable; a bijection with $\\mathbb{N}$ would exclude them.",
+    source: "L1 slides" },
+
+  { id: "L1-finite-countable", lecture: 1, game: "truefalse", topic: "countability",
+    prompt: "With the course's definition, every finite set is countable.",
+    answer: true,
+    explain: "A finite set $\\{e_1, \\ldots, e_n\\}$ injects into $\\mathbb{N}$ via $e_k \\mapsto k$.",
+    source: "L1 slides" },
+
+  { id: "L1-stability", lecture: 1, game: "statements", topic: "countability",
+    prompt: "Which of these is NOT a stability property of countable sets?",
+    answer: "Any product $\\prod_{n \\in \\mathbb{N}} E_n$ of countable sets is countable",
+    distractors: ["Any subset of a countable set is countable", "Any finite product of countable sets is countable", "A countable union of countable sets is countable"],
+    explain: "Only FINITE products. $\\{0,1\\}^{\\mathbb{N}}$ is a countable product of finite sets and is uncountable (Cantor).",
+    source: "L1 slides" },
+
+  { id: "L1-z-injection", lecture: 1, game: "formulas", topic: "countability",
+    prompt: "An injection $\\mathbb{Z} \\to \\mathbb{N}$:",
+    answer: "$n \\mapsto 2n$ if $n \\ge 0$, $n \\mapsto -2n-1$ if $n < 0$",
+    distractors: ["$n \\mapsto |n|$", "$n \\mapsto n^2$", "$n \\mapsto 2|n|$"],
+    explain: "Nonnegatives go to even numbers, negatives to odd numbers, so no collision. $|n|$, $n^2$, $2|n|$ all send $n$ and $-n$ to the same place.",
+    source: "L1 slides; textbook Ex 1.7" },
+
+  { id: "L1-q-countable", lecture: 1, game: "truefalse", topic: "countability",
+    prompt: "$\\mathbb{Q}$ is countable.",
+    answer: true,
+    explain: "$p/q$ in lowest terms ($q \\ge 1$) $\\mapsto (p, q) \\in \\mathbb{Z} \\times \\mathbb{N}$ is injective, and a finite product of countable sets is countable.",
+    source: "L1 slides" },
+
+  { id: "L1-eventually-zero-n", lecture: 1, game: "truefalse", topic: "countability",
+    prompt: "The set of sequences $(u_n) \\in \\mathbb{N}^{\\mathbb{N}}$ that are eventually $0$ is countable.",
+    answer: true,
+    explain: "It is $\\bigcup_N B_N$ with $B_N$ = sequences zero after $N$, and $B_N$ is in bijection with $\\mathbb{N}^N$: a countable union of countable sets.",
+    source: "TD1 Ex1" },
+
+  { id: "L1-eventually-zero-r", lecture: 1, game: "truefalse", topic: "countability",
+    prompt: "The set of sequences $(u_n) \\in \\mathbb{R}^{\\mathbb{N}}$ that are eventually $0$ is countable.",
+    answer: false,
+    explain: "$x \\mapsto (x, 0, 0, \\ldots)$ injects $[0,1]$ into it, and $[0,1]$ is uncountable.",
+    source: "TD1 Ex1" },
+
+  { id: "L1-cantor-tool", lecture: 1, game: "tool", topic: "countability",
+    prompt: "Goal: prove that $[0,1]$ is not countable. Tool?",
+    answer: "Diagonal argument: list $x_1, x_2, \\ldots$ and build $y$ whose $n$-th digit differs from the $n$-th digit of $x_n$",
+    distractors: ["Build an injection $[0,1] \\to \\mathbb{N}$", "Write $[0,1]$ as a countable union of finite sets", "Show $[0,1]$ has no largest element"],
+    explain: "Assume a list exists; $y \\in [0,1]$ differs from every $x_n$ at digit $n$: contradiction. (Avoid digits 0 and 9 to dodge $0.0999\\ldots = 0.1$.)",
+    source: "L1 slides; TD1 Ex2" },
+
+  // sample card (kept id)
+  { id: "L1-cantor", lecture: 1, game: "truefalse", topic: "countability",
+    prompt: "$\\{0,1\\}^{\\mathbb{N}}$ is countable.",
+    answer: false,
+    explain: "Cantor's diagonal argument: from any list $(u_n)$ build $v(k)=1-u_k(k)$, which is in none of the $u_n$.",
+    source: "L1 slides; TD1 Ex2" },
+
+  { id: "L1-r-minus-q", lecture: 1, game: "truefalse", topic: "countability", complement: true,
+    prompt: "$\\mathbb{R} \\setminus \\mathbb{Q}$ is countable.",
+    answer: false,
+    explain: "Otherwise $\\mathbb{R} = \\mathbb{Q} \\cup (\\mathbb{R} \\setminus \\mathbb{Q})$ would be a union of two countable sets, hence countable.",
+    source: "Textbook Cor 1.12 (complement)" },
+
+  { id: "L1-monotone-jumps", lecture: 1, game: "statements", topic: "countability",
+    prompt: "The set of discontinuity points of a nondecreasing $f : \\mathbb{R} \\to \\mathbb{R}$ is",
+    answer: "countable",
+    distractors: ["finite", "empty", "possibly uncountable"],
+    explain: "Each jump $(f(x^-), f(x^+))$ contains a rational, and the jumps are disjoint intervals. Reused for CDFs in L4.",
+    source: "TD1 Ex3" },
+
+  { id: "L1-positive-family-proof", lecture: 1, game: "proof", topic: "series",
+    prompt: "$a_i \\ge 0$ and $\\sum_{i \\in I} a_i < \\infty$. Key step to show $\\{i : a_i > 0\\}$ is countable?",
+    answer: "$D_n = \\{i : a_i \\ge 1/n\\}$ has at most $n \\sum_i a_i$ elements, and $\\{a_i > 0\\} = \\bigcup_n D_n$",
+    distractors: ["Order the $a_i$ in decreasing order", "Use that $I$ is a subset of $\\mathbb{R}$", "Apply Fubini to $\\sum_i a_i$"],
+    explain: "Each $D_n$ is finite, and a countable union of finite sets is countable.",
+    source: "TD1 Ex3" },
+
+  { id: "L1-series-extended", lecture: 1, game: "truefalse", topic: "series",
+    prompt: "For $u_n \\ge 0$, $\\sum_{n \\ge 0} u_n$ always has a well-defined value in $[0, +\\infty]$, even if it diverges.",
+    answer: true,
+    explain: "Partial sums are nondecreasing, so the limit exists in $[0, +\\infty]$: no ambiguity, a divergent sum is $+\\infty$.",
+    source: "L1 slides" },
+
+  { id: "L1-uncountable-sum", lecture: 1, game: "statements", topic: "series",
+    prompt: "$u_i \\ge 0$ indexed by an uncountable set $I$. When can $\\sum_{i \\in I} u_i$ be a finite number?",
+    answer: "Only if all but countably many $u_i$ are $0$",
+    distractors: ["Never", "Whenever the $u_i$ are bounded", "Whenever $I$ is an interval of $\\mathbb{R}$"],
+    explain: "If the sum is finite, $\\{u_i > 0\\} = \\bigcup_n \\{u_i \\ge 1/n\\}$ is a countable union of finite sets.",
+    source: "L1 slides; TD1 Ex3" },
+
+  { id: "L1-double-nonneg", lecture: 1, game: "statements", topic: "series",
+    prompt: "For $a_{m,n} \\ge 0$, compare $\\sum_m \\sum_n a_{m,n}$ and $\\sum_n \\sum_m a_{m,n}$.",
+    answer: "Always equal (possibly both $+\\infty$)",
+    distractors: ["Equal only if one of them is finite", "Equal only if $\\sum_{m,n} a_{m,n} < \\infty$", "They may differ"],
+    explain: "Nonnegative terms: order never matters. This is the series version of Fubini positive.",
+    source: "L1 slides" },
+
+  // sample card (kept id)
+  { id: "L1-double-series-swap", lecture: 1, game: "truefalse", topic: "series",
+    prompt: "For a double series $\\sum_m \\sum_n a_{m,n}$ with terms of any sign, swapping the order of summation never changes the value.",
+    answer: false,
+    explain: "Slide counterexample: $a_{n,n}=1$, $a_{n,n+1}=-1$ gives $0$ in one order and $1$ in the other. Swapping is free only for nonnegative terms (or absolutely summable ones).",
+    source: "L1 slides" },
+
+  // sample card (kept id)
+  { id: "L1-fubini-positive-hyp", lecture: 1, game: "statements", topic: "Fubini",
+    prompt: "Fubini for nonnegative functions: which extra hypothesis is needed to swap the two integrals of $f \\ge 0$?",
+    answer: "None: both orders give the same value in $[0,+\\infty]$",
+    distractors: ["$\\int\\int |f| < \\infty$", "$f$ bounded", "$f$ continuous with compact support"],
+    explain: "Positive case: no integrability needed; the common value may be $+\\infty$. Integrability is the hypothesis of Fubini–Tonelli for signed $f$.",
+    source: "L1 slides" },
+
+  { id: "L1-fubini-tonelli-hyp", lecture: 1, game: "statements", topic: "Fubini",
+    prompt: "Fubini–Tonelli, $f$ of any sign: hypothesis needed to swap $\\int_Y \\left(\\int_X f g\\,dx\\right) h\\,dy$ and $\\int_X \\left(\\int_Y f h\\,dy\\right) g\\,dx$?",
+    answer: "$\\int_Y \\left(\\int_X |f(x,y)| g(x)\\,dx\\right) h(y)\\,dy < \\infty$",
+    distractors: ["$\\int_Y \\left(\\int_X f(x,y) g(x)\\,dx\\right) h(y)\\,dy < \\infty$", "$f$ bounded", "None"],
+    explain: "Integrability of $|f|$ (in either order: it is the same by Fubini positive). Finiteness of an iterated integral of $f$ itself is not enough.",
+    source: "L1 slides" },
+
+  { id: "L1-fubini-signed-tool", lecture: 1, game: "tool", topic: "Fubini",
+    prompt: "You want to swap two integrals of a function $f$ that changes sign. First move?",
+    answer: "Apply Fubini positive to $|f|$ to show $\\int\\int |f| < \\infty$, then use Fubini–Tonelli",
+    distractors: ["Swap directly since $f$ is continuous", "Check that one iterated integral of $f$ is finite", "Check that $f$ is bounded on bounded sets"],
+    explain: "$|f| \\ge 0$, so you may compute $\\int\\int |f|$ in the easier order. Once finite, the swap for $f$ is legal.",
+    source: "L1 slides; TD1 Ex5" },
+
+  { id: "L1-iterated-trap", lecture: 1, game: "truefalse", topic: "Fubini",
+    prompt: "If both iterated integrals of $f$ exist and are finite, they are equal.",
+    answer: false,
+    explain: "$f(x,y) = \\frac{x^2 - y^2}{(x^2 + y^2)^2}$ on $(0,1]^2$ gives $\\pi/4$ in one order and $-\\pi/4$ in the other: $\\int\\int |f| = \\infty$.",
+    source: "Textbook Ex 1.24" },
+
+  { id: "L1-frullani-proof", lecture: 1, game: "proof", topic: "Fubini",
+    prompt: "Key step to compute $\\int_0^\\infty \\frac{e^{-ax} - e^{-bx}}{x}\\,dx$ ($0 < a < b$)?",
+    answer: "Write $\\frac{e^{-ax} - e^{-bx}}{x} = \\int_a^b e^{-ux}\\,du$, then swap the integrals (Fubini positive)",
+    distractors: ["Integrate by parts with $u = 1/x$", "Expand $e^{-ax}$ in power series and integrate term by term", "Substitute $t = bx$ in the second term only"],
+    hint: "Find the hidden second integral.",
+    explain: "The integrand of the double integral is $e^{-ux} \\ge 0$: $\\int_a^b \\int_0^\\infty e^{-ux}\\,dx\\,du = \\int_a^b \\frac{du}{u} = \\log(b/a)$.",
+    source: "TD1 Ex4" },
+
+  { id: "L1-frullani-value", lecture: 1, game: "compute", topic: "Fubini",
+    prompt: "$\\int_0^\\infty \\frac{e^{-x} - e^{-3x}}{x}\\,dx =$ ? (3 decimals)",
+    answer: 1.0986, tol: 0.002,
+    hint: "$\\log(b/a)$",
+    explain: "$\\log(3/1) = \\log 3 \\approx 1.099$.",
+    source: "TD1 Ex4" },
+
+  { id: "L1-dirichlet", lecture: 1, game: "formulas", topic: "Fubini",
+    prompt: "$\\lim_{A \\to \\infty} \\int_0^A \\frac{\\operatorname{sin} x}{x}\\,dx =$ ?",
+    answer: "$\\frac{\\pi}{2}$",
+    distractors: ["$\\pi$", "$1$", "$\\frac{\\pi}{4}$", "$+\\infty$"],
+    explain: "Write $\\frac{1}{x} = \\int_0^\\infty e^{-xy}\\,dy$ and swap on $[0, A]$ (legal: $\\int_0^A \\int_0^\\infty |e^{-xy} \\operatorname{sin} x|\\,dy\\,dx \\le A$). Only an improper integral: $|\\operatorname{sin} x|/x$ is not integrable.",
+    source: "TD1 Ex5" },
+
+  { id: "L1-uniform-discrete", lecture: 1, game: "formulas", topic: "probability",
+    prompt: "Uniform discrete probability on a finite set $\\Omega$: $\\mathbb{P}[A] =$ ?",
+    answer: "$\\frac{\\mathrm{Card}(A)}{\\mathrm{Card}(\\Omega)}$",
+    distractors: ["$\\frac{1}{\\mathrm{Card}(A)}$", "$\\frac{\\mathrm{Card}(A)}{\\mathrm{Card}(\\Omega) - 1}$", "$\\frac{\\mathrm{Card}(\\Omega \\setminus A)}{\\mathrm{Card}(\\Omega)}$"],
+    explain: "Every outcome has mass $1/\\mathrm{Card}(\\Omega)$; add them up over $A$.",
+    source: "L1 slides" },
+
+  { id: "L1-uniform-on-n", lecture: 1, game: "truefalse", topic: "probability",
+    prompt: "There is a probability on $\\mathbb{N}$ (all subsets) that gives the same mass to every integer.",
+    answer: false,
+    explain: "If $\\mathbb{P}[\\{n\\}] = c$ for all $n$, σ-additivity gives $\\mathbb{P}[\\mathbb{N}] = \\sum_n c$, which is $0$ or $+\\infty$, never $1$.",
+    source: "Textbook Ex 1.6" },
+
+  { id: "L1-01-not-discrete", lecture: 1, game: "statements", topic: "probability",
+    prompt: "Why can the uniform law on $[0,1]$ ($\\mathbb{P}[[a,b]] = b - a$) not be a discrete probability?",
+    answer: "Every point has probability $0$, while a discrete probability is the sum of the masses of countably many points",
+    distractors: ["Because $[0,1]$ is bounded", "Because $b - a$ is not additive", "Because $[0,1]$ is not closed under complement"],
+    explain: "$\\mathbb{P}[\\{x\\}] = \\mathbb{P}[[x,x]] = 0$; summing countably many zeros gives $0 \\ne 1$.",
+    source: "L1 slides" },
+
+  { id: "L1-birthday", lecture: 1, game: "compute", topic: "probability",
+    prompt: "23 people, birthdays uniform on 365 days, independent. $\\mathbb{P}[\\text{all distinct}] =$ ? (3 decimals)",
+    answer: 0.4927, tol: 0.002,
+    hint: "$\\prod_{k=0}^{22} \\left(1 - \\frac{k}{365}\\right)$",
+    explain: "$\\frac{365 \\cdot 364 \\cdots 343}{365^{23}} \\approx 0.493 < 1/2$: a shared birthday is more likely than not.",
+    source: "Textbook Ex 1.7" },
+
+  // ================================================================
+  // LECTURE 2 — General probability spaces, conditioning, independence
+  // ================================================================
+
+  { id: "L2-why-sigma-algebra", lecture: 2, game: "statements", topic: "σ-algebras",
+    prompt: "How does the course get around the impossibility of defining the uniform law on all subsets of $[0,1]$?",
+    answer: "Define $\\mathbb{P}$ only on a smaller family of sets: a σ-algebra (the Borel one)",
+    distractors: ["Replace σ-additivity by finite additivity", "Allow $\\mathbb{P}$ to take the value $+\\infty$", "Restrict to the rational points of $[0,1]$"],
+    explain: "Keep σ-additivity and $\\mathbb{P}[[a,b]] = b-a$, give up measuring every subset.",
+    source: "L1–L2 slides" },
+
+  { id: "L2-sigma-def", lecture: 2, game: "statements", topic: "σ-algebras",
+    prompt: "Axioms of a σ-algebra $\\mathcal{A} \\subseteq \\mathcal{P}(\\Omega)$:",
+    answer: "$\\emptyset \\in \\mathcal{A}$; stable under complement; stable under countable unions",
+    distractors: ["$\\Omega \\in \\mathcal{A}$; stable under complement; stable under finite unions", "$\\emptyset \\in \\mathcal{A}$; stable under complement; stable under arbitrary unions", "contains all singletons; stable under countable unions"],
+    explain: "Countable (not just finite, not arbitrary) unions. Finite unions only = an algebra, not enough for σ-additivity.",
+    source: "L2 slides" },
+
+  { id: "L2-sigma-intersections", lecture: 2, game: "truefalse", topic: "σ-algebras",
+    prompt: "A σ-algebra is stable under countable intersections.",
+    answer: true,
+    explain: "De Morgan: $\\bigcap_n A_n = \\left(\\bigcup_n A_n^c\\right)^c$, using complement then countable union then complement.",
+    source: "L2 slides" },
+
+  { id: "L2-sigma-generated-a", lecture: 2, game: "formulas", topic: "σ-algebras",
+    prompt: "The smallest σ-algebra on $\\Omega$ containing a set $A$:",
+    answer: "$\\{\\emptyset, A, A^c, \\Omega\\}$",
+    distractors: ["$\\{\\emptyset, A, \\Omega\\}$", "$\\{A, A^c\\}$", "$\\mathcal{P}(\\Omega)$"],
+    explain: "It must contain $\\emptyset$, $A$, its complement, and $\\Omega = \\emptyset^c$; these four are already stable.",
+    source: "L2 slides" },
+
+  { id: "L2-borel-def", lecture: 2, game: "statements", topic: "σ-algebras",
+    prompt: "The Borel σ-algebra $\\mathcal{B}(I)$ of an interval $I$ is",
+    answer: "the intersection of all σ-algebras on $I$ that contain every interval $[a,b] \\subseteq I$",
+    distractors: ["the set of all countable unions of intervals of $I$", "$\\mathcal{P}(I)$", "the union of all σ-algebras containing the intervals"],
+    explain: "The smallest σ-algebra containing the intervals. One checks that an intersection of σ-algebras is a σ-algebra.",
+    source: "L2 slides" },
+
+  { id: "L2-q-borel", lecture: 2, game: "truefalse", topic: "σ-algebras",
+    prompt: "$\\mathbb{Q} \\in \\mathcal{B}(\\mathbb{R})$.",
+    answer: true,
+    explain: "$\\{q\\} = [q,q]$ is Borel and $\\mathbb{Q} = \\bigcup_{q \\in \\mathbb{Q}} \\{q\\}$ is a countable union.",
+    source: "L2 slides" },
+
+  { id: "L2-prob-space-def", lecture: 2, game: "statements", topic: "probability spaces",
+    prompt: "$(\\Omega, \\mathcal{A}, \\mathbb{P})$ is a (general) probability space if",
+    answer: "$\\mathcal{A}$ is a σ-algebra, $\\mathbb{P} : \\mathcal{A} \\to [0,1]$, $\\mathbb{P}[\\Omega] = 1$, and $\\mathbb{P}$ is σ-additive on disjoint sequences",
+    distractors: ["$\\mathcal{A} = \\mathcal{P}(\\Omega)$, $\\mathbb{P}[\\Omega] = 1$, $\\mathbb{P}$ finitely additive", "$\\mathcal{A}$ is a σ-algebra, $\\mathbb{P}[\\emptyset] = 0$, $\\mathbb{P}$ nondecreasing", "$\\mathcal{A}$ is a σ-algebra, $\\mathbb{P}[\\Omega] = 1$, $\\mathbb{P}$ finitely additive"],
+    explain: "Two axioms on $\\mathbb{P}$: total mass $1$ and σ-additivity. Everything else (complement, monotonicity, union bound) follows.",
+    source: "L2 slides" },
+
+  { id: "L2-diff-hyp", lecture: 2, game: "statements", topic: "probability spaces",
+    prompt: "$\\mathbb{P}[B \\setminus A] = \\mathbb{P}[B] - \\mathbb{P}[A]$ holds when",
+    answer: "$A \\subseteq B$",
+    distractors: ["$A$ and $B$ are disjoint", "$A$ and $B$ are independent", "always"],
+    explain: "$B = A \\cup (B \\setminus A)$ if $A \\subseteq B$. In general $\\mathbb{P}[B \\setminus A] = \\mathbb{P}[B] - \\mathbb{P}[A \\cap B]$.",
+    source: "L2 slides" },
+
+  { id: "L2-incl-excl-3", lecture: 2, game: "formulas", topic: "probability spaces",
+    prompt: "$\\mathbb{P}[A \\cup B \\cup C] =$ ?",
+    answer: "$\\sum \\mathbb{P}[A] - \\sum \\mathbb{P}[A \\cap B] + \\mathbb{P}[A \\cap B \\cap C]$",
+    distractors: ["$\\sum \\mathbb{P}[A] - \\sum \\mathbb{P}[A \\cap B]$", "$\\sum \\mathbb{P}[A] - \\sum \\mathbb{P}[A \\cap B] - \\mathbb{P}[A \\cap B \\cap C]$", "$\\sum \\mathbb{P}[A] - \\mathbb{P}[A \\cap B \\cap C]$"],
+    explain: "Sums over the 3 sets and the 3 pairs. Signs alternate: $+$ singles, $-$ pairs, $+$ triple.",
+    source: "L2 slides; textbook Ex 2.2" },
+
+  { id: "L2-union-bound-trap", lecture: 2, game: "truefalse", topic: "probability spaces",
+    prompt: "$\\mathbb{P}\\left[\\bigcup_n A_n\\right] \\le \\sum_n \\mathbb{P}[A_n]$ requires the $A_n$ to be disjoint.",
+    answer: false,
+    explain: "The union bound holds for any sequence. For disjoint $A_n$ it is an equality (σ-additivity).",
+    source: "TD2 Ex1" },
+
+  { id: "L2-union-bound-proof", lecture: 2, game: "proof", topic: "probability spaces",
+    prompt: "Key step to prove $\\mathbb{P}\\left[\\bigcup_n A_n\\right] \\le \\sum_n \\mathbb{P}[A_n]$?",
+    answer: "Disjointify: $B_0 = A_0$, $B_n = A_n \\setminus \\bigcup_{i<n} A_i$; then σ-additivity and $B_n \\subseteq A_n$",
+    distractors: ["Use inclusion–exclusion and drop the negative terms", "Apply continuity from above to $\\bigcup_{k \\ge n} A_k$", "Assume the $A_n$ independent"],
+    explain: "The $B_n$ are disjoint with the same union, so $\\mathbb{P}[\\bigcup A_n] = \\sum \\mathbb{P}[B_n] \\le \\sum \\mathbb{P}[A_n]$.",
+    source: "TD2 Ex1" },
+
+  { id: "L2-prob1-intersection-proof", lecture: 2, game: "proof", topic: "probability spaces",
+    prompt: "$\\mathbb{P}[B_n] = 1$ for all $n$. Key step to show $\\mathbb{P}\\left[\\bigcap_n B_n\\right] = 1$?",
+    answer: "Union bound on the complements: $\\mathbb{P}\\left[\\bigcup_n B_n^c\\right] \\le \\sum_n 0 = 0$",
+    distractors: ["σ-additivity applied to the $B_n$", "Independence of the $B_n$", "$\\mathbb{P}$ is nondecreasing, so the intersection has probability $\\ge 1$"],
+    explain: "$\\left(\\bigcap B_n\\right)^c = \\bigcup B_n^c$ is a countable union of null sets, hence null.",
+    source: "TD2 Ex1" },
+
+  { id: "L2-rv-def", lecture: 2, game: "statements", topic: "random variables",
+    prompt: "$X : \\Omega \\to \\mathbb{R}$ is a real random variable on $(\\Omega, \\mathcal{A}, \\mathbb{P})$ iff",
+    answer: "$X^{-1}([a,b]) \\in \\mathcal{A}$ for all $a, b \\in \\mathbb{R}$",
+    distractors: ["$X$ is continuous", "$X(\\Omega)$ is countable", "$X(A) \\in \\mathcal{B}(\\mathbb{R})$ for all $A \\in \\mathcal{A}$"],
+    explain: "Preimages of intervals must be events, so that $\\mathbb{P}[X \\in [a,b]]$ makes sense. Countable $X(\\Omega)$ is what makes $X$ discrete.",
+    source: "L2 slides" },
+
+  { id: "L2-law-def", lecture: 2, game: "formulas", topic: "random variables",
+    prompt: "The law $\\mu_X$ of $X$ is defined on $\\mathcal{B}(\\mathbb{R})$ by $\\mu_X(C) =$ ?",
+    answer: "$\\mathbb{P}[X^{-1}(C)]$",
+    distractors: ["$\\mathbb{P}[X(C)]$", "$\\mathbb{P}[C]$", "$\\sum_{x \\in C} \\mathbb{P}[X = x]$ for every $X$"],
+    explain: "Push $\\mathbb{P}$ forward through $X$. The sum formula only holds for discrete $X$.",
+    source: "L2 slides" },
+
+  { id: "L2-ac-point-mass", lecture: 2, game: "truefalse", topic: "random variables",
+    prompt: "If $X$ is absolutely continuous, then $\\mathbb{P}[X = a] = 0$ for every $a \\in \\mathbb{R}$.",
+    answer: true,
+    explain: "$\\mathbb{P}[X \\in [a,a]] = \\int_a^a f_X = 0$.",
+    source: "L2 slides" },
+
+  { id: "L2-density-intuition", lecture: 2, game: "formulas", topic: "random variables",
+    prompt: "For small $\\varepsilon$ (and $f_X$ continuous at $a$), $\\mathbb{P}[X \\in [a - \\varepsilon, a + \\varepsilon]] \\approx$ ?",
+    answer: "$2\\varepsilon f_X(a)$",
+    distractors: ["$\\varepsilon f_X(a)$", "$f_X(a)$", "$\\frac{f_X(a)}{2\\varepsilon}$"],
+    explain: "A density is probability per unit length; the interval has length $2\\varepsilon$.",
+    source: "L2 slides" },
+
+  { id: "L2-density-le-1", lecture: 2, game: "truefalse", topic: "random variables",
+    prompt: "A density always satisfies $f_X(x) \\le 1$.",
+    answer: false,
+    explain: "$\\mathcal{U}([0, 1/2])$ has density $2$ on $[0, 1/2]$. Only $\\int f_X = 1$ is required.",
+    source: "L2 slides" },
+
+  { id: "L2-mixed-rv", lecture: 2, game: "truefalse", topic: "random variables",
+    prompt: "Every real random variable is either discrete or absolutely continuous.",
+    answer: false,
+    explain: "$X = \\max(U - \\frac12, 0)$, $U \\sim \\mathcal{U}([0,1])$: $\\mathbb{P}[X = 0] = \\frac12$ (no density) and uncountably many values (not discrete). The course only studies the two pure types.",
+    source: "Textbook Rem 2.24" },
+
+  { id: "L2-cond-def", lecture: 2, game: "formulas", topic: "conditioning",
+    prompt: "$\\mathbb{P}[A \\mid B] =$ ? (with $\\mathbb{P}[B] > 0$)",
+    answer: "$\\frac{\\mathbb{P}[A \\cap B]}{\\mathbb{P}[B]}$",
+    distractors: ["$\\frac{\\mathbb{P}[A \\cap B]}{\\mathbb{P}[A]}$", "$\\frac{\\mathbb{P}[A]}{\\mathbb{P}[B]}$", "$\\mathbb{P}[A]\\,\\mathbb{P}[B]$"],
+    explain: "Restrict to $B$ and renormalise by $\\mathbb{P}[B]$. $B \\mapsto$ fixed, $A \\mapsto \\mathbb{P}[A \\mid B]$ is a new probability.",
+    source: "L2 slides" },
+
+  { id: "L2-cond-both-ways", lecture: 2, game: "truefalse", topic: "conditioning",
+    prompt: "Conditioning on an event $B$ can only decrease the probability of $A$: $\\mathbb{P}[A \\mid B] \\le \\mathbb{P}[A]$.",
+    answer: false,
+    explain: "Take $B = A$ with $0 < \\mathbb{P}[A] < 1$: $\\mathbb{P}[A \\mid A] = 1 > \\mathbb{P}[A]$. With $B = A^c$ it drops to $0$.",
+    source: "TD2 Ex1" },
+
+  { id: "L2-total-prob", lecture: 2, game: "formulas", topic: "conditioning",
+    prompt: "Law of total probability, $(B_i)$ a countable partition of $\\Omega$ with $\\mathbb{P}[B_i] > 0$: $\\mathbb{P}[A] =$ ?",
+    answer: "$\\sum_i \\mathbb{P}[A \\mid B_i]\\,\\mathbb{P}[B_i]$",
+    distractors: ["$\\sum_i \\mathbb{P}[B_i \\mid A]\\,\\mathbb{P}[A]$", "$\\sum_i \\mathbb{P}[A \\mid B_i]$", "$\\prod_i \\mathbb{P}[A \\mid B_i]$"],
+    explain: "$A = \\bigcup_i (A \\cap B_i)$ and $\\mathbb{P}[A \\cap B_i] = \\mathbb{P}[A \\mid B_i]\\mathbb{P}[B_i]$.",
+    source: "TD2 Ex3" },
+
+  { id: "L2-bayes", lecture: 2, game: "formulas", topic: "conditioning",
+    prompt: "Bayes, partition $(B_j)$: $\\mathbb{P}[B_i \\mid A] =$ ?",
+    answer: "$\\frac{\\mathbb{P}[A \\mid B_i]\\,\\mathbb{P}[B_i]}{\\sum_j \\mathbb{P}[A \\mid B_j]\\,\\mathbb{P}[B_j]}$",
+    distractors: ["$\\frac{\\mathbb{P}[A \\mid B_i]}{\\sum_j \\mathbb{P}[A \\mid B_j]}$", "$\\frac{\\mathbb{P}[B_i]}{\\sum_j \\mathbb{P}[A \\mid B_j]\\,\\mathbb{P}[B_j]}$", "$\\frac{\\mathbb{P}[A \\mid B_i]\\,\\mathbb{P}[A]}{\\mathbb{P}[B_i]}$"],
+    explain: "Definition of $\\mathbb{P}[B_i \\mid A]$, then total probability in the denominator.",
+    source: "TD2 Ex5; L1 medical test" },
+
+  { id: "L2-chain-rule-tool", lecture: 2, game: "tool", topic: "conditioning",
+    prompt: "Sequential draws without replacement. Goal: $\\mathbb{P}[A_1 \\cap \\cdots \\cap A_N]$. Tool?",
+    answer: "Chain rule: $\\mathbb{P}[A_1]\\,\\mathbb{P}[A_2 \\mid A_1] \\cdots \\mathbb{P}[A_N \\mid A_1 \\cap \\cdots \\cap A_{N-1}]$",
+    distractors: ["$\\prod_k \\mathbb{P}[A_k]$ (independence)", "Inclusion–exclusion", "Union bound"],
+    explain: "Draws without replacement are not independent, but each conditional step is easy to count.",
+    source: "TD2 Ex12; TD3 Ex2" },
+
+  // sample card (kept id)
+  { id: "L2-total-prob-tool", lecture: 2, game: "tool", topic: "conditioning",
+    prompt: "A die is chosen at random (6 faces or 12 faces), then rolled $n$ times. Goal: $\\mathbb{P}[\\text{all rolls give } 3]$. First move?",
+    answer: "Law of total probability over the partition {6-face die, 12-face die}",
+    distractors: ["Bayes' formula", "Independence of the rolls, so $(1/6)^n$", "Inclusion–exclusion over the rolls"],
+    explain: "Condition on the die: $\\frac12 \\cdot 6^{-n} + \\frac12 \\cdot 12^{-n}$. The rolls are independent only given the die.",
+    source: "TD2 Ex4" },
+
+  { id: "L2-susie", lecture: 2, game: "compute", topic: "Bayes",
+    prompt: "Same setting, $n = 2$ rolls, both gave $3$. $\\mathbb{P}[\\text{6-face die} \\mid \\text{both } 3] =$ ?",
+    answer: 0.8,
+    hint: "$\\frac{\\frac12 6^{-2}}{\\frac12 6^{-2} + \\frac12 12^{-2}}$",
+    explain: "$\\frac{1}{1 + 2^{-n}} = \\frac{1}{1.25} = 0.8$. Tends to $1$ as $n \\to \\infty$.",
+    source: "TD2 Ex4" },
+
+  // sample card (kept id)
+  { id: "L2-taxi", lecture: 2, game: "compute", topic: "Bayes",
+    prompt: "85% of taxis are white, 15% yellow. A witness identifies colours correctly with probability $0.8$ and says the taxi was yellow. $\\mathbb{P}[\\text{yellow} \\mid \\text{says yellow}]$? (3 decimals)",
+    answer: 0.4138, tol: 0.002,
+    hint: "Bayes: $\\dfrac{0.15 \\cdot 0.8}{0.15 \\cdot 0.8 + 0.85 \\cdot 0.2}$",
+    explain: "$\\frac{0.12}{0.12 + 0.17} = \\frac{12}{29} \\approx 0.414$. The base rate dominates: it is still more likely white.",
+    source: "TD2 Ex5" },
+
+  { id: "L2-taxi-two", lecture: 2, game: "compute", topic: "Bayes",
+    prompt: "Same taxi setting, two independent witnesses both say yellow. $\\mathbb{P}[\\text{yellow} \\mid \\text{both say yellow}]$? (3 decimals)",
+    answer: 0.7385, tol: 0.002,
+    hint: "$\\dfrac{0.15 \\cdot 0.8^2}{0.15 \\cdot 0.8^2 + 0.85 \\cdot 0.2^2}$",
+    explain: "$\\frac{0.096}{0.096 + 0.034} = \\frac{0.096}{0.13} \\approx 0.738$.",
+    source: "TD2 Ex5" },
+
+  { id: "L2-medical", lecture: 2, game: "compute", topic: "Bayes",
+    prompt: "Prevalence $4/10000$. Test positive w.p. $0.99$ if sick, negative w.p. $0.98$ if healthy. $\\mathbb{P}[\\text{sick} \\mid +]$? (3 decimals)",
+    answer: 0.0194, tol: 0.0005,
+    hint: "$\\dfrac{0.99 \\cdot 0.0004}{0.99 \\cdot 0.0004 + 0.02 \\cdot 0.9996}$",
+    explain: "About $1.9\\%$: false positives ($2\\%$ of nearly everyone) swamp true positives.",
+    source: "L1 slides (medical test)" },
+
+  { id: "L2-monty-hall", lecture: 2, game: "compute", topic: "conditioning",
+    prompt: "Monty Hall: you pick door 1, the host opens an empty door among the other two, you switch. $\\mathbb{P}[\\text{win}]$? (fraction or decimal)",
+    answer: 0.6667, tol: 0.001,
+    explain: "Switching wins exactly when your first pick was wrong: probability $2/3$.",
+    source: "Textbook Ex 2.6" },
+
+  { id: "L2-indep-def", lecture: 2, game: "formulas", topic: "independence",
+    prompt: "Events $A$ and $B$ are independent iff",
+    answer: "$\\mathbb{P}[A \\cap B] = \\mathbb{P}[A]\\,\\mathbb{P}[B]$",
+    distractors: ["$A \\cap B = \\emptyset$", "$\\mathbb{P}[A \\mid B] = \\mathbb{P}[B \\mid A]$", "$\\mathbb{P}[A \\cup B] = \\mathbb{P}[A] + \\mathbb{P}[B]$"],
+    explain: "If $\\mathbb{P}[B] > 0$, equivalently $\\mathbb{P}[A \\mid B] = \\mathbb{P}[A]$. The definition with the product also works when $\\mathbb{P}[B] = 0$.",
+    source: "L2 slides" },
+
+  { id: "L2-disjoint-not-indep", lecture: 2, game: "truefalse", topic: "independence",
+    prompt: "Two disjoint events with positive probabilities are independent.",
+    answer: false,
+    explain: "$\\mathbb{P}[A \\cap B] = 0 \\ne \\mathbb{P}[A]\\mathbb{P}[B] > 0$. Disjoint means strongly dependent: one excludes the other.",
+    source: "L2 slides" },
+
+  { id: "L2-self-indep", lecture: 2, game: "statements", topic: "independence",
+    prompt: "An event $A$ is independent of itself iff",
+    answer: "$\\mathbb{P}[A] \\in \\{0, 1\\}$",
+    distractors: ["$A = \\emptyset$", "$\\mathbb{P}[A] = 1/2$", "never"],
+    explain: "$\\mathbb{P}[A] = \\mathbb{P}[A]^2$ forces $\\mathbb{P}[A] = 0$ or $1$.",
+    source: "Textbook Ex 2.7" },
+
+  { id: "L2-indep-family-def", lecture: 2, game: "statements", topic: "independence",
+    prompt: "A family of events $(A_i)_{i \\in I}$ is independent iff",
+    answer: "$\\mathbb{P}\\left[\\bigcap_{j \\in J} A_j\\right] = \\prod_{j \\in J} \\mathbb{P}[A_j]$ for every finite $J \\subseteq I$",
+    distractors: ["$\\mathbb{P}[A_i \\cap A_j] = \\mathbb{P}[A_i]\\mathbb{P}[A_j]$ for all $i \\ne j$", "$\\mathbb{P}\\left[\\bigcap_{i \\in I} A_i\\right] = \\prod_{i \\in I} \\mathbb{P}[A_i]$", "the $A_i$ are pairwise disjoint"],
+    explain: "Every finite subfamily, not just pairs (pairwise independence is weaker) and not just the whole family.",
+    source: "L2 slides" },
+
+  // sample card (kept id)
+  { id: "L2-pairwise-mutual", lecture: 2, game: "truefalse", topic: "independence",
+    prompt: "If $A$, $B$, $C$ are pairwise independent, then they are mutually independent.",
+    answer: false,
+    explain: "$X_1, X_2$ independent fair $\\pm 1$, $Y_3 = X_1 X_2$: each pair is independent but $\\mathbb{P}[Y_1=1, Y_2=1, Y_3=-1] = 0 \\ne 1/8$.",
+    source: "TD2 Ex6" },
+
+  { id: "L2-complements-indep", lecture: 2, game: "statements", topic: "independence",
+    prompt: "$(A_i)_{i \\in I}$ independent. Replace some of the $A_i$ by their complements. The new family is",
+    answer: "still independent",
+    distractors: ["independent only if one set is replaced", "pairwise independent only", "independent only if $\\mathbb{P}[A_i] = 1/2$"],
+    explain: "Proved by induction on the number of complements, using $\\mathbb{P}[B \\cap A^c] = \\mathbb{P}[B] - \\mathbb{P}[B \\cap A]$.",
+    source: "L2 slides" },
+
+  { id: "L2-union-indep-c", lecture: 2, game: "truefalse", topic: "independence",
+    prompt: "If $A$, $B$, $C$ are independent, then $A \\cup B$ is independent of $C$.",
+    answer: true,
+    explain: "$\\mathbb{P}[(A \\cup B) \\cap C] = \\mathbb{P}[AC] + \\mathbb{P}[BC] - \\mathbb{P}[ABC] = \\mathbb{P}[C](\\mathbb{P}[A] + \\mathbb{P}[B] - \\mathbb{P}[A]\\mathbb{P}[B])$.",
+    source: "TD2 Ex2" },
+
+  { id: "L2-dice-s7", lecture: 2, game: "truefalse", topic: "independence",
+    prompt: "Two fair dice, $D_1$ the first, $S$ the sum. $\\{S = 7\\}$ and $\\{D_1 = 3\\}$ are independent.",
+    answer: true,
+    explain: "$\\mathbb{P}[S=7] = 6/36 = 1/6$, $\\mathbb{P}[D_1 = 3] = 1/6$, $\\mathbb{P}[\\text{both}] = 1/36$.",
+    source: "Textbook Ex 2.5" },
+
+  { id: "L2-dice-s6", lecture: 2, game: "truefalse", topic: "independence",
+    prompt: "Two fair dice. $\\{S = 6\\}$ and $\\{D_1 = 3\\}$ are independent.",
+    answer: false,
+    explain: "$\\mathbb{P}[S = 6] = 5/36$, so $\\mathbb{P}[S=6]\\mathbb{P}[D_1=3] = 5/216 \\ne 1/36$. Sum $7$ is special: every $D_1$ allows it.",
+    source: "Textbook Ex 2.5" },
+
+  { id: "L2-urn-not-indep", lecture: 2, game: "truefalse", topic: "independence",
+    prompt: "Urn with $k$ blue and $N-k$ red balls ($0<k<N$), two draws without replacement. \"First is blue\" and \"second is red\" are independent.",
+    answer: false,
+    explain: "$\\mathbb{P}[A \\cap B] = \\frac{k(N-k)}{N(N-1)} \\ne \\frac{k}{N} \\cdot \\frac{N-k}{N}$.",
+    source: "TD2 Ex10" },
+
+  { id: "L2-lottery", lecture: 2, game: "formulas", topic: "counting",
+    prompt: "$N$ tickets, $m$ winning, you buy $r$ at random. $\\mathbb{P}[\\text{at least one winner}] =$ ?",
+    answer: "$1 - \\frac{\\binom{N-m}{r}}{\\binom{N}{r}}$",
+    distractors: ["$\\frac{\\binom{m}{r}}{\\binom{N}{r}}$", "$\\frac{rm}{N}$", "$1 - \\left(1 - \\frac{m}{N}\\right)^r$"],
+    explain: "Complement: all $r$ tickets among the $N - m$ losing ones. $(1 - m/N)^r$ would be with replacement.",
+    source: "TD2 Ex11" },
+
+  { id: "L2-bins", lecture: 2, game: "compute", topic: "counting",
+    prompt: "Urn with 3 blue and 3 red balls. Draw them two by two into 3 bins. $\\mathbb{P}[\\text{each bin gets one blue and one red}]$? (fraction or decimal)",
+    answer: 0.4,
+    hint: "Chain rule: $\\prod_{j=1}^{3} \\frac{j}{2j-1}$",
+    explain: "$1 \\cdot \\frac{2}{3} \\cdot \\frac{3}{5} = \\frac{2}{5}$. With $j$ of each colour left, the next pair is mixed w.p. $\\frac{j}{2j-1}$.",
+    source: "TD2 Ex12" },
+
+  { id: "L2-min-of-3", lecture: 2, game: "formulas", topic: "counting",
+    prompt: "3 balls drawn from $\\{1, \\ldots, 50\\}$ without replacement, $X$ = smallest. $\\mathbb{P}[X = k] =$ ? ($1 \\le k \\le 48$)",
+    answer: "$\\frac{\\binom{50-k}{2}}{\\binom{50}{3}}$",
+    distractors: ["$\\frac{\\binom{k-1}{2}}{\\binom{50}{3}}$", "$\\frac{(k-1)(50-k)}{\\binom{50}{3}}$", "$\\frac{1}{48}$"],
+    explain: "Choose the two other balls above $k$. $\\binom{k-1}{2}$ is for the largest, $(k-1)(50-k)$ for the middle one.",
+    source: "TD2 Ex13" },
+
+  { id: "L2-joint-law", lecture: 2, game: "formulas", topic: "joint laws",
+    prompt: "Joint law of $(X, Y)$: $\\mu_{X,Y}(C_1 \\times C_2) =$ ?",
+    answer: "$\\mathbb{P}[X \\in C_1, Y \\in C_2]$",
+    distractors: ["$\\mathbb{P}[X \\in C_1]\\,\\mathbb{P}[Y \\in C_2]$", "$\\mathbb{P}[X \\in C_1] + \\mathbb{P}[Y \\in C_2]$", "$\\mathbb{P}[X \\in C_1 \\mid Y \\in C_2]$"],
+    explain: "The comma means intersection. The product form holds only under independence.",
+    source: "L2 slides" },
+
+  { id: "L2-marginal", lecture: 2, game: "formulas", topic: "joint laws",
+    prompt: "Discrete case: $p_X(x) =$ ?",
+    answer: "$\\sum_{y} p_{X,Y}(x, y)$",
+    distractors: ["$\\sum_{x} p_{X,Y}(x, y)$", "$\\prod_{y} p_{X,Y}(x, y)$", "$p_{X,Y}(x, x)$"],
+    explain: "$\\{X = x\\} = \\bigcup_y \\{X = x, Y = y\\}$. Sum out the OTHER variable.",
+    source: "L2 slides" },
+
+  { id: "L2-indep-rv-def", lecture: 2, game: "statements", topic: "joint laws",
+    prompt: "Real random variables $X_1, \\ldots, X_N$ are independent iff",
+    answer: "$\\mathbb{P}[X_1 \\in [a_1,b_1], \\ldots, X_N \\in [a_N,b_N]] = \\prod_i \\mathbb{P}[X_i \\in [a_i,b_i]]$ for all intervals",
+    distractors: ["$\\mathbb{E}[X_1 \\cdots X_N] = \\prod_i \\mathbb{E}[X_i]$", "$\\mathrm{Cov}(X_i, X_j) = 0$ for all $i \\ne j$", "$X_i$ and $X_j$ are independent for all $i \\ne j$"],
+    explain: "Product over all choices of intervals. The other three are consequences or weaker notions.",
+    source: "L2 slides" },
+
+  { id: "L2-indep-joint-density", lecture: 2, game: "statements", topic: "joint laws",
+    prompt: "Discrete $X$, $Y$ are independent iff",
+    answer: "$p_{X,Y}(x, y) = p_X(x)\\,p_Y(y)$ for all $x, y$",
+    distractors: ["$p_{X,Y}(x, x) = p_X(x)^2$ for all $x$", "$\\sum_{x,y} p_{X,Y}(x,y) = 1$", "$p_X = p_Y$"],
+    explain: "The joint density factorises. Sum over $x \\in A, y \\in B$ to get $\\mathbb{P}[X \\in A, Y \\in B] = \\mathbb{P}[X \\in A]\\mathbb{P}[Y \\in B]$.",
+    source: "L2 slides" },
+
+  { id: "L2-functions-indep", lecture: 2, game: "truefalse", topic: "joint laws",
+    prompt: "If $X$ and $Y$ are independent, then $X^2$ and $e^Y$ are independent.",
+    answer: true,
+    explain: "$f(X)$ and $g(Y)$ are independent for any functions $f, g$: $\\{f(X) \\in A\\} = \\{X \\in f^{-1}(A)\\}$.",
+    source: "L2 slides" },
+
+  { id: "L2-s-t-indep", lecture: 2, game: "truefalse", topic: "joint laws",
+    prompt: "$n$ biased coin tosses. $S$ = number of heads, $T$ = time of the first head. $S$ and $T$ are independent.",
+    answer: false,
+    explain: "$T = +\\infty$ forces $S = 0$: $p_{S,T}(1, +\\infty) = 0 \\ne p_S(1)\\,p_T(+\\infty)$.",
+    source: "TD2 Ex8" },
+
+  { id: "L2-conv-discrete", lecture: 2, game: "formulas", topic: "sums",
+    prompt: "$X$, $Y$ independent, discrete. $p_{X+Y}(z) =$ ?",
+    answer: "$\\sum_x p_X(x)\\,p_Y(z - x)$",
+    distractors: ["$\\sum_x p_X(x)\\,p_Y(x - z)$", "$p_X(z)\\,p_Y(z)$", "$\\sum_x p_X(x) + p_Y(z - x)$"],
+    explain: "$\\{X + Y = z\\} = \\bigcup_x \\{X = x, Y = z - x\\}$, then independence.",
+    source: "L2 slides" },
+
+  { id: "L2-conv-continuous", lecture: 2, game: "formulas", topic: "sums",
+    prompt: "$X$, $Y$ independent with densities. $f_{X+Y}(z) =$ ?",
+    answer: "$\\int_{-\\infty}^{+\\infty} f_X(x)\\,f_Y(z - x)\\,dx$",
+    distractors: ["$f_X(z)\\,f_Y(z)$", "$\\int f_X(x)\\,f_Y(x)\\,dx$", "$\\int_0^z f_X(x)\\,dx \\cdot f_Y(z)$"],
+    explain: "Convolution $f_X * f_Y$. The bounds shrink to $[0, z]$ only when both variables are nonnegative.",
+    source: "L2 slides" },
+
+  { id: "L2-conv-sum-trap", lecture: 2, game: "truefalse", topic: "sums",
+    prompt: "For $X$, $Y$ independent with densities, $f_{X+Y}(z) = \\sum_{x \\in \\mathbb{R}} f_X(x)\\,f_Y(z - x)$.",
+    answer: false,
+    explain: "Board warning: $\\sum_{x \\in \\mathbb{R}}$ is only licit in the discrete case (countably many nonzero terms). In the continuous case it must be an integral.",
+    source: "L2 board notes" },
+
+  { id: "L2-conv-tool", lecture: 2, game: "tool", topic: "sums",
+    prompt: "Goal: the density of $X + Y$, with $X$, $Y$ independent with known densities. First move?",
+    answer: "Convolution: $f_{X+Y} = f_X * f_Y$",
+    distractors: ["Multiply the densities", "$\\mathbb{P}[X+Y > t] = \\mathbb{P}[X > t]\\,\\mathbb{P}[Y > t]$", "Add the densities and divide by $2$"],
+    explain: "Sum ⇒ convolution (or MGF product if you recognise a law). Min/max ⇒ products of tails/CDFs.",
+    source: "L2 slides" },
+
+  { id: "L2-dice-sum-9", lecture: 2, game: "compute", topic: "sums",
+    prompt: "Two fair dice. $\\mathbb{P}[\\text{sum} = 9]$? (fraction or decimal)",
+    answer: 0.1111, tol: 0.001,
+    explain: "$(3,6), (4,5), (5,4), (6,3)$: $4/36 = 1/9$. In general $p(z) = \\frac{6 - |z - 7|}{36}$.",
+    source: "Textbook Ex 2.45" },
+
+  { id: "L2-u-plus-u", lecture: 2, game: "laws", topic: "sums",
+    prompt: "$X$, $Y$ i.i.d. $\\mathcal{U}([0,1])$. Density of $X + Y$?",
+    answer: "$z$ on $[0,1]$, $2 - z$ on $[1,2]$, $0$ elsewhere",
+    distractors: ["$1/2$ on $[0,2]$", "$1$ on $[0,1]$, $0$ elsewhere", "$z/2$ on $[0,2]$", "$2z$ on $[0,1]$"],
+    explain: "$f(z) = $ length of $[0,1] \\cap [z-1, z]$: a triangle. Then $\\mathbb{E} = 1$, $\\mathrm{V} = 1/6$.",
+    source: "TD6 Ex3; textbook Ex 2.46" },
+
+  { id: "L2-exp-plus-exp", lecture: 2, game: "laws", topic: "sums",
+    prompt: "$X$, $Y$ i.i.d. $\\mathrm{Exp}(\\lambda)$. Density of $X + Y$ at $z \\ge 0$?",
+    answer: "$\\lambda^2 z e^{-\\lambda z}$",
+    distractors: ["$\\lambda e^{-2\\lambda z}$", "$2\\lambda e^{-2\\lambda z}$", "$\\lambda^2 e^{-\\lambda z}$", "$\\frac{\\lambda}{2} e^{-\\lambda z/2}$"],
+    explain: "$\\int_0^z \\lambda e^{-\\lambda x} \\lambda e^{-\\lambda (z-x)}\\,dx = \\lambda^2 z e^{-\\lambda z}$ (the $x$ cancels). $2\\lambda e^{-2\\lambda z}$ is the MIN.",
+    source: "Textbook Ex 2.47" },
+
+  // ================================================================
+  // LECTURE 3 — Important distributions, expectation, variance, Lp
+  // ================================================================
+
+  { id: "L3-be-mean-var", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Be}(p)$. $(\\mathbb{E}[X], \\mathrm{V}(X)) =$ ?",
+    answer: "$(p,\\ p(1-p))$",
+    distractors: ["$(p,\\ p^2)$", "$(1-p,\\ p(1-p))$", "$(p,\\ p)$", "$(\\frac12,\\ \\frac14)$"],
+    explain: "$X^2 = X$, so $\\mathbb{E}[X^2] = p$ and $\\mathrm{V}(X) = p - p^2$.",
+    source: "L3 slides; TD3 Ex6" },
+
+  { id: "L3-bin-mean-var", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Bin}(N, p)$. $(\\mathbb{E}[X], \\mathrm{V}(X)) =$ ?",
+    answer: "$(Np,\\ Np(1-p))$",
+    distractors: ["$(Np,\\ Np)$", "$(Np,\\ N^2 p(1-p))$", "$(p,\\ Np(1-p))$", "$(Np,\\ p(1-p))$"],
+    explain: "Sum of $N$ independent $\\mathrm{Be}(p)$: means add, and variances add because of independence.",
+    source: "L3; TD3 Ex8" },
+
+  { id: "L3-geo-pmf", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "Course convention for $X \\sim \\mathrm{Geo}(p)$: $p_X(n) =$ ?",
+    answer: "$p(1-p)^{n-1}$ for $n \\ge 1$",
+    distractors: ["$p(1-p)^{n}$ for $n \\ge 0$", "$(1-p)p^{n-1}$ for $n \\ge 1$", "$p^n(1-p)$ for $n \\ge 0$"],
+    explain: "$X$ = index of the first success: $n-1$ failures, then a success. Values in $\\{1, 2, \\ldots\\}$, so $\\mathbb{E}[X] = 1/p$.",
+    source: "L3 slides" },
+
+  { id: "L3-geo-mean", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Geo}(p)$ (values in $\\{1, 2, \\ldots\\}$). $\\mathbb{E}[X] =$ ?",
+    answer: "$\\frac{1}{p}$",
+    distractors: ["$\\frac{1-p}{p}$", "$\\frac{1}{1-p}$", "$\\frac{p}{1-p}$"],
+    explain: "$p \\sum_{n \\ge 1} n (1-p)^{n-1} = p \\cdot \\frac{1}{p^2}$. $\\frac{1-p}{p}$ is the mean of the version counting failures (from $0$).",
+    source: "TD3 Ex6" },
+
+  // sample card (kept id)
+  { id: "L3-geo-var", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Geo}(p)$ (course convention: values in $\\{1,2,\\ldots\\}$). $\\mathrm{V}(X) =$ ?",
+    answer: "$\\frac{1-p}{p^2}$",
+    distractors: ["$\\frac{1-p}{p}$", "$\\frac{1}{p^2}$", "$\\frac{p}{(1-p)^2}$", "$\\frac{1}{p}$"],
+    explain: "$\\mathbb{E}[X] = 1/p$ and $\\mathbb{E}[X^2] = (2-p)/p^2$, so $\\mathrm{V}(X) = (1-p)/p^2$.",
+    source: "L3; TD3 Ex6" },
+
+  { id: "L3-geo-tail", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Geo}(p)$. For $n \\ge 0$, $\\mathbb{P}[X > n] =$ ?",
+    answer: "$(1-p)^n$",
+    distractors: ["$(1-p)^{n-1}$", "$1 - (1-p)^n$", "$p(1-p)^n$"],
+    explain: "$X > n$ iff the first $n$ trials all fail. Hence $F_X(n) = 1 - (1-p)^n$.",
+    source: "TD3 Ex7; TD4 Ex4" },
+
+  { id: "L3-poi-mean-var", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Poi}(\\lambda)$. $(\\mathbb{E}[X], \\mathrm{V}(X)) =$ ?",
+    answer: "$(\\lambda,\\ \\lambda)$",
+    distractors: ["$(\\lambda,\\ \\lambda^2)$", "$(\\lambda,\\ \\sqrt{\\lambda})$", "$(\\frac{1}{\\lambda},\\ \\frac{1}{\\lambda^2})$"],
+    explain: "Shift the index: $\\sum n e^{-\\lambda}\\lambda^n/n! = \\lambda$, and $\\mathbb{E}[X(X-1)] = \\lambda^2$, so $\\mathrm{V} = \\lambda^2 + \\lambda - \\lambda^2$.",
+    source: "TD3 Ex6" },
+
+  { id: "L3-unif-disc", lecture: 3, game: "laws", topic: "discrete laws",
+    prompt: "$X$ uniform on $\\{-N, \\ldots, N\\}$. $\\mathrm{V}(X) =$ ?",
+    answer: "$\\frac{N(N+1)}{3}$",
+    distractors: ["$\\frac{N^2}{3}$", "$\\frac{N(N+1)}{6}$", "$\\frac{(2N+1)^2}{12}$", "$\\frac{N^2 - 1}{12}$"],
+    explain: "$\\mathbb{E}[X] = 0$ and $\\mathbb{E}[X^2] = \\frac{2}{2N+1} \\sum_{k=1}^N k^2 = \\frac{N(N+1)}{3}$.",
+    source: "L3 slides" },
+
+  { id: "L3-unif-mean", lecture: 3, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathcal{U}([a,b])$. $\\mathbb{E}[X] =$ ?",
+    answer: "$\\frac{a+b}{2}$",
+    distractors: ["$\\frac{b-a}{2}$", "$\\frac{b^2 - a^2}{2}$", "$\\frac{1}{b-a}$"],
+    explain: "$\\frac{1}{b-a}\\int_a^b x\\,dx = \\frac{b^2 - a^2}{2(b-a)} = \\frac{a+b}{2}$.",
+    source: "L3 slides" },
+
+  { id: "L3-unif-ex2", lecture: 3, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathcal{U}([a,b])$. $\\mathbb{E}[X^2] =$ ?",
+    answer: "$\\frac{a^2 + ab + b^2}{3}$",
+    distractors: ["$\\frac{a^2 + b^2}{2}$", "$\\frac{(b-a)^2}{12}$", "$\\left(\\frac{a+b}{2}\\right)^2$", "$\\frac{b^3 - a^3}{3}$"],
+    explain: "$\\frac{b^3 - a^3}{3(b-a)}$, then factor $b^3 - a^3$. The slide writes it wrongly (textbook A.2).",
+    source: "L3 slides; textbook A.2" },
+
+  { id: "L3-unif-var", lecture: 3, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathcal{U}([a,b])$. $\\mathrm{V}(X) =$ ?",
+    answer: "$\\frac{(b-a)^2}{12}$",
+    distractors: ["$\\frac{(b-a)^2}{6}$", "$\\frac{b^2 - a^2}{12}$", "$\\frac{(b-a)^2}{4}$", "$\\frac{b-a}{12}$"],
+    explain: "$\\frac{a^2 + ab + b^2}{3} - \\frac{(a+b)^2}{4} = \\frac{(b-a)^2}{12}$.",
+    source: "L3; TD6 Ex3" },
+
+  { id: "L3-be-to-bin", lecture: 3, game: "laws", topic: "relations",
+    prompt: "$X_1, \\ldots, X_N$ i.i.d. $\\mathrm{Be}(p)$. Law of $\\sum_{i=1}^N X_i$?",
+    answer: "$\\mathrm{Bin}(N, p)$",
+    distractors: ["$\\mathrm{Poi}(Np)$", "$\\mathrm{Geo}(p)$", "$\\mathrm{Be}(Np)$"],
+    explain: "$\\{\\sum X_i = k\\}$ = disjoint union over the $\\binom{N}{k}$ sets $K$ of size $k$ of $\\{X_i = 1 \\text{ on } K, 0 \\text{ elsewhere}\\}$.",
+    source: "L3 slides; TD2 Ex7" },
+
+  { id: "L3-be-to-geo", lecture: 3, game: "laws", topic: "relations",
+    prompt: "$(X_i)_{i \\ge 1}$ i.i.d. $\\mathrm{Be}(p)$, $T = \\inf\\{i \\ge 1 : X_i = 1\\}$. Law of $T$?",
+    answer: "$\\mathrm{Geo}(p)$",
+    distractors: ["$\\mathrm{Bin}(T, p)$", "$\\mathrm{Poi}(1/p)$", "$\\mathcal{U}(\\{1, \\ldots, \\lceil 1/p \\rceil\\})$"],
+    explain: "Time of the first success. This is the course's definition of the geometric law (values in $\\{1, 2, \\ldots\\}$).",
+    source: "L3 slides" },
+
+  { id: "L3-be-to-geo-proof", lecture: 3, game: "proof", topic: "relations",
+    prompt: "Key step to prove $T = \\inf\\{i : X_i = 1\\} \\sim \\mathrm{Geo}(p)$?",
+    answer: "$\\mathbb{P}[T \\ge n] = \\mathbb{P}[X_1 = \\cdots = X_{n-1} = 0] = (1-p)^{n-1}$, then $\\mathbb{P}[T = n] = \\mathbb{P}[T \\ge n] - \\mathbb{P}[T \\ge n+1]$",
+    distractors: ["Compute $\\mathbb{E}[T]$ and recognise $1/p$", "Use the MGF of $\\mathrm{Be}(p)$", "Apply the law of small numbers"],
+    explain: "Tail first (independence), then difference of tails: $(1-p)^{n-1} - (1-p)^n = p(1-p)^{n-1}$.",
+    source: "L3 board" },
+
+  { id: "L3-small-numbers", lecture: 3, game: "statements", topic: "relations",
+    prompt: "Law of small numbers: $X_n \\sim \\mathrm{Bin}(n, \\lambda/n)$. Then",
+    answer: "for each fixed $k$, $p_{X_n}(k) \\to e^{-\\lambda}\\frac{\\lambda^k}{k!}$ as $n \\to \\infty$",
+    distractors: ["$p_{X_n}(k) \\to e^{-\\lambda}\\frac{\\lambda^k}{k!}$ as $k \\to \\infty$", "$\\mathrm{Bin}(n, \\lambda) \\to \\mathrm{Poi}(\\lambda/n)$", "$X_n/n \\to \\mathrm{Poi}(\\lambda)$"],
+    explain: "$k$ fixed, $n \\to \\infty$. The slide writes $k \\to +\\infty$: typo (textbook A.2).",
+    source: "L3 slides; textbook A.2" },
+
+  { id: "L3-small-numbers-proof", lecture: 3, game: "proof", topic: "relations",
+    prompt: "Proof of $\\binom{n}{r}\\left(\\frac{\\lambda}{n}\\right)^r\\left(1-\\frac{\\lambda}{n}\\right)^{n-r} \\to e^{-\\lambda}\\frac{\\lambda^r}{r!}$. Which three limits?",
+    answer: "$\\frac{n(n-1)\\cdots(n-r+1)}{n^r} \\to 1$, $\\left(1-\\frac{\\lambda}{n}\\right)^n \\to e^{-\\lambda}$, $\\left(1-\\frac{\\lambda}{n}\\right)^{-r} \\to 1$",
+    distractors: ["$\\binom{n}{r} \\to \\frac{1}{r!}$, $\\left(\\frac{\\lambda}{n}\\right)^r \\to \\lambda^r$, $\\left(1-\\frac{\\lambda}{n}\\right)^{n} \\to 1$", "Stirling's formula for $n!$ and $(n-r)!$", "$\\left(1-\\frac{\\lambda}{n}\\right)^{n-r} \\to e^{-\\lambda r}$"],
+    explain: "Split $\\binom{n}{r}/n^r$ from $\\lambda^r/r!$; $r$ is fixed, so only the middle factor survives as $e^{-\\lambda}$.",
+    source: "L3 board" },
+
+  { id: "L3-poi-sum", lecture: 3, game: "laws", topic: "relations",
+    prompt: "$X \\sim \\mathrm{Poi}(a)$, $Y \\sim \\mathrm{Poi}(b)$, independent. Law of $X + Y$?",
+    answer: "$\\mathrm{Poi}(a + b)$",
+    distractors: ["$\\mathrm{Poi}(ab)$", "$\\mathrm{Bin}(a + b, \\frac12)$", "$\\mathrm{Poi}(\\max(a, b))$", "Not a Poisson law"],
+    explain: "Convolution + binomial theorem: $\\sum_n \\frac{a^n b^{m-n}}{n!(m-n)!} = \\frac{(a+b)^m}{m!}$. Or multiply the MGFs.",
+    source: "TD3 Ex5" },
+
+  { id: "L3-poi-sum-proof", lecture: 3, game: "proof", topic: "relations",
+    prompt: "Key step to prove $\\mathrm{Poi}(a) + \\mathrm{Poi}(b) = \\mathrm{Poi}(a+b)$ (independent) with densities?",
+    answer: "$p_{X+Y}(m) = \\sum_{n=0}^m p_X(n)\\,p_Y(m-n)$, then Newton's binomial formula",
+    distractors: ["$p_{X+Y}(m) = p_X(m)\\,p_Y(m)$", "Chebyshev's inequality", "The law of small numbers"],
+    explain: "$e^{-(a+b)}\\frac{1}{m!}\\sum_n \\binom{m}{n} a^n b^{m-n} = e^{-(a+b)}\\frac{(a+b)^m}{m!}$.",
+    source: "TD3 Ex5" },
+
+  { id: "L3-thinning", lecture: 3, game: "laws", topic: "relations",
+    prompt: "$N \\sim \\mathrm{Poi}(\\lambda)$ invitations; each guest accepts independently w.p. $p$. Law of the number $X$ of guests?",
+    answer: "$\\mathrm{Poi}(\\lambda p)$",
+    distractors: ["$\\mathrm{Bin}(N, p)$", "$\\mathrm{Bin}(\\lfloor \\lambda \\rfloor, p)$", "$\\mathrm{Poi}(\\lambda)$", "$\\mathrm{Geo}(p)$"],
+    explain: "\"$\\mathrm{Bin}(N, p)$\" is only the law GIVEN $N$. Unconditionally: total probability over $N$, then $\\sum_m \\frac{((1-p)\\lambda)^m}{m!} = e^{(1-p)\\lambda}$.",
+    source: "TD3 Ex10" },
+
+  { id: "L3-thinning-tool", lecture: 3, game: "tool", topic: "relations",
+    prompt: "$X = \\sum_{i=1}^{N} X_i$ with a RANDOM number $N$ of terms, independent of the $X_i$. First move to get $\\mathbb{P}[X = k]$?",
+    answer: "Condition on $N$: $\\sum_n \\mathbb{P}\\left[\\sum_{i=1}^n X_i = k\\right]\\mathbb{P}[N = n]$",
+    distractors: ["Linearity: $\\mathbb{P}[X = k] = N\\,\\mathbb{P}[X_1 = k]$", "Convolve $p_N$ with $p_{X_1}$", "Chebyshev on $X$"],
+    explain: "For fixed $n$ the sum has a known law; independence of $N$ lets you multiply.",
+    source: "TD3 Ex10" },
+
+  { id: "L3-memoryless", lecture: 3, game: "statements", topic: "relations",
+    prompt: "$X$ with values in $\\{1, 2, \\ldots\\}$ and $\\mathbb{P}[X > n] > 0$ for all $n$. Then $\\mathbb{P}[X = n + k \\mid X > n] = \\mathbb{P}[X = k]$ for all $n \\ge 0$, $k \\ge 1$ iff",
+    answer: "$X \\sim \\mathrm{Geo}(p)$ for some $p \\in (0,1)$",
+    distractors: ["$X \\sim \\mathrm{Poi}(\\lambda)$", "$X$ is uniform on a finite set", "$X \\sim \\mathrm{Bin}(N, p)$"],
+    explain: "Memoryless property. Converse: $\\mathbb{P}[X = k+1] = \\mathbb{P}[X = k]\\,\\mathbb{P}[X > 1]$, so $\\mathbb{P}[X=k] = p(1-p)^{k-1}$ with $p = \\mathbb{P}[X=1]$.",
+    source: "TD3 Ex7" },
+
+  // ---- Expectation ----
+
+  { id: "L3-exp-exists", lecture: 3, game: "statements", topic: "expectation",
+    prompt: "For a real $X$, $\\mathbb{E}[X]$ EXISTS (possibly infinite) iff",
+    answer: "at least one of $\\mathbb{E}[X \\mathbf{1}_{\\{X \\ge 0\\}}]$ and $\\mathbb{E}[-X \\mathbf{1}_{\\{X \\le 0\\}}]$ is finite",
+    distractors: ["both $\\mathbb{E}[X \\mathbf{1}_{\\{X \\ge 0\\}}]$ and $\\mathbb{E}[-X \\mathbf{1}_{\\{X \\le 0\\}}]$ are finite", "$X$ is bounded", "$\\mathbb{E}[X^2] < \\infty$"],
+    explain: "Then $\\mathbb{E}[X] = \\mathbb{E}[X^+] - \\mathbb{E}[X^-] \\in [-\\infty, +\\infty]$. Both finite = FINITE expectation ($X \\in L^1$). The slide's \"$> -\\infty$\" is a typo.",
+    source: "L3 slides; textbook A.2" },
+
+  { id: "L3-exists-not-finite", lecture: 3, game: "truefalse", topic: "expectation",
+    prompt: "If $\\mathbb{E}[X]$ exists, then $\\mathbb{E}|X| < \\infty$.",
+    answer: false,
+    explain: "Existence allows $\\mathbb{E}[X] = +\\infty$: e.g. $X \\ge 0$ with $\\mathbb{P}[X = k] = \\frac{6}{\\pi^2 k^2}$ has $\\mathbb{E}[X] = +\\infty$.",
+    source: "L3 slides; L6 slides" },
+
+  { id: "L3-transfer-discrete", lecture: 3, game: "formulas", topic: "expectation",
+    prompt: "Transfer formula, discrete $X$: $\\mathbb{E}[g(X)] =$ ?",
+    answer: "$\\sum_{x} g(x)\\,p_X(x)$",
+    distractors: ["$g\\left(\\sum_x x\\,p_X(x)\\right)$", "$\\sum_x x\\,p_X(g(x))$", "$\\sum_x g(x)\\,p_X(g(x))$"],
+    explain: "No need for the law of $g(X)$: group the $x$ with the same $g(x)$. $g(\\mathbb{E}[X])$ is a different number in general (Jensen).",
+    source: "L3 slides" },
+
+  { id: "L3-transfer-continuous", lecture: 3, game: "statements", topic: "expectation",
+    prompt: "$X$ with density $f_X$. $\\mathbb{E}[g(X)] = \\int g(x) f_X(x)\\,dx$ under which hypothesis on $g$ (in the course)?",
+    answer: "$g$ piecewise continuous, and $\\int |g| f_X < \\infty$ (or $g \\ge 0$)",
+    distractors: ["$g$ bounded and $C^1$", "$g$ increasing", "No hypothesis at all"],
+    explain: "The course adds \"piecewise continuous\" in the continuous case so that the Riemann integral makes sense.",
+    source: "L3 slides" },
+
+  { id: "L3-dice-mean", lecture: 3, game: "compute", topic: "expectation",
+    prompt: "Fair die. $\\mathbb{E}[X] =$ ?",
+    answer: 3.5,
+    explain: "$\\frac{1 + 2 + \\cdots + 6}{6} = \\frac{21}{6}$.",
+    source: "L3 slides" },
+
+  { id: "L3-abs-ineq", lecture: 3, game: "truefalse", topic: "expectation",
+    prompt: "If $\\mathbb{E}[X]$ exists, then $|\\mathbb{E}[X]| \\le \\mathbb{E}|X|$.",
+    answer: true,
+    explain: "Triangle inequality inside the sum/integral, or $-|X| \\le X \\le |X|$ and monotonicity.",
+    source: "L3 slides" },
+
+  { id: "L3-linearity", lecture: 3, game: "statements", topic: "expectation",
+    prompt: "$\\mathbb{E}[aX + bY] = a\\mathbb{E}[X] + b\\mathbb{E}[Y]$ requires",
+    answer: "$X$ and $Y$ with finite expectation (no independence needed)",
+    distractors: ["$X$ and $Y$ independent", "$X, Y \\ge 0$ and independent", "$X$ and $Y$ with the same law"],
+    explain: "Linearity never needs independence. Independence is for $\\mathbb{E}[XY]$ and for variances of sums.",
+    source: "L3 slides" },
+
+  // sample card (kept id)
+  { id: "L3-exy-indep", lecture: 3, game: "statements", topic: "expectation",
+    prompt: "When does the course guarantee $\\mathbb{E}[XY] = \\mathbb{E}[X]\\,\\mathbb{E}[Y]$?",
+    answer: "$X, Y$ independent with $\\mathbb{E}|X|, \\mathbb{E}|Y| < \\infty$",
+    distractors: ["$X, Y \\in L^1$, whatever their dependence", "$\\mathrm{Cov}(X,Y) \\ge 0$", "$X$ and $Y$ have the same law"],
+    explain: "Independence plus integrability (and then $XY \\in L^1$ too). Without independence it fails, e.g. $Y = X$ non-constant.",
+    source: "L3 slides" },
+
+  { id: "L3-exy-proof", lecture: 3, game: "proof", topic: "expectation",
+    prompt: "Key step to prove $\\mathbb{E}[XY] = \\mathbb{E}[X]\\mathbb{E}[Y]$ for independent discrete $X, Y$?",
+    answer: "$\\sum_x \\sum_y xy\\,p_X(x)p_Y(y)$ factorises into $\\left(\\sum_x x\\,p_X(x)\\right)\\left(\\sum_y y\\,p_Y(y)\\right)$ (Fubini, after checking with $|xy|$)",
+    distractors: ["Linearity of expectation", "Cauchy–Schwarz", "$\\mathrm{V}(X + Y) = \\mathrm{V}(X) + \\mathrm{V}(Y)$"],
+    explain: "Independence gives $p_{X,Y} = p_X p_Y$; Fubini positive on $|xy|$ shows $XY \\in L^1$, then the swap is legal.",
+    source: "L3 board" },
+
+  { id: "L3-tail-formula", lecture: 3, game: "formulas", topic: "expectation",
+    prompt: "$X$ with values in $\\mathbb{N}$. $\\mathbb{E}[X] =$ ?",
+    answer: "$\\sum_{k \\ge 0} \\mathbb{P}[X > k]$",
+    distractors: ["$\\sum_{k \\ge 0} \\mathbb{P}[X \\ge k]$", "$\\sum_{k \\ge 0} k\\,\\mathbb{P}[X > k]$", "$\\sum_{k \\ge 0} \\mathbb{P}[X \\le k]$"],
+    explain: "Tail formula ($= \\sum_{k \\ge 1} \\mathbb{P}[X \\ge k]$). $\\sum_{k \\ge 0} \\mathbb{P}[X \\ge k] = \\mathbb{E}[X] + 1$.",
+    source: "TD3 Ex1" },
+
+  // sample card (kept id)
+  { id: "L3-tail-formula-proof", lecture: 3, game: "proof", topic: "expectation",
+    prompt: "Key step to prove $\\mathbb{E}[X] = \\sum_{k \\ge 0} \\mathbb{P}[X > k]$ for $X$ with values in $\\mathbb{N}$?",
+    answer: "Write $n = \\sum_{k=0}^{n-1} 1$, so $\\mathbb{E}[X] = \\sum_n \\sum_{k<n} p_X(n)$, then swap the sums (nonnegative terms)",
+    distractors: ["Apply Markov's inequality to each $\\mathbb{P}[X>k]$", "Differentiate the MGF at $0$", "Integrate the CDF by parts"],
+    hint: "$X = \\sum_{k \\ge 0} \\mathbf{1}_{\\{X > k\\}}$",
+    explain: "After the swap, $\\sum_{n > k} p_X(n) = \\mathbb{P}[X > k]$. Swapping is legal because every term is $\\ge 0$ (L1).",
+    source: "TD3 Ex1" },
+
+  { id: "L3-tail-continuous", lecture: 3, game: "formulas", topic: "expectation", complement: true,
+    prompt: "$X \\ge 0$ (discrete or with a density). $\\mathbb{E}[X] =$ ?",
+    answer: "$\\int_0^\\infty \\mathbb{P}[X > t]\\,dt$",
+    distractors: ["$\\int_0^\\infty \\mathbb{P}[X \\le t]\\,dt$", "$\\int_0^\\infty t\\,\\mathbb{P}[X > t]\\,dt$", "$\\int_0^\\infty F_X(t)\\,dt$"],
+    explain: "$X = \\int_0^\\infty \\mathbf{1}_{\\{t < X\\}}\\,dt$, then Fubini positive. For $\\mathrm{Exp}(\\lambda)$: $\\int_0^\\infty e^{-\\lambda t}dt = 1/\\lambda$.",
+    source: "Textbook Prop 3.16 (complement)" },
+
+  { id: "L3-urn-white", lecture: 3, game: "compute", topic: "expectation",
+    prompt: "Urn: $6$ white and $2$ red balls, draws without replacement. $X$ = number of white balls before the first red. $\\mathbb{E}[X] =$ ?",
+    answer: 2,
+    hint: "$p_X(k) = \\frac{2(n-k+1)}{(n+1)(n+2)}$ with $n = 6$",
+    explain: "In general $\\mathbb{E}[X] = n/3$: the 2 reds cut the $n$ whites into 3 groups of equal mean size.",
+    source: "TD3 Ex2" },
+
+  { id: "L3-min-unif-limit", lecture: 3, game: "formulas", topic: "expectation",
+    prompt: "$X_1, X_2$ i.i.d. uniform on $\\{1, \\ldots, n\\}$, $Y = \\min(X_1, X_2)$. For $t \\in [0,1]$, $\\lim_n \\mathbb{P}[Y \\le tn] =$ ?",
+    answer: "$2t - t^2$",
+    distractors: ["$t^2$", "$t$", "$1 - (1-t)^n$"],
+    explain: "$\\mathbb{P}[Y > tn] \\approx (1-t)^2$, so the limit is $1 - (1-t)^2$: the CDF of the min of two $\\mathcal{U}([0,1])$.",
+    source: "TD3 Ex3" },
+
+  { id: "L3-martine", lecture: 3, game: "formulas", topic: "expectation",
+    prompt: "$X \\sim \\mathrm{Poi}(\\lambda)$; then a ball is drawn from an urn with $X$ blue and $1$ red ball. $A$ = red. $\\mathbb{P}[A] =$ ?",
+    answer: "$\\frac{1 - e^{-\\lambda}}{\\lambda}$",
+    distractors: ["$e^{-\\lambda}$", "$\\frac{1}{\\lambda + 1}$", "$\\frac{\\lambda}{1 + \\lambda}$"],
+    explain: "$\\sum_k \\frac{1}{k+1} e^{-\\lambda}\\frac{\\lambda^k}{k!} = \\frac{e^{-\\lambda}}{\\lambda}\\sum_k \\frac{\\lambda^{k+1}}{(k+1)!}$. Not $\\frac{1}{\\mathbb{E}[X]+1}$: that would be Jensen's mistake.",
+    source: "TD4 Ex8" },
+
+  // ---- Variance, covariance ----
+
+  { id: "L3-var-formula", lecture: 3, game: "formulas", topic: "variance",
+    prompt: "$\\mathrm{V}(X) =$ ? ($X \\in L^2$)",
+    answer: "$\\mathbb{E}[X^2] - \\mathbb{E}[X]^2$",
+    distractors: ["$\\mathbb{E}[X^2] + \\mathbb{E}[X]^2$", "$\\mathbb{E}[X]^2 - \\mathbb{E}[X^2]$", "$\\mathbb{E}[(X - \\mathbb{E}[X])]^2$"],
+    explain: "Expand $\\mathbb{E}[(X - m)^2] = \\mathbb{E}[X^2] - 2m^2 + m^2$. Always $\\ge 0$.",
+    source: "L3 slides" },
+
+  { id: "L3-cov-formula", lecture: 3, game: "formulas", topic: "variance",
+    prompt: "$\\mathrm{Cov}(X, Y) =$ ?",
+    answer: "$\\mathbb{E}[XY] - \\mathbb{E}[X]\\,\\mathbb{E}[Y]$",
+    distractors: ["$\\mathbb{E}[XY] + \\mathbb{E}[X]\\,\\mathbb{E}[Y]$", "$\\mathbb{E}[X]\\,\\mathbb{E}[Y] - \\mathbb{E}[XY]$", "$\\sqrt{\\mathrm{V}(X)\\mathrm{V}(Y)}$"],
+    explain: "$= \\mathbb{E}[(X - \\mathbb{E}X)(Y - \\mathbb{E}Y)]$. Zero if independent; $\\mathrm{Cov}(X, X) = \\mathrm{V}(X)$.",
+    source: "L3 slides" },
+
+  { id: "L3-var-sum", lecture: 3, game: "formulas", topic: "variance",
+    prompt: "$\\mathrm{V}(X + Y) =$ ?",
+    answer: "$\\mathrm{V}(X) + \\mathrm{V}(Y) + 2\\,\\mathrm{Cov}(X, Y)$",
+    distractors: ["$\\mathrm{V}(X) + \\mathrm{V}(Y)$", "$\\mathrm{V}(X) + \\mathrm{V}(Y) + \\mathrm{Cov}(X, Y)$", "$\\mathrm{V}(X) + \\mathrm{V}(Y) - 2\\,\\mathrm{Cov}(X, Y)$"],
+    explain: "Expand the square. Without the covariance term only if uncorrelated (e.g. independent).",
+    source: "L3 slides" },
+
+  { id: "L3-var-sum-n", lecture: 3, game: "formulas", topic: "variance",
+    prompt: "$\\mathrm{V}\\left(\\sum_{i=1}^n X_i\\right) =$ ?",
+    answer: "$\\sum_i \\mathrm{V}(X_i) + 2\\sum_{i<j} \\mathrm{Cov}(X_i, X_j)$",
+    distractors: ["$\\sum_i \\mathrm{V}(X_i) + \\sum_{i<j} \\mathrm{Cov}(X_i, X_j)$", "$\\sum_i \\mathrm{V}(X_i)$", "$n \\sum_i \\mathrm{V}(X_i)$"],
+    explain: "Same as $\\sum_{i \\ne j}$ without the $2$. Independent (or uncorrelated) terms: just $\\sum_i \\mathrm{V}(X_i)$.",
+    source: "TD3 Ex8" },
+
+  { id: "L3-var-affine", lecture: 3, game: "formulas", topic: "variance",
+    prompt: "$\\mathrm{V}(aX + b) =$ ?",
+    answer: "$a^2\\,\\mathrm{V}(X)$",
+    distractors: ["$a\\,\\mathrm{V}(X)$", "$a^2\\,\\mathrm{V}(X) + b$", "$|a|\\,\\mathrm{V}(X) + b^2$"],
+    explain: "Shifting does not change spread; scaling by $a$ scales deviations by $a$, squares by $a^2$.",
+    source: "Textbook Prop 3.24" },
+
+  { id: "L3-var-diff-trap", lecture: 3, game: "truefalse", topic: "variance",
+    prompt: "If $X$ and $Y$ are independent, $\\mathrm{V}(X - Y) = \\mathrm{V}(X) - \\mathrm{V}(Y)$.",
+    answer: false,
+    explain: "$\\mathrm{V}(X - Y) = \\mathrm{V}(X) + (-1)^2\\mathrm{V}(Y) = \\mathrm{V}(X) + \\mathrm{V}(Y)$. Variances never subtract.",
+    source: "L3 slides" },
+
+  { id: "L3-uncorrelated-trap", lecture: 3, game: "truefalse", topic: "variance",
+    prompt: "If $\\mathrm{Cov}(X, Y) = 0$, then $X$ and $Y$ are independent.",
+    answer: false,
+    explain: "$X$ uniform on $\\{-1, 0, 1\\}$, $Y = X^2$: $\\mathrm{Cov} = \\mathbb{E}[X^3] - 0 = 0$, but $Y$ is a function of $X$. Only independent ⇒ uncorrelated.",
+    source: "L3; TD5 Ex8" },
+
+  { id: "L3-var-zero", lecture: 3, game: "truefalse", topic: "variance",
+    prompt: "$\\mathrm{V}(X) = 0$ iff $X$ is almost surely constant.",
+    answer: true,
+    explain: "$\\mathbb{E}[(X - m)^2] = 0$ with a nonnegative integrand forces $X = m$ a.s.",
+    source: "L3" },
+
+  { id: "L3-bin-var-tool", lecture: 3, game: "tool", topic: "variance",
+    prompt: "Goal: $\\mathrm{V}(\\mathrm{Bin}(N, p))$ without heavy sums. Tool?",
+    answer: "Write it as a sum of $N$ independent $\\mathrm{Be}(p)$ and add the variances",
+    distractors: ["Compute $\\sum_k k^2 \\binom{N}{k}p^k(1-p)^{N-k}$ directly", "Chebyshev's inequality", "Jensen's inequality"],
+    explain: "$N \\cdot p(1-p)$: the law only depends on the law, so any representation works.",
+    source: "TD3 Ex8" },
+
+  { id: "L3-random-walk", lecture: 3, game: "formulas", topic: "variance",
+    prompt: "Simple random walk $X_{n+1} = X_n + \\varepsilon_{n+1}$, $X_0 = 0$, $\\varepsilon_i$ i.i.d. $\\pm 1$ fair. $\\mathrm{V}(X_n) =$ ?",
+    answer: "$n$",
+    distractors: ["$\\sqrt{n}$", "$n^2$", "$1$"],
+    explain: "Sum of $n$ independent steps of variance $1$. The typical distance is $\\sqrt{n}$ (that is the standard deviation).",
+    source: "L3 slides" },
+
+  { id: "L3-var-geo-compute", lecture: 3, game: "compute", topic: "variance",
+    prompt: "$X \\sim \\mathrm{Geo}(1/4)$. $\\mathrm{V}(X) =$ ?",
+    answer: 12,
+    explain: "$\\frac{1-p}{p^2} = \\frac{3/4}{1/16} = 12$.",
+    source: "TD3 Ex6" },
+
+  { id: "L3-var-bin-compute", lecture: 3, game: "compute", topic: "variance",
+    prompt: "$X \\sim \\mathrm{Bin}(10, 0.3)$. $\\mathrm{V}(X) =$ ?",
+    answer: 2.1,
+    explain: "$Np(1-p) = 10 \\cdot 0.3 \\cdot 0.7$.",
+    source: "TD3 Ex8" },
+
+  { id: "L3-var-unif-compute", lecture: 3, game: "compute", topic: "variance",
+    prompt: "$X \\sim \\mathcal{U}([2, 8])$. $\\mathrm{V}(X) =$ ?",
+    answer: 3,
+    explain: "$\\frac{(8-2)^2}{12} = 3$.",
+    source: "L3" },
+
+  // sample card (kept id)
+  { id: "L3-bin-pmf", lecture: 3, game: "compute", topic: "discrete laws",
+    prompt: "$X \\sim \\mathrm{Bin}(3, 1/2)$. $\\mathbb{P}[X = 2] =$ ? (fraction or decimal)",
+    answer: 0.375,
+    explain: "$\\binom{3}{2} \\cdot 2^{-3} = 3/8$.",
+    source: "L3" },
+
+  // sample card (kept id)
+  { id: "L3-sum-nx", lecture: 3, game: "formulas", topic: "series",
+    prompt: "For $|x| < 1$, $\\sum_{n \\ge 1} n x^{n-1} =$ ?",
+    answer: "$\\frac{1}{(1-x)^2}$",
+    distractors: ["$\\frac{x}{(1-x)^2}$", "$\\frac{1}{1-x}$", "$\\frac{1}{(1-x)^3}$", "$\\frac{x}{1-x}$"],
+    explain: "Differentiate $\\sum x^n = \\frac{1}{1-x}$ term by term. This gives $\\mathbb{E}[\\mathrm{Geo}(p)] = p \\cdot \\frac{1}{p^2} = \\frac{1}{p}$.",
+    source: "TD3 Ex6" },
+
+  { id: "L3-sum-n2x", lecture: 3, game: "formulas", topic: "series",
+    prompt: "For $|x| < 1$, $\\sum_{n \\ge 2} n(n-1) x^{n-2} =$ ?",
+    answer: "$\\frac{2}{(1-x)^3}$",
+    distractors: ["$\\frac{1}{(1-x)^3}$", "$\\frac{2}{(1-x)^2}$", "$\\frac{2x}{(1-x)^3}$"],
+    explain: "Second derivative of $\\frac{1}{1-x}$. Gives $\\mathbb{E}[X(X-1)]$ for the geometric law, hence its variance.",
+    source: "TD3 Ex6" },
+
+  { id: "L3-sum-squares", lecture: 3, game: "formulas", topic: "series",
+    prompt: "$\\sum_{k=1}^n k^2 =$ ?",
+    answer: "$\\frac{n(n+1)(2n+1)}{6}$",
+    distractors: ["$\\frac{n(n+1)}{2}$", "$\\frac{n^2(n+1)^2}{4}$", "$\\frac{n(n+1)(2n+1)}{3}$"],
+    explain: "Used for $\\mathbb{E}[X]$ in the urn exercise and for the uniform variance. $\\frac{n^2(n+1)^2}{4}$ is $\\sum k^3$.",
+    source: "TD3 Ex2" },
+
+  { id: "L3-exp-series", lecture: 3, game: "formulas", topic: "series",
+    prompt: "$\\sum_{k \\ge 0} \\frac{\\lambda^k}{k!} =$ ?",
+    answer: "$e^{\\lambda}$",
+    distractors: ["$\\frac{1}{1-\\lambda}$", "$e^{\\lambda} - 1$", "$\\lambda e^{\\lambda}$"],
+    explain: "The Poisson normalisation. Shifted versions: $\\sum_{k \\ge 1} \\frac{\\lambda^{k}}{(k-1)!} = \\lambda e^\\lambda$.",
+    source: "TD3 Ex6" },
+
+  // ---- Lp spaces ----
+
+  { id: "L3-lp-def", lecture: 3, game: "formulas", topic: "Lp spaces",
+    prompt: "$X \\in L^p$ means",
+    answer: "$\\mathbb{E}[|X|^p] < \\infty$",
+    distractors: ["$\\mathbb{E}[X^p] < \\infty$", "$\\mathbb{E}[|X|]^p < \\infty$", "$|X| \\le p$ a.s."],
+    explain: "Then $\\|X\\|_p = \\mathbb{E}[|X|^p]^{1/p}$. With the absolute value: $\\mathbb{E}[X^p]$ may not even be defined for odd $p$.",
+    source: "L3 slides" },
+
+  // sample card (kept id)
+  { id: "L3-lp-inclusion", lecture: 3, game: "truefalse", topic: "Lp spaces",
+    prompt: "On a probability space, if $0 < p \\le q$ then $L^q \\subseteq L^p$.",
+    answer: true,
+    explain: "$|X|^p \\le 1 + |X|^q$, and the constant $1$ is integrable because $\\mathbb{P}$ has total mass $1$. False on $\\mathbb{R}$ with Lebesgue measure.",
+    source: "L3 slides" },
+
+  { id: "L3-lp-inclusion-proof", lecture: 3, game: "proof", topic: "Lp spaces",
+    prompt: "Key step to show $X \\in L^q \\Rightarrow X \\in L^p$ for $0 < p \\le q$?",
+    answer: "$|X|^p \\le 1 + |X|^q$ (split $|X| \\le 1$ / $|X| > 1$), then take expectations",
+    distractors: ["$|X|^p \\le |X|^q$ always", "Markov's inequality", "Minkowski's inequality"],
+    explain: "On $|X| \\le 1$, $|X|^p \\le 1$; on $|X| > 1$, $|X|^p \\le |X|^q$. $\\mathbb{E}[1] = 1$ is where a probability space is used.",
+    source: "L3 board" },
+
+  { id: "L3-l2-product", lecture: 3, game: "proof", topic: "Lp spaces",
+    prompt: "Key step to show $X, Y \\in L^2 \\Rightarrow XY \\in L^1$ (board proof)?",
+    answer: "$|xy| \\le \\frac{x^2 + y^2}{2}$, then take expectations",
+    distractors: ["$|xy| \\le |x| + |y|$", "Jensen with $\\varphi(x) = x^2$", "Independence of $X$ and $Y$"],
+    explain: "$(|x| - |y|)^2 \\ge 0$. Cauchy–Schwarz (L4) then gives the sharper $\\mathbb{E}|XY| \\le \\|X\\|_2\\|Y\\|_2$.",
+    source: "L3 board" },
+
+  { id: "L3-seminorm-trap", lecture: 3, game: "truefalse", topic: "Lp spaces",
+    prompt: "$\\|\\cdot\\|_p$ is a seminorm on $L^p$ for every $p > 0$.",
+    answer: false,
+    explain: "Only for $p \\ge 1$ (the triangle inequality fails for $p < 1$). Slide error, see textbook A.2.",
+    source: "L3 slides; textbook A.2" },
+
+  { id: "L3-seminorm-why", lecture: 3, game: "statements", topic: "Lp spaces",
+    prompt: "Why is $\\|\\cdot\\|_p$ only a SEMInorm on $L^p$?",
+    answer: "$\\|X\\|_p = 0$ only gives $X = 0$ almost surely, not for every $\\omega$",
+    distractors: ["The triangle inequality fails", "Homogeneity fails for negative $\\lambda$", "$L^p$ is not a vector space"],
+    explain: "A variable that is nonzero on a null set has norm $0$.",
+    source: "L3 slides" },
+
+  { id: "L3-lp-power-tail", lecture: 3, game: "statements", topic: "Lp spaces",
+    prompt: "$p_X(n) = \\frac{c_\\alpha}{n^{1+\\alpha}}$ on $\\{1, 2, \\ldots\\}$, $\\alpha > 0$. $X \\in L^p$ iff",
+    answer: "$p < \\alpha$",
+    distractors: ["$p \\le \\alpha$", "$p < \\alpha + 1$", "$p > \\alpha$", "for every $p > 0$"],
+    explain: "$\\mathbb{E}[X^p] = c_\\alpha \\sum n^{p - 1 - \\alpha}$: a Riemann series, finite iff $1 + \\alpha - p > 1$.",
+    source: "TD4 Ex7" },
+
+  { id: "L3-riemann", lecture: 3, game: "formulas", topic: "series",
+    prompt: "$\\sum_{n \\ge 1} \\frac{1}{n^s}$ converges iff",
+    answer: "$s > 1$",
+    distractors: ["$s \\ge 1$", "$s > 0$", "$s > 2$"],
+    explain: "Compare with $\\int_1^\\infty x^{-s}dx$. $s = 1$ is the harmonic series, which diverges.",
+    source: "TD4 Ex7" },
+
+  // sample card (kept id)
+  { id: "L3-holder", lecture: 3, game: "statements", topic: "Lp spaces", complement: true,
+    prompt: "Hölder's inequality $\\mathbb{E}|XY| \\le \\|X\\|_p \\|Y\\|_q$ holds for $X \\in L^p$, $Y \\in L^q$ when",
+    answer: "$p, q > 1$ and $\\frac1p + \\frac1q = 1$",
+    distractors: ["$p, q \\ge 1$ and $p + q = 2$", "$p = q$", "$\\frac1p + \\frac1q \\le 1$ with $p, q > 0$"],
+    explain: "Conjugate exponents. $p = q = 2$ is Cauchy–Schwarz.",
+    source: "Textbook Prop 3.33 (complement)" },
+
+  // ================================================================
+  // LECTURE 4 — Inequalities, MGF, CDF (+ TD5–6 continuous laws)
+  // ================================================================
+
+  // sample card (kept id)
+  { id: "L4-markov-hyp", lecture: 4, game: "statements", topic: "inequalities",
+    prompt: "Markov's inequality $\\mathbb{P}[X \\ge \\varepsilon] \\le \\mathbb{E}[X]/\\varepsilon$ requires",
+    answer: "$X \\ge 0$, $X \\in L^1$, $\\varepsilon > 0$",
+    distractors: ["$X \\in L^2$, $\\varepsilon > 0$", "$X$ discrete, $\\varepsilon > 0$", "$X$ symmetric, $\\varepsilon > 0$"],
+    explain: "Proof: $\\varepsilon \\mathbf{1}_{\\{X \\ge \\varepsilon\\}} \\le X$ because $X \\ge 0$, then take expectations. $L^2$ is Chebyshev's hypothesis.",
+    source: "L4 slides" },
+
+  { id: "L4-markov-proof", lecture: 4, game: "proof", topic: "inequalities",
+    prompt: "Key step in the proof of Markov's inequality?",
+    answer: "$\\mathbf{1}_{\\{X \\ge \\varepsilon\\}} \\le \\frac{X}{\\varepsilon}\\mathbf{1}_{\\{X \\ge \\varepsilon\\}} \\le \\frac{X}{\\varepsilon}$, then take expectations",
+    distractors: ["Apply Chebyshev to $X$", "Jensen with $\\varphi(x) = x/\\varepsilon$", "Write $\\mathbb{E}[X] = \\sum_k \\mathbb{P}[X > k]$"],
+    explain: "$\\mathbb{P}[X \\ge \\varepsilon] = \\mathbb{E}[\\mathbf{1}_{\\{X \\ge \\varepsilon\\}}]$. The second $\\le$ uses $X \\ge 0$.",
+    source: "L4 board" },
+
+  { id: "L4-chebyshev", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "Chebyshev ($X \\in L^2$, $\\varepsilon > 0$): $\\mathbb{P}[|X - \\mathbb{E}[X]| \\ge \\varepsilon] \\le$ ?",
+    answer: "$\\frac{\\mathrm{V}(X)}{\\varepsilon^2}$",
+    distractors: ["$\\frac{\\mathrm{V}(X)}{\\varepsilon}$", "$\\frac{\\mathbb{E}[X^2]}{\\varepsilon}$", "$\\frac{\\sqrt{\\mathrm{V}(X)}}{\\varepsilon^2}$"],
+    explain: "Markov applied to $(X - \\mathbb{E}X)^2$ at level $\\varepsilon^2$.",
+    source: "L4 slides" },
+
+  { id: "L4-chebyshev-proof", lecture: 4, game: "proof", topic: "inequalities",
+    prompt: "Key step in the proof of Chebyshev's inequality?",
+    answer: "$\\{|X - \\mathbb{E}X| \\ge \\varepsilon\\} = \\{(X - \\mathbb{E}X)^2 \\ge \\varepsilon^2\\}$, then Markov on $(X - \\mathbb{E}X)^2$",
+    distractors: ["Markov on $|X|$", "Jensen with $\\varphi(x) = x^2$", "Cauchy–Schwarz with $Y = \\mathbf{1}$"],
+    explain: "$(X - \\mathbb{E}X)^2 \\ge 0$ and its expectation is $\\mathrm{V}(X)$.",
+    source: "L4 board" },
+
+  { id: "L4-f-markov", lecture: 4, game: "statements", topic: "inequalities",
+    prompt: "$X \\ge 0$, $f : [0, \\infty) \\to (0, \\infty)$. $\\mathbb{P}[X \\ge \\varepsilon] \\le \\frac{\\mathbb{E}[f(X)]}{f(\\varepsilon)}$ holds when $f$ is",
+    answer: "increasing",
+    distractors: ["convex", "bounded", "decreasing"],
+    explain: "$\\{X \\ge \\varepsilon\\} = \\{f(X) \\ge f(\\varepsilon)\\}$, then Markov on $f(X) \\ge 0$. With $f = e^{t\\cdot}$: Chernoff.",
+    source: "TD4 Ex1; L4 board" },
+
+  { id: "L4-markov-compute", lecture: 4, game: "compute", topic: "inequalities",
+    prompt: "$X \\ge 0$ with $\\mathbb{E}[X] = 2$. Best bound Markov gives on $\\mathbb{P}[X \\ge 10]$?",
+    answer: 0.2,
+    explain: "$\\frac{2}{10}$.",
+    source: "L4" },
+
+  { id: "L4-cheb-compute", lecture: 4, game: "compute", topic: "inequalities",
+    prompt: "$\\mathbb{E}[X] = 10$, $\\mathrm{V}(X) = 4$. Chebyshev bound on $\\mathbb{P}[|X - 10| \\ge 5]$?",
+    answer: 0.16,
+    explain: "$\\frac{4}{25}$.",
+    source: "L4" },
+
+  { id: "L4-poi-tails", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "$X \\sim \\mathrm{Poi}(\\lambda)$, $k > \\lambda$. Chebyshev's bound on $\\mathbb{P}[X \\ge k]$?",
+    answer: "$\\frac{\\lambda}{(k - \\lambda)^2}$",
+    distractors: ["$\\frac{\\lambda}{k}$", "$\\frac{\\lambda}{k^2}$", "$\\frac{\\lambda^2}{(k - \\lambda)^2}$"],
+    explain: "$\\{X \\ge k\\} \\subseteq \\{|X - \\lambda| \\ge k - \\lambda\\}$. Decays like $k^{-2}$; Markov's $\\lambda/k$ only like $k^{-1}$.",
+    source: "L4 slides" },
+
+  // sample card (kept id)
+  { id: "L4-geo-markov-trap", lecture: 4, game: "truefalse", topic: "inequalities",
+    prompt: "For $X \\sim \\mathrm{Geo}(p)$, Markov gives $\\mathbb{P}[X \\ge n] \\le \\frac{1}{np}$ for every $n \\ge 0$.",
+    answer: false,
+    explain: "Only for $n \\ge 1$ (Markov needs $\\varepsilon > 0$). Slide typo, see textbook A.2.",
+    source: "L4 slides; textbook A.2" },
+
+  { id: "L4-jensen", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "Jensen, $\\varphi$ convex, $X$ and $\\varphi(X)$ integrable:",
+    answer: "$\\mathbb{E}[\\varphi(X)] \\ge \\varphi(\\mathbb{E}[X])$",
+    distractors: ["$\\mathbb{E}[\\varphi(X)] \\le \\varphi(\\mathbb{E}[X])$", "$\\mathbb{E}[\\varphi(X)] = \\varphi(\\mathbb{E}[X])$", "$\\varphi(\\mathbb{E}[X]) \\ge \\mathbb{E}[X]$"],
+    explain: "Convex: the chord lies above. Memory aid: $\\mathbb{E}[X^2] \\ge \\mathbb{E}[X]^2$ ($\\varphi = x^2$). Concave: reversed.",
+    source: "L4 slides" },
+
+  { id: "L4-jensen-concave", lecture: 4, game: "truefalse", topic: "inequalities",
+    prompt: "For a concave $u$ (and integrable $R$, $u(R)$), $\\mathbb{E}[u(R)] \\le u(\\mathbb{E}[R])$.",
+    answer: true,
+    explain: "$-u$ is convex. Investor with concave utility: a sure return $m$ beats a risky one with mean $m$.",
+    source: "TD4 Ex9" },
+
+  { id: "L4-jensen-e4", lecture: 4, game: "truefalse", topic: "inequalities",
+    prompt: "$X$ with values in $\\mathbb{N}$, $\\mathbb{E}[X] = \\mu$. Then $\\mathbb{E}[X^4] \\ge \\mu^4$.",
+    answer: true,
+    explain: "Jensen with the convex $x \\mapsto x^4$ (on $[0, \\infty)$).",
+    source: "TD4 Ex2" },
+
+  { id: "L4-jensen-theta", lecture: 4, game: "proof", topic: "inequalities",
+    prompt: "$\\mathbb{E}[X] < 0$ and $\\mathbb{E}[e^{\\theta X}] = 1$ for some $\\theta \\ne 0$. Key step to show $\\theta > 0$?",
+    answer: "If $\\theta < 0$: Jensen gives $1 = \\mathbb{E}[e^{\\theta X}] \\ge e^{\\theta\\mathbb{E}[X]} > 1$, contradiction",
+    distractors: ["Markov on $e^{\\theta X}$", "Differentiate $\\theta \\mapsto \\mathbb{E}[e^{\\theta X}]$ at $0$", "Chebyshev on $X$"],
+    explain: "$\\theta < 0$ and $\\mathbb{E}X < 0$ give $\\theta\\mathbb{E}[X] > 0$, so $e^{\\theta\\mathbb{E}X} > 1$.",
+    source: "TD4 Ex2" },
+
+  { id: "L4-norm-monotone", lecture: 4, game: "statements", topic: "inequalities",
+    prompt: "For $0 < p \\le q$ and $X \\in L^q$:",
+    answer: "$\\|X\\|_p \\le \\|X\\|_q$",
+    distractors: ["$\\|X\\|_p \\ge \\|X\\|_q$", "$\\|X\\|_p = \\|X\\|_q$", "no general comparison"],
+    explain: "Jensen with the convex $x \\mapsto x^{q/p}$: $\\mathbb{E}|X|^q \\ge (\\mathbb{E}|X|^p)^{q/p}$, then the power $1/q$ (the slide says $q$: typo).",
+    source: "L4 slides; textbook A.2" },
+
+  { id: "L4-cs", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "Cauchy–Schwarz, $X, Y \\in L^2$:",
+    answer: "$\\mathbb{E}|XY| \\le \\sqrt{\\mathbb{E}[X^2]\\,\\mathbb{E}[Y^2]}$",
+    distractors: ["$\\mathbb{E}|XY| \\le \\mathbb{E}[X^2]\\,\\mathbb{E}[Y^2]$", "$\\mathbb{E}|XY| \\le \\mathbb{E}|X|\\,\\mathbb{E}|Y|$", "$\\mathbb{E}|XY| \\ge \\sqrt{\\mathbb{E}[X^2]\\,\\mathbb{E}[Y^2]}$"],
+    explain: "$\\le \\|X\\|_2\\|Y\\|_2$. The product of first moments is the independent case, not a bound.",
+    source: "L4 slides" },
+
+  { id: "L4-cs-proof", lecture: 4, game: "proof", topic: "inequalities",
+    prompt: "Key step in the board proof of Cauchy–Schwarz?",
+    answer: "$P(t) = \\mathbb{E}[(X + tY)^2] \\ge 0$ for all $t$, so its discriminant is $\\le 0$",
+    distractors: ["Jensen with $\\varphi(x) = x^2$", "Markov on $|XY|$", "$|xy| \\le \\frac{x^2 + y^2}{2}$"],
+    explain: "$P(t) = \\mathbb{E}X^2 + 2t\\mathbb{E}[XY] + t^2\\mathbb{E}Y^2$; $\\text{discriminant} \\le 0$ gives $\\mathbb{E}[XY]^2 \\le \\mathbb{E}X^2\\mathbb{E}Y^2$. Apply to $|X|, |Y|$.",
+    source: "L4 board" },
+
+  { id: "L4-cs-equality", lecture: 4, game: "statements", topic: "inequalities",
+    prompt: "Equality in Cauchy–Schwarz holds iff",
+    answer: "$X = tY$ a.s. or $Y = tX$ a.s. for some $t \\in \\mathbb{R}$",
+    distractors: ["$X$ and $Y$ are independent", "$\\mathbb{E}[X] = \\mathbb{E}[Y]$", "$X$ and $Y$ have the same law"],
+    explain: "The discriminant is $0$ iff $P(t) = 0$ for some $t$, i.e. $X + tY = 0$ a.s.",
+    source: "L4 board" },
+
+  { id: "L4-cov-bound", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "Corollary of Cauchy–Schwarz for $X, Y \\in L^2$:",
+    answer: "$|\\mathrm{Cov}(X,Y)| \\le \\sqrt{\\mathrm{V}(X)\\,\\mathrm{V}(Y)}$",
+    distractors: ["$|\\mathrm{Cov}(X,Y)| \\le \\mathrm{V}(X)\\,\\mathrm{V}(Y)$", "$\\mathrm{Cov}(X,Y) \\ge 0$", "$|\\mathrm{Cov}(X,Y)| \\le \\mathrm{V}(X) + \\mathrm{V}(Y)$"],
+    explain: "Cauchy–Schwarz applied to $X - \\mathbb{E}X$ and $Y - \\mathbb{E}Y$: the correlation is in $[-1, 1]$.",
+    source: "L4 slides" },
+
+  { id: "L4-chernoff", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "Chernoff bound: for all $x \\in \\mathbb{R}$ and $t > 0$, $\\mathbb{P}[X \\ge x] \\le$ ?",
+    answer: "$e^{-tx}\\,\\mathbb{E}[e^{tX}]$",
+    distractors: ["$e^{tx}\\,\\mathbb{E}[e^{-tX}]$", "$e^{-tx}\\,\\mathbb{E}[X]$", "$\\frac{\\mathbb{E}[e^{tX}]}{x}$"],
+    explain: "$\\{X \\ge x\\} = \\{e^{tX} \\ge e^{tx}\\}$, then Markov. Optimise over $t$.",
+    source: "TD4 Ex2, Ex5" },
+
+  // sample card (kept id)
+  { id: "L4-chernoff-tool", lecture: 4, game: "tool", topic: "inequalities",
+    prompt: "Goal: a bound on $\\mathbb{P}[X \\ge i]$, $X \\sim \\mathrm{Poi}(\\lambda)$, that decays faster than any power of $i$. Tool?",
+    answer: "Markov applied to $e^{tX}$, then optimise over $t > 0$ (Chernoff)",
+    distractors: ["Chebyshev", "Jensen with $\\varphi = \\exp$", "Cauchy–Schwarz with $Y = 1$"],
+    explain: "$\\mathbb{P}[X \\ge i] \\le e^{-ti} M_X(t) = e^{\\lambda(e^t - 1) - ti}$; take $t = \\log(i/\\lambda)$. Chebyshev only gives $i^{-2}$.",
+    source: "TD4 Ex5" },
+
+  { id: "L4-ineq-tool", lecture: 4, game: "tool", topic: "inequalities",
+    prompt: "You only know $\\mathbb{E}[X]$ and $\\mathbb{E}[X^2]$, and want a LOWER bound on $\\mathbb{P}[X > 0]$ ($X \\ge 0$). Tool?",
+    answer: "Cauchy–Schwarz on $X = X\\mathbf{1}_{\\{X > 0\\}}$: $\\mathbb{P}[X > 0] \\ge \\frac{\\mathbb{E}[X]^2}{\\mathbb{E}[X^2]}$",
+    distractors: ["Markov", "Chebyshev", "Jensen with $\\varphi = \\exp$"],
+    explain: "Markov and Chebyshev give UPPER bounds on tails. Second-moment method = Paley–Zygmund with $\\lambda = 0$.",
+    source: "TD4 Ex10" },
+
+  { id: "L4-paley-zygmund", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "Paley–Zygmund: $X \\ge 0$ with $\\mathbb{E}[X] > 0$, $0 < \\lambda < 1$. $\\mathbb{P}[X > \\lambda\\mathbb{E}[X]] \\ge$ ?",
+    answer: "$(1-\\lambda)^2\\frac{\\mathbb{E}[X]^2}{\\mathbb{E}[X^2]}$",
+    distractors: ["$(1-\\lambda)\\frac{\\mathbb{E}[X]^2}{\\mathbb{E}[X^2]}$", "$(1-\\lambda)^2\\frac{\\mathbb{E}[X^2]}{\\mathbb{E}[X]^2}$", "$\\frac{\\lambda\\,\\mathbb{E}[X]}{\\mathbb{E}[X^2]}$"],
+    explain: "$X \\le \\lambda\\mathbb{E}X + X\\mathbf{1}_{\\{X > \\lambda\\mathbb{E}X\\}}$, take expectations, then Cauchy–Schwarz and square.",
+    source: "TD4 Ex10" },
+
+  { id: "L4-decreasing-pmf", lecture: 4, game: "formulas", topic: "inequalities",
+    prompt: "$X$ with values in $\\mathbb{N}$ and $p_X$ nonincreasing. For $n \\ge 1$, $p_X(n) \\le$ ?",
+    answer: "$\\frac{2\\,\\mathbb{E}[X]}{n(n+1)}$",
+    distractors: ["$\\frac{\\mathbb{E}[X]}{n}$", "$\\frac{\\mathbb{E}[X]}{n(n+1)}$", "$\\frac{2\\,\\mathbb{E}[X]}{n^2}$"],
+    explain: "$\\mathbb{E}[X] \\ge \\sum_{k \\le n} k\\,p_X(k) \\ge p_X(n)\\sum_{k \\le n} k = p_X(n)\\frac{n(n+1)}{2}$.",
+    source: "TD4 Ex2" },
+
+  // ---- MGF ----
+
+  { id: "L4-mgf-def", lecture: 4, game: "formulas", topic: "MGF",
+    prompt: "$M_X(t) =$ ? and where does it take its values?",
+    answer: "$\\mathbb{E}[e^{tX}]$, in $[0, +\\infty]$",
+    distractors: ["$\\mathbb{E}[e^{tX}]$, always finite", "$e^{t\\mathbb{E}[X]}$, in $(0, +\\infty)$", "$\\mathbb{E}[X^t]$, in $[0, +\\infty]$"],
+    explain: "It can be $+\\infty$ (e.g. $\\mathrm{Exp}(\\lambda)$ for $t \\ge \\lambda$). $M_X(0) = 1$ always.",
+    source: "L4 slides" },
+
+  { id: "L4-mgf-moments", lecture: 4, game: "statements", topic: "MGF",
+    prompt: "$M_X^{(n)}(0) = \\mathbb{E}[X^n]$ for all $n$ holds when",
+    answer: "$M_X(t) < \\infty$ for all $t$ in some interval $(-a, a)$, $a > 0$",
+    distractors: ["$M_X(0) < \\infty$", "$M_X(t) < \\infty$ for all $t > 0$", "$X$ has a density"],
+    explain: "Then $M_X(t) = \\sum_n \\mathbb{E}[X^n]\\frac{t^n}{n!}$ on $(-a, a)$ and all moments are finite. $M_X(0) = 1$ is always finite: no information.",
+    source: "L4 slides" },
+
+  { id: "L4-mgf-moments-proof", lecture: 4, game: "proof", topic: "MGF",
+    prompt: "Board proof: $M_X$ finite on $(-a, a)$ ⇒ $\\mathbb{E}|X|^n < \\infty$. Key step?",
+    answer: "For $0 < t < a$: $x^n \\le c_n e^{tx}$ on $x \\ge 0$ (with $c_n = \\sup x^n e^{-tx}$), and the same with $M_X(-t)$ for $x \\le 0$",
+    distractors: ["Jensen: $\\mathbb{E}|X|^n \\le e^{\\mathbb{E}|X|}$", "Chebyshev on $X^n$", "Differentiate under $\\mathbb{E}$ without justification"],
+    explain: "Then $\\mathbb{E}|X|^n \\le c_n M_X(t) + c'_n M_X(-t)$. The series swap uses Fubini–Tonelli with $\\mathbb{E}[e^{|tX|}] \\le M(t) + M(-t)$.",
+    source: "L4 board" },
+
+  { id: "L4-mgf-zero", lecture: 4, game: "truefalse", topic: "MGF",
+    prompt: "$M_X(0) = 1$ for every random variable $X$.",
+    answer: true,
+    explain: "$e^{0 \\cdot X} = 1$.",
+    source: "L4" },
+
+  { id: "L4-mgf-sum", lecture: 4, game: "statements", topic: "MGF",
+    prompt: "$M_{X+Y}(t) = M_X(t)\\,M_Y(t)$ holds when",
+    answer: "$X$ and $Y$ are independent",
+    distractors: ["always", "$X$ and $Y$ are uncorrelated", "$X$ and $Y$ have the same law"],
+    explain: "$e^{tX}$ and $e^{tY}$ are independent (functions of independent variables), so $\\mathbb{E}$ of the product factorises.",
+    source: "TD4 Ex3" },
+
+  { id: "L4-mgf-characterises", lecture: 4, game: "truefalse", topic: "MGF",
+    prompt: "If $M_X = M_Y$ and both are finite on a neighbourhood of $0$, then $X$ and $Y$ have the same law.",
+    answer: true,
+    explain: "The MGF characterises the law (\"Characterisation of laws\", TD4). Used to identify $\\mathrm{Bin}$, $\\mathrm{Poi}$ sums.",
+    source: "TD4" },
+
+  { id: "L4-be-mgf", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Be}(p)$. $M_X(t) =$ ?",
+    answer: "$1 - p + p e^t$",
+    distractors: ["$p e^t$", "$e^{p(e^t - 1)}$", "$(1-p)e^t + p$"],
+    explain: "$e^{0} \\cdot (1-p) + e^{t} \\cdot p$.",
+    source: "L4 slides" },
+
+  // sample card (kept id)
+  { id: "L4-bin-mgf", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$M_X(t) = (1 - p + p e^t)^N$ for all $t$. Law of $X$?",
+    answer: "$\\mathrm{Bin}(N, p)$",
+    distractors: ["$\\mathrm{Poi}(Np)$", "$\\mathrm{Geo}(p)$", "$\\mathrm{Be}(p)$", "Sum of $N$ independent $\\mathrm{Geo}(p)$"],
+    explain: "MGF of a sum of $N$ independent $\\mathrm{Be}(p)$ is $M_{\\mathrm{Be}}(t)^N$, and the MGF characterises the law.",
+    source: "TD4 Ex3" },
+
+  { id: "L4-poi-mgf", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Poi}(\\lambda)$. $M_X(t) =$ ?",
+    answer: "$e^{\\lambda(e^t - 1)}$",
+    distractors: ["$e^{\\lambda(e^t + 1)}$", "$\\lambda e^{t}$", "$\\frac{\\lambda}{\\lambda - t}$", "$e^{\\lambda t}$"],
+    explain: "$e^{-\\lambda}\\sum_k \\frac{(\\lambda e^t)^k}{k!} = e^{-\\lambda}e^{\\lambda e^t}$. Finite for all $t$.",
+    source: "TD4 Ex5" },
+
+  { id: "L4-geo-mgf", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Geo}(p)$. For $t < \\log\\frac{1}{1-p}$, $M_X(t) =$ ?",
+    answer: "$\\frac{p e^t}{1 - (1-p)e^t}$",
+    distractors: ["$\\frac{p}{1 - (1-p)e^t}$", "$\\frac{p e^t}{1 - p e^t}$", "$\\frac{(1-p)e^t}{1 - p e^t}$", "$e^{p(e^t - 1)}$"],
+    explain: "$p e^t \\sum_{k \\ge 0} ((1-p)e^t)^k$. Without the $e^t$ on top: the version starting at $0$.",
+    source: "L4 slides" },
+
+  { id: "L4-geo-mgf-domain", lecture: 4, game: "statements", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Geo}(p)$. $M_X(t) < \\infty$ iff",
+    answer: "$t < \\log\\frac{1}{1-p}$",
+    distractors: ["$t < p$", "$|t| < 1$", "for all $t \\in \\mathbb{R}$"],
+    explain: "The geometric series $\\sum ((1-p)e^t)^k$ converges iff $(1-p)e^t < 1$.",
+    source: "L4 slides" },
+
+  { id: "L4-unif-disc-mgf", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$X \\sim \\mathcal{U}(\\{1, \\ldots, N\\})$, $t \\ne 0$. $M_X(t) =$ ?",
+    answer: "$\\frac{e^t}{N}\\cdot\\frac{e^{tN} - 1}{e^t - 1}$",
+    distractors: ["$\\frac{e^{tN} - 1}{N(e^t - 1)}$", "$\\frac{e^{tN}}{N}$", "$\\frac{e^t - 1}{N t}$"],
+    explain: "$\\frac{1}{N}\\sum_{k=1}^N e^{tk} = \\frac{e^t}{N}\\sum_{k=0}^{N-1}e^{tk}$, a geometric sum. Tends to $1$ as $t \\to 0$.",
+    source: "L4 slides" },
+
+  { id: "L4-exp-mgf", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$. $M_X(t) =$ ?",
+    answer: "$\\frac{\\lambda}{\\lambda - t}$ for $t < \\lambda$, $+\\infty$ otherwise",
+    distractors: ["$\\frac{\\lambda}{\\lambda - t}$ for all $t$", "$\\frac{\\lambda}{\\lambda + t}$ for $t > -\\lambda$", "$e^{\\lambda t}$"],
+    explain: "$\\int_0^\\infty \\lambda e^{-(\\lambda - t)x}dx$, finite iff $t < \\lambda$.",
+    source: "TD6 Ex1" },
+
+  { id: "L4-exp-ex2", lecture: 4, game: "compute", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Exp}(2)$. $\\mathbb{E}[X^2] =$ ?",
+    answer: 0.5,
+    hint: "$M''(0)$ with $M(t) = \\frac{\\lambda}{\\lambda - t}$",
+    explain: "$M''(t) = \\frac{2\\lambda}{(\\lambda - t)^3}$, so $\\mathbb{E}[X^2] = 2/\\lambda^2 = 1/2$.",
+    source: "TD6 Ex1" },
+
+  // sample card (kept id)
+  { id: "L4-poi-ex2", lecture: 4, game: "compute", topic: "MGF",
+    prompt: "$X \\sim \\mathrm{Poi}(2)$. $\\mathbb{E}[X^2] =$ ?",
+    answer: 6,
+    explain: "$\\mathbb{E}[X^2] = \\mathrm{V}(X) + \\mathbb{E}[X]^2 = \\lambda + \\lambda^2 = 6$, or $M''(0)$ with $M(t) = e^{\\lambda(e^t - 1)}$.",
+    source: "TD4 Ex5" },
+
+  { id: "L4-mgf-identify", lecture: 4, game: "laws", topic: "MGF",
+    prompt: "$M_X(t) = e^{3(e^t - 1)}$ for all $t$. Law of $X$?",
+    answer: "$\\mathrm{Poi}(3)$",
+    distractors: ["$\\mathrm{Exp}(3)$", "$\\mathrm{Bin}(3, e^{-1})$", "$\\mathrm{Geo}(1/3)$"],
+    explain: "Poisson MGF with $\\lambda = 3$; e.g. the sum of independent $\\mathrm{Poi}(1)$ and $\\mathrm{Poi}(2)$.",
+    source: "TD4" },
+
+  { id: "L4-mgf-sum-tool", lecture: 4, game: "tool", topic: "MGF",
+    prompt: "Goal: the law of $X_1 + \\cdots + X_n$, independent, each with a known MGF finite near $0$. Fastest route?",
+    answer: "Multiply the MGFs and recognise a known MGF",
+    distractors: ["Compute $\\mathbb{P}[\\sum X_i > t] = \\prod \\mathbb{P}[X_i > t]$", "Add the MGFs", "Chebyshev on the sum"],
+    explain: "Product of MGFs + the MGF characterises the law. Convolution works too but is longer for $n > 2$.",
+    source: "TD4 Ex3" },
+
+  // ---- CDF ----
+
+  { id: "L4-cdf-def", lecture: 4, game: "formulas", topic: "CDF",
+    prompt: "$F_X(t) =$ ?",
+    answer: "$\\mathbb{P}[X \\le t]$",
+    distractors: ["$\\mathbb{P}[X < t]$", "$\\mathbb{P}[X > t]$", "$f_X(t)$"],
+    explain: "With $\\le$: that is why $F_X$ is right-continuous and the jump at $x$ is $\\mathbb{P}[X = x]$.",
+    source: "L4 slides" },
+
+  { id: "L4-cdf-props", lecture: 4, game: "statements", topic: "CDF",
+    prompt: "Which is NOT true of every CDF $F_X$?",
+    answer: "$F_X$ is continuous",
+    distractors: ["$F_X$ is nondecreasing", "$F_X$ is right-continuous", "$F_X(x) \\to 0$ at $-\\infty$ and $\\to 1$ at $+\\infty$"],
+    explain: "Discrete laws have jumps (e.g. Bernoulli at $0$ and $1$). Only right-continuity is guaranteed.",
+    source: "L4 slides" },
+
+  { id: "L4-continuity-above", lecture: 4, game: "statements", topic: "CDF",
+    prompt: "Continuity from above: if $B_{n+1} \\subseteq B_n$ for all $n$, then",
+    answer: "$\\mathbb{P}\\left[\\bigcap_n B_n\\right] = \\lim_n \\mathbb{P}[B_n]$",
+    distractors: ["$\\mathbb{P}\\left[\\bigcup_n B_n\\right] = \\lim_n \\mathbb{P}[B_n]$", "$\\mathbb{P}\\left[\\bigcap_n B_n\\right] = \\prod_n \\mathbb{P}[B_n]$", "$\\mathbb{P}\\left[\\bigcap_n B_n\\right] = 0$"],
+    explain: "Decreasing ⇒ intersection. For increasing $B_n$: continuity from below, with the union.",
+    source: "L4 slides" },
+
+  { id: "L4-right-cont-proof", lecture: 4, game: "proof", topic: "CDF",
+    prompt: "Key step to prove that $F_X$ is right-continuous at $x$?",
+    answer: "For $y_n \\to x^+$, $B_n = \\{X \\le y_n\\}$ decreases to $\\{X \\le x\\}$; apply continuity from above",
+    distractors: ["$F_X$ is nondecreasing, so it is continuous", "Use the density: $F_X(y) - F_X(x) = \\int_x^y f_X$", "For $y_n \\to x^-$, apply continuity from below"],
+    explain: "$\\bigcap_n \\{X \\le y_n\\} = \\{X \\le x\\}$. From the left you get $\\{X < x\\}$ instead: hence jumps.",
+    source: "L4 board" },
+
+  { id: "L4-cdf-jump", lecture: 4, game: "formulas", topic: "CDF",
+    prompt: "Discrete $X$: $p_X(x) =$ ?",
+    answer: "$F_X(x) - F_X(x^-)$",
+    distractors: ["$F_X(x^+) - F_X(x)$", "$F_X'(x)$", "$F_X(x)$"],
+    explain: "The jump of the CDF at $x$. $F_X(x^-) = \\lim_{y \\to x^-} F_X(y) = \\mathbb{P}[X < x]$.",
+    source: "L4 slides" },
+
+  { id: "L4-be-cdf", lecture: 4, game: "laws", topic: "CDF",
+    prompt: "$X \\sim \\mathrm{Be}(p)$. For $0 \\le x < 1$, $F_X(x) =$ ?",
+    answer: "$1 - p$",
+    distractors: ["$p$", "$x$", "$0$"],
+    explain: "$\\mathbb{P}[X \\le x] = \\mathbb{P}[X = 0]$. $0$ for $x < 0$, $1$ for $x \\ge 1$.",
+    source: "L4 slides" },
+
+  { id: "L4-interval-prob", lecture: 4, game: "formulas", topic: "CDF",
+    prompt: "$\\mathbb{P}[a < X \\le b] =$ ?",
+    answer: "$F_X(b) - F_X(a)$",
+    distractors: ["$F_X(b) - F_X(a^-)$", "$F_X(a) - F_X(b)$", "$F_X(b)\\,(1 - F_X(a))$"],
+    explain: "$\\{X \\le b\\} \\setminus \\{X \\le a\\}$. $F_X(b) - F_X(a^-)$ is $\\mathbb{P}[a \\le X \\le b]$.",
+    source: "L4" },
+
+  { id: "L4-ac-cdf-continuous", lecture: 4, game: "truefalse", topic: "CDF",
+    prompt: "If $X$ is absolutely continuous, then $F_X$ is continuous.",
+    answer: true,
+    explain: "$F_X(t) = \\int_{-\\infty}^t f_X$ is continuous in $t$ (and $C^1$ where $f_X$ is continuous).",
+    source: "L4 slides" },
+
+  { id: "L4-be-not-ac", lecture: 4, game: "tool", topic: "CDF",
+    prompt: "Goal: show that $X \\sim \\mathrm{Be}(p)$, $p \\in (0,1)$, is not absolutely continuous. Tool?",
+    answer: "$F_X$ jumps at $0$ (from $0$ to $1-p$), but an absolutely continuous $X$ has a continuous CDF",
+    distractors: ["Show $\\mathbb{E}[X]$ is not an integral", "$X$ takes only two values, so $\\mathrm{V}(X) = 0$", "Chebyshev"],
+    explain: "Equivalently $\\mathbb{P}[X = 0] = 1 - p > 0$, impossible with a density.",
+    source: "TD5 Ex1" },
+
+  { id: "L4-pw-c1", lecture: 4, game: "statements", topic: "CDF",
+    prompt: "Sufficient condition in the course for $X$ to be absolutely continuous with $f_X = F_X'$:",
+    answer: "$F_X$ is piecewise $C^1$ (continuous, $C^1$ off finitely many points)",
+    distractors: ["$F_X$ is right-continuous", "$F_X$ is nondecreasing", "$F_X$ is differentiable at $0$"],
+    explain: "This is THE method of TD5–6: compute $F_Y$, check piecewise $C^1$, differentiate.",
+    source: "L4 slides" },
+
+  { id: "L4-existence-trap", lecture: 4, game: "truefalse", topic: "CDF",
+    prompt: "Every nondecreasing right-continuous $F$ with limits $0$ and $1$ is the CDF of an absolutely continuous $X$ with $f_X = F'$.",
+    answer: false,
+    explain: "Some $X$ has $F_X = F$, but a density $F'$ exists only if $F$ is piecewise $C^1$: the Bernoulli CDF is a valid $F$. Slide overstatement (textbook A.2).",
+    source: "L4 slides; textbook A.2" },
+
+  { id: "L4-cdf-method", lecture: 4, game: "tool", topic: "CDF",
+    prompt: "Goal: the law of $Y = \\varphi(X)$ ($X$ has a density). Method of TD5–6?",
+    answer: "Compute $F_Y(y) = \\mathbb{P}[\\varphi(X) \\le y]$ by solving for $X$, check piecewise $C^1$, then $f_Y = F_Y'$",
+    distractors: ["$f_Y = \\varphi(f_X)$", "$f_Y(y) = f_X(\\varphi(y))$", "Compute $\\mathbb{E}[Y]$ and guess"],
+    explain: "E.g. $Y = -\\log U$: $\\mathbb{P}[Y \\le y] = \\mathbb{P}[U \\ge e^{-y}] = 1 - e^{-y}$.",
+    source: "TD5–6" },
+
+  { id: "L4-change-var", lecture: 4, game: "formulas", topic: "CDF",
+    prompt: "$\\varphi$ increasing $C^1$ with $\\varphi' > 0$, $Y = \\varphi(X)$. $f_Y(y) =$ ? (on the image interval)",
+    answer: "$\\frac{f_X(\\varphi^{-1}(y))}{\\varphi'(\\varphi^{-1}(y))}$",
+    distractors: ["$f_X(\\varphi^{-1}(y))\\,\\varphi'(\\varphi^{-1}(y))$", "$f_X(\\varphi(y))$", "$\\frac{f_X(y)}{\\varphi'(y)}$"],
+    explain: "$F_Y(y) = F_X(\\varphi^{-1}(y))$, then the chain rule with $(\\varphi^{-1})' = 1/\\varphi'(\\varphi^{-1}(y))$.",
+    source: "TD6 Ex4" },
+
+  // ---- Continuous laws in practice (TD5–6) ----
+
+  { id: "L4-exp-cdf", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$. $F_X(t)$ for $t \\ge 0$?",
+    answer: "$1 - e^{-\\lambda t}$",
+    distractors: ["$e^{-\\lambda t}$", "$\\lambda e^{-\\lambda t}$", "$1 - e^{-t/\\lambda}$"],
+    explain: "$\\int_0^t \\lambda e^{-\\lambda s}ds$. And $F_X(t) = 0$ for $t < 0$.",
+    source: "TD5 Ex3" },
+
+  // sample card (kept id)
+  { id: "L4-exp-tail", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$, density $\\lambda e^{-\\lambda x} \\mathbf{1}_{x \\ge 0}$. For $t \\ge 0$, $\\mathbb{P}[X > t] =$ ?",
+    answer: "$e^{-\\lambda t}$",
+    distractors: ["$1 - e^{-\\lambda t}$", "$\\lambda e^{-\\lambda t}$", "$e^{-t/\\lambda}$", "$1 - \\lambda e^{-\\lambda t}$"],
+    explain: "$\\int_t^\\infty \\lambda e^{-\\lambda s}\\,ds = e^{-\\lambda t}$. The CDF is $1 - e^{-\\lambda t}$.",
+    source: "TD5 Ex3" },
+
+  { id: "L4-exp-mean-var", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$ (rate $\\lambda$). $(\\mathbb{E}[X], \\mathrm{V}(X)) =$ ?",
+    answer: "$(\\frac{1}{\\lambda},\\ \\frac{1}{\\lambda^2})$",
+    distractors: ["$(\\lambda,\\ \\lambda^2)$", "$(\\frac{1}{\\lambda},\\ \\frac{1}{\\lambda})$", "$(\\frac{1}{\\lambda},\\ \\frac{2}{\\lambda^2})$"],
+    explain: "$\\mathbb{E}[X^2] = 2/\\lambda^2$ (MGF), so $\\mathrm{V} = 2/\\lambda^2 - 1/\\lambda^2$. $\\frac{2}{\\lambda^2}$ is the second moment, not the variance.",
+    source: "TD6 Ex1" },
+
+  { id: "L4-exp-memoryless", lecture: 4, game: "truefalse", topic: "continuous laws",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$: $\\mathbb{P}[X > s + t \\mid X > s] = \\mathbb{P}[X > t]$ for $s, t \\ge 0$.",
+    answer: true,
+    explain: "$e^{-\\lambda(s+t)}/e^{-\\lambda s} = e^{-\\lambda t}$. The continuous analogue of the geometric law.",
+    source: "TD5–6" },
+
+  { id: "L4-exp-scaling", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$. Law of $\\lambda X$?",
+    answer: "$\\mathrm{Exp}(1)$",
+    distractors: ["$\\mathrm{Exp}(\\lambda^2)$", "$\\mathrm{Exp}(1/\\lambda)$", "$\\mathcal{U}([0, \\lambda])$"],
+    explain: "$\\mathbb{P}[\\lambda X \\le t] = F_X(t/\\lambda) = 1 - e^{-t}$; the CDF characterises the law.",
+    source: "TD5 Ex3" },
+
+  { id: "L4-exp-min", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X_i \\sim \\mathrm{Exp}(\\lambda_i)$ independent. Law of $\\min(X_1, \\ldots, X_n)$?",
+    answer: "$\\mathrm{Exp}(\\lambda_1 + \\cdots + \\lambda_n)$",
+    distractors: ["$\\mathrm{Exp}(\\min_i \\lambda_i)$", "$\\mathrm{Exp}(\\lambda_1 \\cdots \\lambda_n)$", "$\\mathrm{Exp}\\left(\\left(\\sum_i \\lambda_i^{-1}\\right)^{-1}\\right)$"],
+    explain: "$\\mathbb{P}[\\min > t] = \\prod_i e^{-\\lambda_i t} = e^{-(\\sum \\lambda_i)t}$. Rates add.",
+    source: "TD5 Ex3" },
+
+  { id: "L4-geo-min", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X_1 \\sim \\mathrm{Geo}(p_1)$, $X_2 \\sim \\mathrm{Geo}(p_2)$ independent. Law of $\\min(X_1, X_2)$?",
+    answer: "$\\mathrm{Geo}(1 - (1-p_1)(1-p_2))$",
+    distractors: ["$\\mathrm{Geo}(p_1 p_2)$", "$\\mathrm{Geo}(p_1 + p_2)$", "$\\mathrm{Geo}(\\max(p_1, p_2))$"],
+    explain: "$\\mathbb{P}[\\min > k] = (1-p_1)^k(1-p_2)^k$: success at a step iff at least one succeeds.",
+    source: "TD4 Ex4" },
+
+  // sample card (kept id)
+  { id: "L4-min-tool", lecture: 4, game: "tool", topic: "CDF",
+    prompt: "Goal: the law of $Y = \\min(X_1, \\ldots, X_n)$ with $X_i$ independent. First move?",
+    answer: "Compute $\\mathbb{P}[Y > t] = \\prod_i \\mathbb{P}[X_i > t]$",
+    distractors: ["Convolve the densities", "Multiply the MGFs", "Compute $\\mathbb{E}[Y]$ and identify the law"],
+    explain: "$\\{\\min > t\\} = \\bigcap_i \\{X_i > t\\}$. For a max, use $\\{\\max \\le t\\} = \\bigcap_i \\{X_i \\le t\\}$.",
+    source: "TD4 Ex4; TD5 Ex3" },
+
+  { id: "L4-max-tool", lecture: 4, game: "tool", topic: "CDF",
+    prompt: "Goal: the law of $M = \\max(X_1, \\ldots, X_n)$ with $X_i$ independent. First move?",
+    answer: "$F_M(t) = \\mathbb{P}[\\text{all } X_i \\le t] = \\prod_i F_{X_i}(t)$",
+    distractors: ["$\\mathbb{P}[M > t] = \\prod_i \\mathbb{P}[X_i > t]$", "$F_M(t) = \\max_i F_{X_i}(t)$", "Convolve the densities"],
+    explain: "Max ⇒ product of CDFs. Min ⇒ product of TAILS. For i.i.d. $\\mathcal{U}([0,1])$: $F_M(t) = t^n$.",
+    source: "TD5 Ex4; textbook Ex 4.3" },
+
+  { id: "L4-unif-min-limit", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$U_1, \\ldots, U_n$ i.i.d. $\\mathcal{U}([0,1])$, $Z_n = n\\min_i U_i$. Limit of $F_{Z_n}$?",
+    answer: "The CDF of $\\mathrm{Exp}(1)$",
+    distractors: ["The CDF of $\\mathcal{U}([0,1])$", "$0$ everywhere", "The CDF of $\\mathrm{Exp}(n)$"],
+    explain: "$\\mathbb{P}[Z_n > t] = (1 - t/n)^n \\to e^{-t}$.",
+    source: "TD5 Ex4" },
+
+  { id: "L4-geo-to-exp", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$X_n \\sim \\mathrm{Geo}(p/n)$. The CDF of $X_n/n$ converges to that of",
+    answer: "$\\mathrm{Exp}(p)$",
+    distractors: ["$\\mathrm{Exp}(1/p)$", "$\\mathrm{Poi}(p)$", "$\\mathrm{Geo}(p)$"],
+    explain: "$\\mathbb{P}[X_n > nx] = (1 - p/n)^{\\lfloor nx \\rfloor} \\to e^{-px}$: rare successes at rate $p$ per unit time.",
+    source: "TD6 Ex1" },
+
+  // sample card (kept id)
+  { id: "L4-lim-1-t-n", lecture: 4, game: "formulas", topic: "limits",
+    prompt: "$\\lim_{n \\to \\infty} \\left(1 - \\frac{t}{n}\\right)^n =$ ?",
+    answer: "$e^{-t}$",
+    distractors: ["$e^{t}$", "$1$", "$0$", "$1 - t$"],
+    explain: "$n \\log(1 - t/n) \\to -t$. Used for $n \\cdot \\min(U_i) \\to \\mathrm{Exp}(1)$ and $\\mathrm{Geo}(p/n)/n \\to \\mathrm{Exp}(p)$.",
+    source: "TD5 Ex4; TD6 Ex1" },
+
+  { id: "L4-log-uniform", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$U \\sim \\mathcal{U}([0,1])$. Law of $Y = \\log(1/U)$?",
+    answer: "$\\mathrm{Exp}(1)$",
+    distractors: ["$\\mathcal{U}([0, \\infty))$", "$\\mathrm{Exp}(1/2)$", "$\\mathcal{N}(0, 1)$"],
+    explain: "$\\mathbb{P}[Y \\le y] = \\mathbb{P}[U \\ge e^{-y}] = 1 - e^{-y}$. Simulation: exponentials from uniforms.",
+    source: "TD6 Ex6" },
+
+  { id: "L4-u-squared", lecture: 4, game: "laws", topic: "continuous laws",
+    prompt: "$U \\sim \\mathcal{U}([0,1])$. Density of $Y = U^2$ on $(0, 1]$?",
+    answer: "$\\frac{1}{2\\sqrt{y}}$",
+    distractors: ["$2y$", "$1$", "$\\sqrt{y}$", "$\\frac{1}{y^2}$"],
+    explain: "$F_Y(y) = \\mathbb{P}[U \\le \\sqrt{y}] = \\sqrt{y}$, piecewise $C^1$, then differentiate. Unbounded density, still integrable.",
+    source: "TD6 Ex9" },
+
+  { id: "L4-bus-wait", lecture: 4, game: "compute", topic: "continuous laws",
+    prompt: "Bus arrives uniformly between 10:00 and 10:30; you arrive at 10:00. $\\mathbb{P}[\\text{wait} > 10 \\text{ min}]$? (fraction or decimal)",
+    answer: 0.6667, tol: 0.001,
+    explain: "$\\frac{30 - 10}{30} = \\frac{2}{3}$.",
+    source: "TD5 Ex5" },
+
+  { id: "L4-bus-conditional", lecture: 4, game: "compute", topic: "continuous laws",
+    prompt: "Same bus. At 10:15 it has not come. $\\mathbb{P}[\\text{wait at least 10 more min}]$? (fraction or decimal)",
+    answer: 0.3333, tol: 0.001,
+    explain: "Given $T > 15$, $T$ is uniform on $[15, 30]$: $\\frac{30 - 25}{15} = \\frac{1}{3}$. The uniform is NOT memoryless.",
+    source: "TD5 Ex5" },
+
+  { id: "L4-triangle", lecture: 4, game: "compute", topic: "continuous laws",
+    prompt: "$X \\sim \\mathcal{U}([0,2])$ is the side of an equilateral triangle. $\\mathbb{P}[\\text{area} \\ge 1]$? (3 decimals)",
+    answer: 0.2402, tol: 0.002,
+    hint: "Area $= \\frac{\\sqrt{3}}{4}X^2$",
+    explain: "$X \\ge 2 \\cdot 3^{-1/4} \\approx 1.520$, so $\\mathbb{P} = 1 - 3^{-1/4} \\approx 0.240$.",
+    source: "TD5 Ex2" },
+
+  { id: "L4-median-exp", lecture: 4, game: "formulas", topic: "continuous laws",
+    prompt: "$X \\sim \\mathrm{Exp}(\\lambda)$. Which $a$ minimises $\\mathbb{E}|X - a|$?",
+    answer: "$\\frac{\\log 2}{\\lambda}$ (the median)",
+    distractors: ["$\\frac{1}{\\lambda}$ (the mean)", "$0$", "$\\frac{2}{\\lambda}$"],
+    explain: "$\\mathbb{E}|X - a| = a - \\frac1\\lambda + \\frac{2}{\\lambda}e^{-\\lambda a}$, zero derivative at $e^{-\\lambda a} = \\frac12$. Squared distance is minimised by the mean.",
+    source: "TD5 Ex7" },
+
+  { id: "L4-sq-dist-mean", lecture: 4, game: "truefalse", topic: "continuous laws",
+    prompt: "For $X \\in L^2$, $a \\mapsto \\mathbb{E}[(X - a)^2]$ is minimised at $a = \\mathbb{E}[X]$.",
+    answer: true,
+    explain: "$\\mathbb{E}[(X-a)^2] = \\mathrm{V}(X) + (\\mathbb{E}X - a)^2$.",
+    source: "TD5 Ex7" },
+
+  { id: "L4-ratio-cdf", lecture: 4, game: "formulas", topic: "continuous laws",
+    prompt: "$U \\sim \\mathcal{U}([0,1])$ cuts $[0,1]$ in two; $Y$ = longer / shorter. $F_Y(y)$ for $y \\ge 1$?",
+    answer: "$\\frac{y - 1}{y + 1}$",
+    distractors: ["$1 - \\frac{1}{y}$", "$\\frac{y}{y+1}$", "$1 - \\frac{1}{y^2}$"],
+    explain: "$\\mathbb{P}[\\frac{1}{1+y} \\le U \\le \\frac{y}{1+y}]$. Density $\\frac{2}{(1+y)^2}$, and $\\mathbb{E}[Y] = +\\infty$ (tail like $1/y$).",
+    source: "TD6 Ex7" },
+
+  { id: "L4-bus-stations", lecture: 4, game: "compute", topic: "continuous laws",
+    prompt: "Breakdown point $X \\sim \\mathcal{U}(0, 100)$, stations at $25, 50, 75$. $\\mathbb{E}[\\text{distance to the nearest station}]$?",
+    answer: 9.375, tol: 0.01,
+    explain: "Stations at $0, 50, 100$ give $12.5$; at $25, 50, 75$ give $\\frac{75}{8} = 9.375$: the second layout is better.",
+    source: "TD6 Ex10" },
+
+  { id: "L4-unif-sum-moments", lecture: 4, game: "compute", topic: "continuous laws",
+    prompt: "$X, Y$ i.i.d. $\\mathcal{U}([0,1])$. $\\mathrm{V}(X + Y) =$ ? (fraction or decimal)",
+    answer: 0.1667, tol: 0.001,
+    explain: "Independent: $\\frac{1}{12} + \\frac{1}{12} = \\frac16$. No need for the triangle density.",
+    source: "TD6 Ex3" },
+
+  // ================================================================
+  // LECTURES 5–6 — sample cards only (batch to come)
+  // ================================================================
+
+  { id: "L5-normal-mgf", lecture: 5, game: "laws", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(\\mu, \\sigma^2)$. $M_X(t) =$ ?",
+    answer: "$e^{\\mu t + \\sigma^2 t^2 / 2}$",
+    distractors: ["$e^{\\mu t + \\sigma t^2 / 2}$", "$e^{\\mu t + \\sigma^2 t^2}$", "$e^{\\sigma^2 t^2 / 2}$", "$\\frac{1}{1 - \\sigma^2 t}$"],
+    explain: "Complete the square in the Gaussian integral. Finite for every $t$.",
+    source: "TD6 Ex2" },
+
+  { id: "L5-order-stat", lecture: 5, game: "laws", topic: "order statistics",
+    prompt: "$U_1, \\ldots, U_n$ i.i.d. $\\mathcal{U}([0,1])$, $Y_k$ = the $k$-th smallest. Law of $Y_k$?",
+    answer: "$\\mathrm{Beta}(k, n-k+1)$",
+    distractors: ["$\\mathrm{Beta}(k, n-k)$", "$\\mathrm{Beta}(n-k+1, k)$", "$\\mathrm{Bin}(n, k/n)$", "$\\mathcal{U}([0, k/n])$"],
+    explain: "$\\{Y_k \\le x\\} = \\{Z_x \\ge k\\}$ with $Z_x \\sim \\mathrm{Bin}(n, x)$; differentiating gives density $k\\binom{n}{k} x^{k-1}(1-x)^{n-k}$.",
+    source: "L5 slides" },
+
+  { id: "L6-slln-hyp", lecture: 6, game: "statements", topic: "LLN",
+    prompt: "The strong law of large numbers, as proved in the course, assumes",
+    answer: "$(X_n)$ i.i.d. with $\\mathbb{E}[X_1^4] < \\infty$",
+    distractors: ["$(X_n)$ i.i.d. with $\\mathrm{V}(X_1) < \\infty$", "$(X_n)$ uncorrelated with bounded variances", "$(X_n)$ independent, no moment condition"],
+    explain: "The fourth moment makes $\\sum_n \\mathbb{P}[|\\bar X_n - m| \\ge \\varepsilon]$ summable. Finite variance is the weak law's hypothesis.",
+    source: "L6 slides" },
+
+  { id: "L6-prob-to-mean", lecture: 6, game: "truefalse", topic: "convergence",
+    prompt: "Convergence in probability implies convergence in mean.",
+    answer: false,
+    explain: "Slide example: $X_n = \\alpha_n X$ with $\\alpha_n \\to 1$ and $\\mathbb{E}|X| = \\infty$ converges in probability, not in mean. The implications go $L^2 \\Rightarrow L^1 \\Rightarrow$ probability, and a.s. $\\Rightarrow$ probability.",
+    source: "L6 slides" }
+];
+
+  if (typeof module !== 'undefined') module.exports = { PROBA_META: AT.PROBA_META, PROBA_CARDS: AT.PROBA_CARDS };
+})();
