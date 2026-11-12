@@ -118,6 +118,8 @@ test('negative entries take a minus sign; the round shows in Stats, Log', async 
   await expect(page.getByTestId('end-score')).toHaveText(String(solved));
   await tick(page, 500);
   await page.keyboard.press('a');   // from the end screen: Stats on today, in the mode just played
+  await expect(page.getByTestId('stats-day')).toContainText('Matrices, −9 to 9, 60 s');
+  await page.keyboard.press('Escape');   // up one level: that mode, in its group
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Matrices, −9 to 9, 60 s', pressed: true })).toBeVisible();
 });
 

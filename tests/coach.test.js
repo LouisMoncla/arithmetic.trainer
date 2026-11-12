@@ -410,3 +410,63 @@ test('accuracy leaves the pool under 8% for 3 complete sessions in a row and com
   assert.strictEqual(picks[0].drill, 'acc');
   assert.strictEqual(picks[1].family, C.families(C.estimate(C.categoryStats(rs, { before: '2026-10-07' }))).at(0).id);
 });
+
+// ---------- Stats overview: headline, costs, snapshot ----------
+
+test('headline: the mean of the last 3 complete sessions, its arrow by calendar week, and a plateau counted in days', () => {
+  const rs = [
+    ...coachDay('2026-10-20', [44, 44]), ...coachDay('2026-10-22', [44, 44]), ...coachDay('2026-10-24', [44, 45]),
+    ...coachDay('2026-10-27', [44, 44]), ...coachDay('2026-10-29', [44, 45]), ...coachDay('2026-10-31', [44, 44]),
+    ...coachDay('2026-11-02', [44, 44])
+  ];
+  const h = C.headline(rs, '2026-11-02');
+  assert.strictEqual(h.source, 'coach');
+  assert.ok(Math.abs(h.value - (44.5 + 44 + 44) / 3) < 1e-9);
+  // last 7 days (27 Oct to 2 Nov): 44, 44.5, 44, 44; the 7 before (20 to 26 Oct): 44, 44, 44.5
+  assert.ok(Math.abs(h.arrow.diff - (44.125 - 44.1666667)) < 1e-6);
+  assert.strictEqual(h.arrow.dir, 'flat');
+  // no day beat the best before it by 1 point: flat since the first benchmark, 20 Oct, 13 days ago
+  assert.strictEqual(h.status.state, 'plateau');
+  assert.strictEqual(h.status.days, 13);
+  assert.strictEqual(h.milestones.filter((m) => m.day).length, 1);   // 40 reached
+});
+
+test('headline: improving when the slope is clear; without coach sessions, Interview-ready days of the last 7', () => {
+  const day = (i) => '2026-10-' + String(i * 2 + 1).padStart(2, '0');
+  const up = [40, 42, 44, 46, 48, 50, 52].flatMap((s, i) => coachDay(day(i), [s, s]));
+  const h = C.headline(up, '2026-10-13');
+  assert.strictEqual(h.status.state, 'improving');
+  assert.ok(Math.abs(h.status.slope - 2) < 1e-9);   // per practice day: days played are numbered 1, 2, 3…, not by the calendar
+  const rs = [round('NORMAL120', '2026-10-01', [], { score: 30 }), round('NORMAL120', '2026-10-08', [], { score: 36 }), round('NORMAL120', '2026-10-09', [], { score: 38 })];
+  const f = C.headline(rs, '2026-10-09');
+  assert.strictEqual(f.source, 'fallback');
+  assert.strictEqual(f.value, 37);   // 8 and 9 Oct only: 1 Oct is outside the last 7 days
+  assert.strictEqual(f.status.state, 'none');
+  assert.strictEqual(C.headline([], '2026-10-09').value, null);
+});
+
+test('costs: the costliest families and accuracy, × big named by its worst multipliers; same numbers as Road to 60', () => {
+  const qs = [];
+  for (let i = 0; i < 20; i++) qs.push(q('mul', 7, 14, 6000), q('mul', 8, 13, 5000), q('mul', 12, 15, 4000), q('mul', 6, 13, 3000), q('add', 45, 29, 1800));
+  const rs = [];
+  for (let d = 1; d <= 3; d++) rs.push(round('P3', '2026-10-0' + d, qs));
+  const snap = C.snapshot(rs, '2026-10-04');
+  const c = C.costs(snap);
+  assert.strictEqual(c[0].id, 'mulbig');
+  assert.strictEqual(c[0].label, '× 7, × 8, × 12');
+  assert.ok(c.length <= 3 && c.every((x) => x.lostMs > 0));
+  const fam = C.families(C.estimate(C.categoryStats(rs)), C.mastered(rs)).filter((f) => f.id === 'mulbig')[0];
+  assert.strictEqual(c[0].points, fam.points);
+});
+
+test('snapshot: the same numbers as the separate calls', () => {
+  const qs = [];
+  for (let i = 0; i < 20; i++) qs.push(q('add', 45, 29, 2500), q('sub', 27, 45, 1500, { wrongAttempts: i % 4 ? 0 : 1 }));
+  const rs = [...coachDay('2026-10-01', [40, 42], { p3: qs }), ...coachDay('2026-10-02', [41, 43], { p3: qs })];
+  const s = C.snapshot(rs, '2026-10-03');
+  assert.deepStrictEqual(s.est, C.estimate(C.categoryStats(rs)));
+  assert.deepStrictEqual(s.master, C.mastered(rs));
+  assert.deepStrictEqual(s.accState, C.accuracyState(rs));
+  assert.deepStrictEqual(s.plan, C.plan(rs, '2026-10-03'));
+  assert.deepStrictEqual(s.stBefore, C.categoryStats(rs, { before: '2026-10-03' }));
+});

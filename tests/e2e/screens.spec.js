@@ -149,9 +149,8 @@ test('stats: a day link (old session link too), A from the end screen, and arrow
   const yesterday = new Date(NOW); yesterday.setDate(NOW.getDate() - 1);
   await openApp(page, 'session/' + dayKey(yesterday), { history: true });
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(yesterday) + '$'));
-  await expect(page.getByTestId('stats-day')).toContainText('Day 1 of practice');
   // the day's last round decides the mode: the zetamac session ends on Interview-ready
-  await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Interview-ready', pressed: true })).toBeVisible();
+  await expect(page.getByTestId('stats-day')).toContainText('Interview-ready, day 1 of practice');
 
   // Play one Interview-ready round today, then A on the end screen opens today in that mode.
   await page.keyboard.press('p');
@@ -159,18 +158,18 @@ test('stats: a day link (old session link too), A from the end screen, and arrow
   await page.keyboard.press('1');
   await startSelected(page);
   await answerCurrent(page);
-  await tick(page, 121000);
+  await page.clock.fastForward(121000);   // one jump to the end of the clock instead of every 50 ms tick
   await expect(page.getByTestId('end-score')).toHaveText('1');
   await tick(page, 500);
   await page.keyboard.press('a');
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(NOW) + '$'));
-  await expect(page.getByTestId('stats-day')).toContainText('Day 2 of practice, today');
+  await expect(page.getByTestId('stats-day')).toContainText('day 2 of practice, today');
 
   await page.keyboard.press('ArrowLeft');
-  await expect(page.getByTestId('stats-day')).toContainText('Day 1 of practice');
+  await expect(page.getByTestId('stats-day')).toContainText('day 1 of practice');
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(yesterday) + '$'));
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByTestId('stats-day')).toContainText('Day 2 of practice');
+  await expect(page.getByTestId('stats-day')).toContainText('day 2 of practice');
 });
 
 test('keyboard: the skip link comes first and moves focus to the content', async ({ page }) => {
@@ -192,12 +191,12 @@ test('keyboard: ? opens the shortcut list and Esc closes it', async ({ page }) =
   await expect(dialog).toBeHidden();
 });
 
-test('stats: one mode at a time, remembered; the calendar picks a day', async ({ page }) => {
+test('stats: one mode at a time, remembered; a calendar day opens that day, Esc goes back up', async ({ page }) => {
   // Two days: Speed and Interview-ready rounds yesterday, Speed today.
   const at = (daysAgo, min) => { const d = new Date(NOW); d.setDate(d.getDate() - daysAgo); d.setHours(9, min, 0, 0); return d.toISOString(); };
   let n = 0;
   const r = (mode, daysAgo, score) => ({ id: 's' + (n++), startedAt: at(daysAgo, n), mode, score, settings: { duration: mode === 'NORMAL120' ? 120 : 60 }, questions: [] });
-  await openApp(page, 'stats', { rounds: [r('P3', 1, 30), r('P3', 1, 32), r('NORMAL120', 1, 55), r('P3', 0, 34)] });
+  await openApp(page, 'stats/mode', { rounds: [r('P3', 1, 30), r('P3', 1, 32), r('NORMAL120', 1, 55), r('P3', 0, 34)] });
   const modes = page.getByTestId('stats-modes');
   await expect(modes.getByRole('button', { name: 'Interview-ready', pressed: true })).toBeVisible();   // the benchmark first
   await expect(page.getByTestId('stats-chart').locator('svg.chart')).toHaveCount(1);
@@ -205,33 +204,41 @@ test('stats: one mode at a time, remembered; the calendar picks a day', async ({
 
   await modes.getByRole('button', { name: 'Speed' }).click();
   await expect(modes.getByRole('button', { name: 'Speed', pressed: true })).toBeVisible();
+  await expect(page).toHaveURL(/#stats\/mode\/P3$/);
   await expect(page.locator('svg[aria-label="Speed day averages"]')).toHaveCount(1);
-  await page.reload();
+  await page.goto(page.url().replace(/#.*$/, '#stats'));
+  await page.keyboard.press('d');
   await expect(modes.getByRole('button', { name: 'Speed', pressed: true })).toBeVisible();   // remembered in this browser
 
-  // the calendar: the day played is a button, pressed; the panel names it
+  // the calendar: the days played are buttons; one opens its day
   const cal = page.getByTestId('stats-calendar');
   await expect(cal.locator('.cal-d.on')).toHaveCount(2);   // Speed on 2 days, both in October
-  const sel = cal.locator('.cal-d.sel');
-  await expect(sel).toHaveAttribute('aria-pressed', 'true');
-  await expect(sel).toHaveAttribute('aria-label', /2 rounds, average 31/);   // the day in the link: yesterday's two Speed rounds
+  await expect(cal.locator('.cal-d.on').first()).toHaveAttribute('aria-label', /2 rounds, average 31/);
+  await cal.locator('.cal-d.on').first().click();
   await expect(page.getByTestId('day-scores').locator('li')).toHaveCount(2);
+  await expect(page.getByTestId('stats-day-modes').getByRole('button', { name: 'Speed', pressed: true })).toBeVisible();   // both modes of that day
   await page.keyboard.press('ArrowRight');
-  await expect(cal.locator('.cal-d.sel')).toHaveAttribute('aria-label', /1 round, average 34/);   // today
   await expect(page.getByTestId('day-scores').locator('li')).toHaveCount(1);
-  await cal.locator('.cal-d.on').first().click();   // a click picks a day too
-  await expect(page.getByTestId('day-scores')).toContainText('30');
+  await expect(page.getByTestId('day-scores')).toContainText('34');
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/#stats\/mode\/P3$/);
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/#stats$/);
+  await expect(page.getByTestId('overview-headline')).toBeVisible();
 });
 
-test('stats: old links and keys land on the one page', async ({ page }) => {
+test('stats: old links and keys land on the right level', async ({ page }) => {
   await openApp(page, 'stats/progress', { history: true });
   await expect(page).toHaveURL(/#stats$/);
   await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Stats' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByTestId('stats-chart')).toBeVisible();
+  await expect(page.getByTestId('overview-headline')).toBeVisible();
 
   await page.goto(page.url().replace(/#.*$/, '#stats/log'));
   await expect(page).toHaveURL(/#stats\/add$/);
-  await expect(page.getByLabel('Scores, separated by commas')).toBeVisible();   // the zetamac form, open
+  await expect(page.getByLabel('Scores, separated by commas')).toBeVisible();   // the zetamac form, open on the mode page
+
+  await page.goto(page.url().replace(/#.*$/, '#stats/NORMAL120'));   // the old one-mode link
+  await expect(page).toHaveURL(/#stats\/mode\/NORMAL120$/);
 
   await page.keyboard.press('p');
   await expect(page.getByTestId('play-modes')).toBeVisible();

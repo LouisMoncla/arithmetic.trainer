@@ -43,6 +43,8 @@
    *   hlines: [{ y, kind: 'dash' | 'dot', name }] reference lines (dash = threshold, dot = average)
    *   xName:  tooltip header prefix, e.g. 'Session ' → "Session 12"
    *   endLabel: label the last value of the first series at the right end
+   *   picks:  one value per x; a click on the plot or Enter on the focused chart fires a bubbling `chartpick` event
+   *           with detail { i, pick } (Stats: a day average opens that day)
    */
   function line(o) {
     var w = o.w || 640, h = o.h || 180, padT = 12, padB = 24;
@@ -80,7 +82,8 @@
     if (o.tips) tips = o.tips;
 
     var out = ['<svg class="chart" viewBox="0 0 ' + w + ' ' + h + '" width="100%" role="img"' +
-      (o.label ? ' aria-label="' + esc(o.label) + '"' : '') + hoverAttrs('line', xs.map(X), tips) + '>'];
+      (o.label ? ' aria-label="' + esc(o.label) + '"' : '') + hoverAttrs('line', xs.map(X), tips) +
+      (o.picks ? ' data-picks="' + esc(JSON.stringify(o.picks)) + '"' : '') + '>'];
     // Hairline gridlines + clean tick labels; solid baseline.
     ticks.forEach(function (t, i) {
       out.push('<line class="' + (i === 0 ? 'axis' : 'grid') + '" x1="' + padL + '" y1="' + r1(Y(t)) + '" x2="' + (w - padR) + '" y2="' + r1(Y(t)) + '"/>');
@@ -246,7 +249,17 @@
       show(i, toClient(xs[i]), r.top + r.height * 0.3);
     }
     svg.addEventListener('focus', function () { showKey(cur >= 0 ? cur : xs.length - 1); });
+    var picks = svg.getAttribute('data-picks') ? JSON.parse(svg.getAttribute('data-picks')) : null;
+    function pick(i) {
+      if (i < 0) return;
+      var ev;
+      try { ev = new CustomEvent('chartpick', { bubbles: true, detail: { i: i, pick: picks[i] } }); }
+      catch (err) { ev = document.createEvent('CustomEvent'); ev.initCustomEvent('chartpick', true, false, { i: i, pick: picks[i] }); }
+      svg.dispatchEvent(ev);
+    }
+    if (picks) svg.addEventListener('click', function (e) { pick(nearest(e.clientX)); });
     svg.addEventListener('keydown', function (e) {
+      if (picks && e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(cur < 0 ? xs.length - 1 : cur); return; }
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       e.preventDefault(); e.stopPropagation(); // don't also switch sessions
       var i = cur < 0 ? xs.length - 1 : cur + (e.key === 'ArrowRight' ? 1 : -1);

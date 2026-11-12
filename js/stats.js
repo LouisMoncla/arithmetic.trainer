@@ -135,6 +135,70 @@ ef = my median time per
     return i >= 0 ? i + 1 : days.filter(function (d) { return d < key; }).length + 1;
   }
 
+  // ---------- one definition per idea ----------
+
+  // Wrong: a wrong attempt, or (where they exist) a wrong final answer or a skip. Every stat that counts mistakes uses this.
+  function isWrong(q) { return q.wrongAttempts > 0 || q.correct === false || !!q.skipped; }
+
+  // A day key moved by n days (local noon, so DST never shifts it).
+  function shiftDay(key, n) {
+    var p = key.split('-').map(Number), d = new Date(p[0], p[1] - 1, p[2] + n, 12);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  // Calendar days from day key a to day key b (b later: positive).
+  function dayDiff(a, b) {
+    var p = a.split('-').map(Number), q = b.split('-').map(Number);
+    return Math.round((new Date(q[0], q[1] - 1, q[2], 12) - new Date(p[0], p[1] - 1, p[2], 12)) / DAY);
+  }
+  // The last 7 calendar days (today included) and the 7 before: { now: [keys], before: [keys] }, oldest first.
+  function weekWindows(today) {
+    var now = [], before = [];
+    for (var i = 13; i >= 0; i--) (i <= 6 ? now : before).push(shiftDay(today, -i));
+    return { now: now, before: before };
+  }
+  // Up / down / flat against the window before: beyond ±eps (default 0.5) is a move. dir null when either side is empty.
+  function arrow(now, before, eps) {
+    eps = eps === undefined ? 0.5 : eps;
+    if (now === null || now === undefined || before === null || before === undefined) return { diff: null, dir: null };
+    var d = now - before;
+    return { diff: d, dir: d > eps ? 'up' : d < -eps ? 'down' : 'flat' };
+  }
+  // Accuracy: 1 − share of answered questions with a wrong attempt (isWrong). null with no answered question.
+  function accuracy(rounds) {
+    var n = 0, w = 0;
+    rounds.forEach(function (r) {
+      (r.questions || []).forEach(function (q) { if (q.unanswered) return; n++; if (isWrong(q)) w++; });
+    });
+    return n ? 1 - w / n : null;
+  }
+  // The last n days (default 28), oldest first: [{ day, played }]; played = any round that day.
+  function activity(rounds, today, n) {
+    n = n || 28;
+    var played = {}, out = [];
+    rounds.forEach(function (r) { played[dayKey(r.startedAt)] = 1; });
+    for (var i = n - 1; i >= 0; i--) { var k = shiftDay(today, -i); out.push({ day: k, played: !!played[k] }); }
+    return out;
+  }
+  // Days in a row with a round, ending today, or yesterday while today has none yet.
+  function streak(rounds, today) {
+    var played = {};
+    rounds.forEach(function (r) { played[dayKey(r.startedAt)] = 1; });
+    var k = played[today] ? today : shiftDay(today, -1), n = 0;
+    while (played[k]) { n++; k = shiftDay(k, -1); }
+    return n;
+  }
+  // Median answer time per + − × ÷ over every answer on the given days: { add: ms | null, … }.
+  function opMedians(rounds, days) {
+    var by = { add: [], sub: [], mul: [], div: [] };
+    rounds.forEach(function (r) {
+      if (days.indexOf(dayKey(r.startedAt)) < 0) return;
+      (r.questions || []).forEach(function (q) { if (!q.unanswered && by[q.op]) by[q.op].push(q.timeMs); });
+    });
+    var out = {};
+    for (var op in by) out[op] = median(by[op]);
+    return out;
+  }
+
   function summarize(scores) {
     if (!scores.length) return { count: 0, avg: null, best: null, worst: null, sd: 0, first: null };
     return {
@@ -223,29 +287,18 @@ ef = my median time per
     return tired ? { base: base, last: last } : null;
   }
 
-  // 120 s estimate from 60 s Normal (P3) sessions; ≈ 2×, calibrated once 3+ sessions of both exist.
-  function estimate120(rounds) {
-    var p3 = sessionsForMode(rounds, 'P3').map(function (s) { return s.stats.avg; });
-    var n120 = sessionsForMode(rounds, 'NORMAL120').map(function (s) { return s.stats.avg; });
-    if (!p3.length) return null;
-    var factor = 2, calibrated = false;
-    if (p3.length >= 3 && n120.length >= 3) { factor = mean(n120.slice(-5)) / mean(p3.slice(-5)); calibrated = true; }
-    return { estimate: factor * mean(p3.slice(-3)), factor: factor, calibrated: calibrated };
-  }
-
-  // Mean answer time per op per session: { add: [{number, ms}], ... }
+  // Median answer time per op per session: { add: [{number, ms}], ... }
   function timeByOp(rounds) {
     var days = sessionDays(rounds), acc = {};
     rounds.forEach(function (r) {
       (r.questions || []).forEach(function (q) {
         if (q.unanswered || !ZETAMAC_OP[q.op]) return;
         var k = q.op + '|' + dayKey(r.startedAt);
-        var a = acc[k] = acc[k] || { op: q.op, day: dayKey(r.startedAt), t: 0, n: 0 };
-        a.t += q.timeMs; a.n++;
+        (acc[k] = acc[k] || { op: q.op, day: dayKey(r.startedAt), t: [] }).t.push(q.timeMs);
       });
     });
     var out = { add: [], sub: [], mul: [], div: [] };
-    Object.keys(acc).forEach(function (k) { var a = acc[k]; out[a.op].push({ number: days.indexOf(a.day) + 1, ms: a.t / a.n }); });
+    Object.keys(acc).forEach(function (k) { var a = acc[k]; out[a.op].push({ number: days.indexOf(a.day) + 1, ms: median(a.t) }); });
     for (var op in out) out[op].sort(function (x, y) { return x.number - y.number; });
     return out;
   }
@@ -316,8 +369,10 @@ ef = my median time per
    * "Usual" = the other rounds of the same mode (ops, median); facts compare with every other round.
    * takeaways: up to 3 plain sentences, most important first.
    */
-  function roundReport(rounds, round) {
+  // asOf (optional, an ISO time): only rounds started at or before it count, so a past round reads as it did then.
+  function roundReport(rounds, round, asOf) {
     var mode = effMode(round), qs = round.questions || [];
+    if (asOf) rounds = rounds.filter(function (r) { return r.startedAt <= asOf; });
     var others = rounds.filter(function (r) { return r.id !== round.id; });
     var sameMode = others.filter(function (r) { return effMode(r) === mode; });
     var answered = qs.filter(function (q) { return !q.unanswered; });
@@ -441,7 +496,7 @@ ef = my median time per
       var w = nowMs - t0 > 21 * DAY ? 0.5 : 1;
       r.questions.forEach(function (q) {
         if (q.unanswered && !q.skipped) return;   // a skipped trick counts as a miss; time running out does not
-        attempts.push({ q: q, day: day, w: w, at: r.startedAt, time: q.timeMs, wrong: q.wrongAttempts > 0 || q.correct === false || !!q.skipped });
+        attempts.push({ q: q, day: day, w: w, at: r.startedAt, time: q.timeMs, wrong: isWrong(q) });
       });
     });
     attempts.sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
@@ -717,7 +772,7 @@ ef = my median time per
     rs.forEach(function (r) { (r.questions || []).forEach(function (q) { if (!q.unanswered) out.push(q); }); });
     return out;
   }
-  function hadWrong(q) { return q.op === 'iv' ? (!q.correct && !q.skipped) : q.wrongAttempts > 0; }
+  var hadWrong = isWrong;
   function wrongShare(qs) { return qs.length ? qs.filter(hadWrong).length / qs.length : null; }
 
   /*
@@ -736,12 +791,14 @@ ef = my median time per
     var qT = answeredQs(today), qB = answeredQs(before);
     function zq(qs) { return qs.filter(function (q) { return ZETAMAC_OP[q.op]; }); }
     var times = function (qs) { return qs.map(function (q) { return q.timeMs; }); };
+    // Median times over + − × ÷; rounds with none (tricks, matrices, interview, finance) use their own questions.
+    var arith = zq(qT).length > 0, tq = function (qs) { return arith ? zq(qs) : qs.filter(function (q) { return !q.skipped; }); };
 
     var rep = {
       day: day, number: sessionNumber(rounds, day),
       prevDay: earlier.length ? earlier[earlier.length - 1] : null, nextDay: later.length ? later[0] : null,
       rounds: today.length, questions: qT.length,
-      median: median(times(zq(qT))), usualMedian: median(times(zq(qB))),
+      median: median(times(tq(qT))), usualMedian: median(times(tq(qB))),
       wrong: wrongShare(qT), usualWrong: wrongShare(qB),
       scores: [], pace: [], mistakes: [], ops: [], faster: [], slower: []
     };
@@ -775,7 +832,7 @@ ef = my median time per
       (r.questions || []).forEach(function (q) {
         var e = mm[q.shown] = mm[q.shown] || { q: q, seen: 0, wrong: 0, freezes: 0, slowest: 0 };
         e.seen++;
-        e.wrong += q.op === 'iv' ? (hadWrong(q) ? 1 : 0) : (q.wrongAttempts || 0) + (q.skipped ? 1 : 0);
+        e.wrong += (q.wrongAttempts || 0) + (!q.wrongAttempts && isWrong(q) ? 1 : 0);   // each wrong attempt, else 1 for a wrong or skipped answer
         if (frozen.indexOf(q) >= 0) e.freezes++;
         e.slowest = Math.max(e.slowest, q.timeMs);
       });
@@ -814,7 +871,8 @@ ef = my median time per
     mean: mean, median: median, stdev: stdev, weightedMedian: weightedMedian, slope: slope, fit: fit,
     DAY_START_HOUR: DAY_START_HOUR, dayKey: dayKey, effMode: effMode, financeMode: financeMode, financeStats: financeStats, sessionDays: sessionDays, sessionNumber: sessionNumber,
     summarize: summarize, sessionsForMode: sessionsForMode, recentAverage: recentAverage, trend: trend,
-    ROUND_CAP: ROUND_CAP, roundIndexAverages: roundIndexAverages, fatigue: fatigue, estimate120: estimate120, timeByOp: timeByOp,
+    ROUND_CAP: ROUND_CAP, roundIndexAverages: roundIndexAverages, fatigue: fatigue, timeByOp: timeByOp,
+    isWrong: isWrong, shiftDay: shiftDay, dayDiff: dayDiff, weekWindows: weekWindows, arrow: arrow, accuracy: accuracy, activity: activity, streak: streak, opMedians: opMedians,
     fractionCells: fractionCells, fractionPool: fractionPool,
     slowest: slowest, freezes: freezes, paceThirds: paceThirds, roundReport: roundReport, factStats: factStats, drillTargets: drillTargets,
     weakLines: weakLines, drillPool: drillPool, tableCells: tableCells, tableWeights: tableWeights, tableCoverage: tableCoverage, mistakes: mistakes, wrongRateByOp: wrongRateByOp, sessionReport: sessionReport

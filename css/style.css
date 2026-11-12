@@ -494,9 +494,83 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 }
 .sec-intro + .modes, .sec-intro + ol.modes { margin-top: 12px; }
 
-/* ---------- stats: one mode, a calendar and the chosen day ---------- */
-.stats-modes { margin: 4px 0 8px; max-width: 100%; }
-.stats-modes:has(button:nth-child(5)) { border-radius: var(--r-l); }   /* many modes wrap: a softer track */
+/* ---------- stats, level 1: the overview (fits 1366 × 768 without scrolling) ---------- */
+.page-head.ov-top { margin: 24px 0 12px; }
+.ov { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "a" "tiles" "costs" "act" "more"; }
+.ov-a { grid-area: a; } .ov-tiles { grid-area: tiles; } .ov-costs { grid-area: costs; } .ov-act { grid-area: act; } .ov-more { grid-area: more; }
+@media (min-width: 900px) {
+  .ov { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); grid-template-areas: "a costs" "tiles tiles" "act more"; }
+  .ov-more { align-self: center; justify-self: end; }
+}
+.ov-panel { padding: 14px 16px; border-radius: var(--r-l); background: var(--surface); min-width: 0; }
+.ov-lab { margin: 0; font-size: var(--t-xs); font-weight: 400; color: var(--mid); }
+.ov-big { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 2px 0 0; }
+.ov-num { font-size: 48px; font-weight: 600; line-height: 1.1; letter-spacing: -0.02em; }
+.ov-src { margin: 2px 0 0; font-size: var(--t-xs); color: var(--soft); }
+.arr { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ov-big .arr { font-size: var(--t-m); font-weight: 600; }
+.ov-tiles .stats { margin-top: 0; }
+.ov-cost { list-style: none; counter-reset: c; margin: 8px 0 0; padding: 0; }
+.ov-cost li { counter-increment: c; }
+.ov-cost a { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line);
+  color: var(--fg); text-decoration: none; }
+.ov-cost li:last-child a { border-bottom: 0; }
+.ov-cost a::before { content: counter(c); font-size: var(--t-xs); color: var(--soft); font-variant-numeric: tabular-nums; }
+.ov-cost a:hover .f { text-decoration: underline; }
+.ov-cost .m { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.ov-status, .ov-streak { margin: 10px 0 0; font-size: var(--t-xs); color: var(--mid); }
+.ov-act { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ov-act .ov-streak { margin: 0; }
+/* the milestone bar: 20 to 60, filled to the benchmark; a filled dot = reached (2 sessions in a row) */
+.ov-ms { margin-top: 14px; }
+.ms-track { position: relative; height: 6px; margin: 8px 6px 0; border-radius: var(--r-pill); background: var(--line); }
+.ms-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-pill); background: var(--fg); }
+.ms-dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--bg); border: 2px solid var(--fg); box-sizing: border-box; }
+.ms-dot.on { background: var(--fg); }
+.ms-labels { position: relative; height: 16px; margin: 6px 6px 0; font-size: 11px; color: var(--mid); font-variant-numeric: tabular-nums; }
+.ms-labels span { position: absolute; transform: translateX(-50%); }
+.ms-labels span:first-child { transform: none; margin-left: -6px; }
+.ms-labels span:last-child { transform: translateX(-100%); margin-left: 6px; }
+/* the activity strip: one square per day, filled = played */
+.act { display: grid; grid-template-columns: repeat(28, 10px); gap: 3px; }
+.sq { width: 10px; height: 10px; border-radius: 2px; background: var(--bg); border: 1px solid var(--line); box-sizing: border-box; }
+.sq.on { background: var(--fg); border-color: var(--fg); }
+@media (max-width: 420px) { .act { grid-template-columns: repeat(14, 10px); } }
+/* a number with its definition: shown on hover and on keyboard focus */
+.def { position: relative; cursor: help; border-radius: var(--r-s); }
+.def:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.def .tip { display: none; position: absolute; z-index: 20; left: 0; top: calc(100% + 6px); width: max-content; max-width: min(300px, 80vw);
+  padding: 8px 10px; border-radius: var(--r-m); background: var(--fg); color: var(--bg); font-size: var(--t-xs); font-weight: 400;
+  line-height: 1.4; letter-spacing: 0; white-space: normal; text-align: left; }
+.def:hover > .tip, .def:focus > .tip, .def:focus-within > .tip { display: block; }
+.ov-cost .def .tip { left: auto; right: 0; }
+.ov-tiles .stat:last-child .def .tip { left: auto; right: 0; }
+
+/* ---------- stats, level 2: one mode ---------- */
+.stats-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.stats-pick .seg { max-width: 100%; }
+.pick-g { width: 100%; }
+.pick-g[open] > .seg { margin-top: 2px; }
+.pick-g > summary { cursor: pointer; color: var(--mid); font-size: var(--t-xs); padding: 6px 4px; }
+.pick-g > summary:hover { color: var(--fg); }
+.pick-g[open] > summary { color: var(--fg); }
+.pick-var { display: inline-flex; align-items: center; gap: 8px; font-size: var(--t-xs); color: var(--mid); }
+.stats-bench { margin: 0 0 4px; }
+.chart-note { margin: 4px 0 0; }
+svg.chart[data-picks] { cursor: pointer; }
+.det { border-radius: var(--r-l); background: var(--surface); margin: 0 0 8px; }
+.stats-details { min-width: 0; }
+.det > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; }
+.det-b { padding: 0 16px 16px; }
+.det-b .sec-intro:first-child { margin-top: 0; }
+
+/* ---------- stats, level 3: a day and a round ---------- */
+.stats-day-modes { margin: 0 0 16px; }
+.chips .chip-l { color: var(--fg); text-decoration: none; padding: 4px 2px; }
+.chips .chip-l:hover { text-decoration: underline; }
+.round-page .end-head { margin-top: 8px; }
+.back { color: var(--mid); }
 .stats-cal { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 32px; align-items: start; }
 .cal { padding: 14px; border-radius: var(--r-l); background: var(--surface); }
 .cal-head { display: flex; align-items: center; gap: 4px; margin: 0 0 10px; }
@@ -532,5 +606,6 @@ body.playing > header, body.playing > main, body.playing > footer, body.playing 
 .ext > summary:hover { color: var(--fg); }
 @media (max-width: 640px) {
   .stats-cal { grid-template-columns: 1fr; gap: 24px; }
-  .stats-modes { border-radius: var(--r-l); }
+  .stats-pick .seg { border-radius: var(--r-l); }
+  .ov-num { font-size: 40px; }
 }

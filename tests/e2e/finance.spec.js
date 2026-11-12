@@ -215,6 +215,7 @@ test('Leaving mid-session saves it; progress, weak spots and Log show finance ro
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finance');
   expect(await rounds(page)).toHaveLength(1);
   await page.keyboard.press('a');
+  await page.keyboard.press('d');   // the overview, then the detail: the mode played last, in its group
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Finance practice' })).toBeVisible();
 });
 

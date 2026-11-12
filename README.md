@@ -152,14 +152,23 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
   questions as op `fin` with their template and seed; Log and the report show them.
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
 - **Review** (`R`): tables heatmap (white = fast, black = slow) with three views, switched by the buttons next to the title or `V`: *Combined* (× and ÷ together), *Multiplication*, and *Division* (row = divide by, column = answer, so 56 ÷ 7 and 56 ÷ 8 are separate cells). Plus a sortable table of every fact key.
-- **Stats** (`A`): one mode at a time. Pick the mode at the top (the modes you have played; your choice is remembered
-  in this browser). Under it: your last day's average, best round of all time (with its day) and trend (points per day played, needs 4 days over a
-  week); the progress chart (day average, best of the day, the 60 goal on Interview-ready); a **calendar** of the days you
-  played that mode, with the chosen day beside it: its scores (× deletes a round), median time against your usual, wrong
-  answers, your pace from the first to the last third of the clock, and the 5 slowest or wrong questions with how to think
-  them. Then speed per operation (last day against the days before) and the round-of-the-day chart (warm-up and fatigue,
-  when 3 or more round numbers have 2+ days). `←` `→` move between days, `E` opens today, `A` on any end screen opens that
-  day. **Add scores from zetamac.com** is at the bottom. Old links (`#session/…`, `#log`, `#stats/progress`) still work.
+- **Stats** (`A`), three levels; `Esc` goes back one.
+  - **Overview** (`#stats`), one screen: your **benchmark** (the mean of your last 3 complete Road to 60 sessions, block 6;
+    before your first session, your Interview-ready days of the last 7), its arrow against the 7 days before and a one-line
+    trend (improving, plateau for N days, or not enough data), the milestone bar 40 to 60, three tiles (Speed 60 s,
+    Foundations, Accuracy: last 7 days, with arrows), **what costs you most** (Road to 60's top 3, each opens it), the last
+    28 days and your streak. Every number shows its definition on hover or keyboard focus. `D` opens the detail.
+  - **One mode** (`#stats/mode/<mode>`): the Zetamac modes always shown; Road to 60 drills and the other modes in groups
+    (collapsed; matrices, Finance, Learn and × ÷ mixes are one entry each with a select). Tiles (last 7 days, best of all
+    time with its day, trend per practice day), the progress chart (goal line 18 / 25 / 60 on the step modes; a click or
+    Enter on a day opens it), the calendar, and details on demand: time per operation (medians, last 7 days against before),
+    round of the day (Road to 60 session rounds left out: the plan sets their order), Road to 60 categories (Foundations,
+    Speed, Interview-ready) and weak facts. Interview-ready counts every 120 s round; **Benchmark only** keeps block 6.
+    **Add scores from zetamac.com** is at the bottom.
+  - **One day** (`#stats/day/<date>`; `E` opens today, `A` on any end screen opens that day): scores (each opens its round,
+    × deletes one), median time against your usual, first-try accuracy, pace, fatigue, the 5 slowest or wrong questions;
+    `←` `→` move between days. **One round** (`#stats/round/<id>`): its end-screen analysis, as it read then.
+  - Old links (`#session/…`, `#log`, `#stats/progress`, `#stats/<mode>[/<date>]`) still work.
 - **Settings**: theme, countdown, step override, interview penalty, export/import, reset.
 
 ## Keys

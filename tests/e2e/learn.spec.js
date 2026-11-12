@@ -8,7 +8,7 @@ test('N opens Learn: every trick has a lesson, grouped, and a lesson has its rul
   await expect(page).toHaveURL(/#learn$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Learn');
   for (const g of ['Squares', 'Products', 'Percentages', 'Fractions']) await expect(page.getByRole('heading', { name: g, exact: true })).toBeVisible();
-  await expect(page.locator('a.lesson')).toHaveCount(15);                  // 14 tricks + fractions by heart
+  await expect(page.locator('a.lesson')).toHaveCount(17); // 16 tricks (with n! and n choose k) + fractions by heart
   await expect(page.getByTestId('learn-lesson-x11')).toContainText('Not started');
 
   // ↓ moves between lessons, Enter opens the focused one.
@@ -127,6 +127,7 @@ test('timed round: F plays 60 s of one trick, saved as LEARN and named after the
   await expect(page.getByRole('heading', { name: 'Your numbers' })).toBeVisible();
   await expect(page.locator('.facts')).toContainText('Timed rounds');
   await page.goto(page.url().replace(/#.*/, '#stats'));
+  await page.keyboard.press('d');
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Learn: × 25' })).toBeVisible();   // its own mode on Stats
 });
 

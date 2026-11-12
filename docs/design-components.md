@@ -193,16 +193,39 @@ A `<details>`: ink rule above, `--line` below. The summary is one line: "Step 1:
 
 ---
 
+### Stats overview
+
+One screen at 1366 × 768, six blocks in a grid (two columns from 900px, stacked in reading order below): the headline panel
+(`overview-headline`: small grey label, the benchmark at 48px/600 with its arrow, a grey source line; then
+`overview-milestones`), the three tiles (`overview-tiles`, the usual `.stats`), what costs most (`overview-costs`: a
+numbered list, each row a link to `#road` with ~points right-aligned), activity (`overview-activity`) and the
+"Detailed analysis → D" button (`overview-more`).
+- Arrow: ↑ ↓ → plus the signed difference against the 7 days before, — when a week is empty; the words are in an
+  `sr-only` span. Shape and sign carry the meaning, no colour.
+- Milestone bar: a 6px pill track from 20 to 60 (`--line`), filled in `--fg` up to the value; a 12px ring per milestone,
+  filled when reached (2 complete sessions in a row); labels under it, the first and last kept inside the track.
+- Activity strip: 28 squares of 10px (3px gap, 14 a row under 420px): filled `--fg` = a day with a round, else a `--line`
+  outline; `role="img"` with "You played on N of the last 28 days".
+- Definition tooltip (`.def`): a number wrapped with `tabindex="0"` and `aria-describedby` pointing to its `.tip`
+  (`role="tooltip"`, inverted, 13px, max 300px), shown on hover and focus, no transition.
+
+### Stats mode picker and details
+
+`stats-modes`: the Zetamac modes as a `.seg`; "Road to 60 drills" and "Other modes" as `<details>` (`stats-group-*`)
+with their own `.seg`, closed unless the mode shown is inside. A grouped entry (matrices, Finance, Learn, × ÷ mixes) is one
+button; the shown one adds a labelled `<select>` of its variants. Details: `.det` panels (`--surface`, summary 600 weight),
+closed by default, beside the calendar in `.stats-cal`.
+
 ### Stats calendar and day panel
 
-One mode at a time: a `.seg` toggle of played modes (`stats-modes`, `aria-label="Show stats for"`), three stat tiles,
-the progress chart, then `.stats-cal`: the calendar (300px) beside the day panel; stacked under 640px.
+The calendar (300px) sits beside the details on the mode page, stacked under 640px; a played day opens the day page.
 Calendar (`.cal`, `--surface`, 16px radius): month name and ‹ › icon buttons (disabled before the first played month and
 after this month), weekday initials (narrow, Monday first, from `Intl`), then square day cells (6px radius, 4px gap).
-A day you played this mode is a `--chip` button with `aria-pressed` and a label ("Tuesday, October 20, 2 rounds,
-average 31.0"); the chosen day is inverted; a day with other modes only has a 3px dot; today is underlined.
-Day panel: the date as `h2` (24px bold), "Day N of practice", score chips (pill, `--surface`, × deletes with a confirm),
-a `facts` row, one pace sentence, then "Slowest and wrong": up to 5 rows (question = answer, time or wrong count, advice).
+A day you played this mode is a `--chip` button with a label ("Tuesday, October 20, 2 rounds, average 31.0"); a day with
+other modes only has a 3px dot; today is underlined.
+Day page: a `.seg` of the modes played that day (when more than one), the date as `h2` (24px bold), "<mode>, day N of
+practice", score chips (pill, `--surface`; the score is a link to the round page, × deletes with a confirm), a `facts` row
+(average, median time, usually, first-try accuracy), one pace sentence, then "Slowest and wrong": up to 5 rows.
 
 ---
 
