@@ -8,7 +8,7 @@ test('N opens Learn: every trick has a lesson, grouped, and a lesson has its rul
   await expect(page).toHaveURL(/#learn$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Learn');
   for (const g of ['Squares', 'Products', 'Percentages', 'Fractions']) await expect(page.getByRole('heading', { name: g, exact: true })).toBeVisible();
-  await expect(page.locator('a.lesson')).toHaveCount(18); // 16 tricks (with n! and n choose k), fractions by heart, Taylor expansions
+  await expect(page.locator('a.lesson')).toHaveCount(19); // 16 tricks (with n! and n choose k), fractions by heart, Taylor expansions, Probability
   await expect(page.getByTestId('learn-lesson-x11')).toContainText('Not started');
 
   // ↓ moves between lessons, Enter opens the focused one.

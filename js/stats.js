@@ -123,9 +123,12 @@ ef = my median time per
     return 'MATRIX-' + n(r.lo) + '_' + n(r.hi) + '-' + ((s && s.duration) || 60);
   }
 
+  // Learn › Probability rounds (lesson 'proba-…') are course revision, not mental-math practice: they stay out of the day
+  // count, the activity and streak, so the trend's session numbers, the weak-fact windows and the overview do not move.
+  function isProba(r) { return !!r && r.mode === 'LEARN' && !!r.settings && /^proba-/.test(r.settings.lesson || ''); }
   function sessionDays(rounds) {
     var seen = {}, days = [];
-    rounds.forEach(function (r) { var k = dayKey(r.startedAt); if (!seen[k]) { seen[k] = 1; days.push(k); } });
+    rounds.forEach(function (r) { if (isProba(r)) return; var k = dayKey(r.startedAt); if (!seen[k]) { seen[k] = 1; days.push(k); } });
     return days.sort();
   }
 
@@ -175,14 +178,14 @@ ef = my median time per
   function activity(rounds, today, n) {
     n = n || 28;
     var played = {}, out = [];
-    rounds.forEach(function (r) { played[dayKey(r.startedAt)] = 1; });
+    rounds.forEach(function (r) { if (!isProba(r)) played[dayKey(r.startedAt)] = 1; });
     for (var i = n - 1; i >= 0; i--) { var k = shiftDay(today, -i); out.push({ day: k, played: !!played[k] }); }
     return out;
   }
   // Days in a row with a round, ending today, or yesterday while today has none yet.
   function streak(rounds, today) {
     var played = {};
-    rounds.forEach(function (r) { played[dayKey(r.startedAt)] = 1; });
+    rounds.forEach(function (r) { if (!isProba(r)) played[dayKey(r.startedAt)] = 1; });
     var k = played[today] ? today : shiftDay(today, -1), n = 0;
     while (played[k]) { n++; k = shiftDay(k, -1); }
     return n;
@@ -870,7 +873,7 @@ ef = my median time per
 
   var api = {
     mean: mean, median: median, stdev: stdev, weightedMedian: weightedMedian, slope: slope, fit: fit,
-    DAY_START_HOUR: DAY_START_HOUR, dayKey: dayKey, effMode: effMode, financeMode: financeMode, financeStats: financeStats, sessionDays: sessionDays, sessionNumber: sessionNumber,
+    DAY_START_HOUR: DAY_START_HOUR, dayKey: dayKey, effMode: effMode, financeMode: financeMode, financeStats: financeStats, sessionDays: sessionDays, sessionNumber: sessionNumber, isProba: isProba,
     summarize: summarize, sessionsForMode: sessionsForMode, recentAverage: recentAverage, trend: trend,
     ROUND_CAP: ROUND_CAP, roundIndexAverages: roundIndexAverages, fatigue: fatigue, timeByOp: timeByOp,
     isWrong: isWrong, shiftDay: shiftDay, dayDiff: dayDiff, weekWindows: weekWindows, arrow: arrow, accuracy: accuracy, activity: activity, streak: streak, opMedians: opMedians,

@@ -611,6 +611,32 @@ svg.chart[data-picks] { cursor: pointer; }
 }
 
 /* ---------- Learn › Taylor expansions (taylor-ui.js): 6 choices, 2 × 3 (one column on a phone) ---------- */
+/* Learn › Probability */
+.pb-opts .opt.chosen:disabled .ot { text-decoration: line-through; }   /* your wrong pick: struck through; the right one is inverted */
+/* the other choices after an answer: words and formulas in the same grey, still readable (they are in the explanation) */
+.pb-opts .opt:disabled:not(.right):not(.chosen) { color: var(--mid); }
+.pb-opts .opt:disabled:not(.right):not(.chosen) .tex math { color: inherit; }
+.pb-tf { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pb-tf .opt { justify-content: center; min-height: 64px; font-size: 20px; }
+.pb-q .fq-prompt { font-size: 20px; }
+.pb-prog { width: 100%; }
+.pb-prog th, .pb-prog td { vertical-align: middle; }
+.pb-prog th[scope="row"] { width: 11em; min-width: 9em; text-align: left; font-weight: 400; white-space: normal; }
+.pb-lt { display: block; font-size: var(--t-xs); color: var(--mid); max-width: 14em; white-space: normal; }
+.pb-gh { font-size: 12px; font-weight: 400; color: var(--mid); text-align: center; white-space: normal; line-height: 1.25; }
+.pb-tgt { display: block; color: var(--soft); }
+.pb-c { text-align: center; }
+.pb-td { padding: 3px; }
+.pb-cell { position: relative; width: 100%; min-width: 3.4em; height: 40px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--bg); color: var(--fg); }
+.pb-cell:hover:not(:disabled) { background: var(--surface); }
+.pb-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--surface-2); }
+.pb-n { position: relative; font-variant-numeric: tabular-nums; }
+.pb-none { display: block; text-align: center; color: var(--soft); }
+.pb-tot th, .pb-tot td { border-top: 1px solid var(--line); font-weight: 600; }
+.pb-review { list-style: none; margin: 0; padding: 0; max-width: 46em; }
+.pb-review li { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.pb-review p { margin: 6px 0 0; overflow-x: auto; overflow-y: hidden; }
+.pb-copy-box { display: block; width: 100%; max-width: 46em; margin-top: 10px; }
 .ty-display { margin: 14px 0 0; font-size: 26px; overflow-x: auto; overflow-y: hidden; }
 .ty-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ty-opts .ot { font-size: 18px; }

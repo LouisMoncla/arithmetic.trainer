@@ -127,6 +127,21 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
   +1 right, −1 wrong (or 0 / −0.5), a review at the end. A wrong or helped answer in Learn comes back once, 3 to 5 questions later, as another question type or order. A grid
   shows each expansion: not seen, seen, weak, or mastered (your last 3 days on it, Learn and Sprint answers together, all
   right, no hint, median under 6 s). Saved as `LEARN` rounds ("Learn: Taylor sprint, 60 s" in Stats).
+  **Probability** (`#learn/proba`): midterm revision cards for the probability course, in seven games: law cards,
+  statements and hypotheses, which tool, true or false, formulas, the key step of a proof (6 choices at most, shuffled
+  each time) and quick computations (type a number: `0.375`, `0,375`, `3/8`, `2e-3`). The cards are data in
+  `js/proba-cards.js` (format at the top of that file; `npm test` validates it, and the app skips a bad card with a
+  console warning). The page has a scope switch (lectures 1–4, the midterm, or 1–6), a "Show complements" switch,
+  a game filter, lecture chips and a progress table (mastered / total per lecture and game: click a cell to learn
+  those cards). `L` **learns** (untimed: new cards in the order of the course, then the weak ones; `1`–`6`, or `T` / `F`
+  for true or false, `H` hint: the card's own, else half of the wrong choices go; `Enter` for the next, after the
+  explanation; a miss or a hinted answer comes back once, 3 to 5 cards later; a stop every 25 cards). `S` / `Shift S`
+  **sprint** 60 / 120 s: no feedback, +1 right, minus the Taylor penalty for a wrong answer, `Tab` skips, then every miss
+  with its explanation. A card is mastered when, over your last 3 days of practice, it has at least 2 answers, all
+  right, none with a hint, with a median time under its target (8 s laws and true or false, 10 s formulas, 12 s
+  statements, 15 s tools and proofs, 40 s computations). "Copy cheat-sheet list" puts the cards you miss on the
+  clipboard as Markdown. Saved as `LEARN` rounds (`proba-learn`, `proba-sprint-60`, `proba-sprint-120`), which Stats
+  ignores: they count as revision, not as mental-math practice.
   **Fractions by heart** (`#learn/fractions`): all 49 fractions with a denominator up to 12, plus 1/16, 3/16, 1/20 and 1/25,
   both ways: 3/7 → type the decimal; 0.429… → type 3/7 in the two boxes. Repeating decimals take 3 places, rounded
   or cut off (2/3: 0.667 or 0.666); a decimal with … repeats. A grid shows every pair: grey = not seen yet,

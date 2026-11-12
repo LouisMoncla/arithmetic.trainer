@@ -47,6 +47,10 @@ js/tex.js               LaTeX subset → MathML (screens) or plain text (storage
 js/taylor.js            Taylor lesson logic: the library (exact rational coefficients), rendering, 6-choice questions and their
                         wrong choices, estimation, settings, picking, mastery; pure, node-testable
 js/taylor-ui.js         Learn › Taylor expansions (#learn/taylor) on AT.UI.kit: lesson page, Learn and Sprint sessions
+js/proba-cards.js       the Probability bank: data only (AT.PROBA_META, AT.PROBA_CARDS), written by the course coach; format in its header
+js/proba.js             Probability engine: card validation, filters, answer parsing and checking, Learn queue, Sprint picking,
+                        mastery, progress, cheat sheet, report section; pure, node-testable
+js/proba-ui.js          Learn › Probability (#learn/proba) on AT.UI.kit: hub with filters and progress table, Learn, Sprint, end screen
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/coach.js       Road to 60: category stats (windowed medians), Normal frequencies, estimated score + lost time,
                   today's session plan, focus picks, mastery, milestones/gate, time of day; snapshot (one
@@ -72,16 +76,16 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → tex → taylor → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → app.
+Script order matters: generator → tex → taylor → proba-cards → proba → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → proba-ui → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
 ```js
-{ schemaVersion: 3, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, learnSquares, matrix, finance,
+{ schemaVersion: 3, seeded, presets: [], settings: { theme, countdown, stepOverride, negMark, lastExport, announced, custom, learnSquares, taylor, proba, matrix, finance,
                                                        coach: { hints, announced /*'mastered:<key>', 'mastered:accuracy:<day>', 'gate60'*/, multN } },
   rounds: [{ id, startedAt /*ISO*/, mode, linkedMode /*for EXTERNAL*/, settings: { duration, ops, ranges }, score,
              coach? /*{ block 1–6, test }: a Road to 60 session round*/, extra? /*true: finished after today's session was done*/,
-             questions: [{ op /*add sub mul div iv tr mx fin cp ty*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*old accuracy rounds*/, noPoint? /*accuracy round*/ }] }] }
+             questions: [{ op /*add sub mul div iv tr mx fin cp ty pb*/, a, b /*mx: 4-arrays*/, cells? /*mx*/, type? /*iv, tr*/, answerText?, shown, answer, timeMs, wrongAttempts, unanswered?, correct?, skipped?, missed? /*old accuracy rounds*/, noPoint? /*accuracy round*/ }] }] }
 ```
 
 - `mode`: TABLES, WTABLES (weighted tables), P2, P3, NORMAL120, DRILL, INTERVIEW, CUSTOM, SQUARES, PERCENT, TRICKS, LEARN
@@ -398,3 +402,50 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     - Departures from the spec, on the owner's simplicity rule: tex.js instead of vendored KaTeX (no new dependency), English
       copy, the o(xⁿ) ratio test (≥ rather than ≈ 2ⁿ⁺¹), tiers 2–4 at their own order, estimation on tier 1 without
       parameters, no "extra term" wrong choice (a higher term under o(xⁿ) is still true), rounds saved as LEARN.
+
+28. Learn › Probability (owner's spec, 11-12; the cards are written separately), `js/proba.js` + `js/proba-cards.js` +
+    `js/proba-ui.js`, route `#learn/proba`.
+    - The bank is data (`AT.PROBA_META`, `AT.PROBA_CARDS`; format in the header of `proba-cards.js`). The engine must work
+      unchanged when the file is replaced by a few hundred cards: `P.validateCards` (ids unique and `L<1-6>-…`, lecture,
+      game, 3 to 5 distinct distractors, true/false answer, finite compute answer, balanced `$` and maths that tex.js draws)
+      runs on the real file in `tests/proba.test.js`, so a bad bank fails `npm test`; at runtime `P.bank()` skips invalid
+      cards with one `console.warn`. `window.AT_PROBA_FIXTURE` (an array) replaces the bank (e2e); `tests/proba-fixture.js`
+      is the 25 sample cards. The order of the file is the order of the course.
+    - Games and mastery targets: laws 8 s, statements 12, tool 15, truefalse 8, formulas 10, proof 15, compute 40 (typed
+      number: `P.parseNumber` takes 0.375, 0,375, 3/8, −1 / 4, .5, 2e-3, and an unreadable entry is not an attempt;
+      tolerance max(0.0005, 0.001 × |answer|) or `card.tol`); `card.target` overrides. Mastered = over the last 3 days with
+      any Probability answer (05:00 days), ≥ 2 answers on the card, all right, none hinted or skipped, median ≤ target;
+      Learn and Sprint pooled. Settings `settings.proba` { scope 4|6, complements, game, lectures }, read through
+      `P.settings` (default scope 4, the midterm; complements off).
+    - Saved like Taylor, no schema change: one LEARN round per session, `settings.lesson` 'proba-learn' | 'proba-sprint-60' |
+      'proba-sprint-120'; questions `{ op: 'pb', id, game, lecture, correct, wrongAttempts, timeMs, hinted, t, shown,
+      answer, given, skipped?, again? }`. Answers to ids no longer in the bank are ignored and stay stored. Export, import,
+      merge and sync carry them as ordinary rounds. `G.factKeys` gives [] for `pb`.
+    - **Probability rounds are outside the mental-math practice**: `S.isProba(r)` keeps them out of `S.sessionDays` (so the
+      trend's session numbers, `factStats`' last-2-days window and day counts do not move), `S.activity` and `S.streak`, and
+      `P.summary` hands every section but its own the rounds without them. They are not in `logModes()`, so Stats never lists
+      them (a history with only Probability rounds shows "No rounds yet"). `tests/proba.test.js` asserts the Road to 60
+      headline, trend, milestones, snapshot, costs, weak facts, activity and the whole report (Probability section aside)
+      are identical with and without them; `proba.spec.js` does the same for the Stats overview, mode and day screens.
+      Taylor, Finance and Matrices rounds still count as practice days (unchanged).
+    - Learn (`P.nextLearn`, `P.relearn`): a due comeback first (a miss or hinted answer, 3 to 5 cards later, once); else half
+      the time the next never-answered card in file order; else a seen card that is not mastered, weighted towards low
+      accuracy and time since last seen; else a mastered one (about 10% while others are left). Never the same card within 4
+      cards (a comeback excepted). A checkpoint every 25 cards (Enter continues, Esc ends). Sprint (`P.nextSprint`): at random,
+      not mastered 3 times as likely; +1 / minus the Taylor penalty (`settings.taylor.penalty`), Tab skips.
+    - H: the card's `hint`, else half of the wrong choices (rounded down) for 4 or more choices, none on true/false; a hinted
+      answer never counts toward mastery. The compute box handles H, Esc and (sprint) Tab itself, since the page's key
+      handler leaves inputs alone.
+    - Cheat sheet (`P.cheatSheet`, hub button) and the report section `## Probability (midterm prep)` (`P.report`, via
+      `rProba`) are in the formats of the spec; `summary` drops a section that wrote nothing, so no blank gap.
+    - tex.js grew for this (existing output byte-identical, checked over every Taylor, Finance and tex-test string): \frac12
+      style one-digit arguments, \dfrac \binom \bar \overline, \mathbb \mathcal \mathbf (Unicode letters), \| as ‖,
+      more Greek, relations, set symbols, big operators and function names. `tests/tex-proba.test.js` renders the whole
+      list. The plain text of \sum_{…} keeps its old "(∑)" brackets and a bare |x| keeps its spaces (Finance uses both), so
+      stored text and drawn Finance maths did not change; write \left| x \right| for tight bars. A "+" right before \infty
+      after an operator ([0,+\infty]) is a sign. The accepted commands are listed in the header of `proba-cards.js`.
+    - Departures from the spec, on the owner's simplicity rule: no shared MCQ core with Taylor (its question code is about
+      expansions; the shared parts are small) so Taylor is untouched; attempts live in rounds, not a separate array (no
+      schema bump, sync and export work as they are); the Sprint penalty is Taylor's setting, with no control of its own;
+      UI strings use commas, not " · " (project rule), only the cheat sheet and report keep the spec's "·"; "Can't read that
+      number" has a short hint after it.

@@ -136,6 +136,7 @@
     if (q.keys) return q.keys;
     if (q.op === 'ty') return ['ty-' + q.key];   // one fact per expansion, whatever the question type
     if (q.op === 'mx') return ['mx'];
+    if (q.op === 'pb') return [];   // Probability cards have their own stats (proba.js), not fact keys
     if (q.op === 'fin') return [];   // Finance questions have their own stats (S.financeStats), not fact keys
     if (q.op === 'cp') return [q.type === 'cten' ? 'comp-ten' : 'comp-100'];   // Road to 60 complements
     if (q.op === 'tr') return q.type === 'fd' || q.type === 'df' ? ['tr-' + q.type, 'fr-' + q.a + '/' + q.b] : ['tr-' + q.type];

@@ -129,15 +129,19 @@
    * Plain-text coaching report to paste into a chat. Self-explanatory: it states the rules
    * before the numbers. Each list is capped so the whole stays at a few hundred lines.
    */
-  function summary(data, nowMs) {
+  // opts.proba = { cards, meta } replaces the Probability bank (tests). Probability rounds are left out of every section
+  // but their own (rProba): they are revision, not mental-math practice (S.isProba).
+  function summary(data, nowMs, opts) {
     nowMs = nowMs || Date.now();
-    var rounds = data.rounds, L = [];
+    var rounds = data.rounds.filter(function (r) { return !S.isProba(r); }), L = [];
     var today = S.dayKey(new Date(nowMs).toISOString());
-    var ctx = { rounds: rounds, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
+    var ctx = { rounds: rounds, all: data.rounds, settings: data.settings, proba: opts && opts.proba, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
     L.push('# 103 report (' + today + ')');
-    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rTaylor, rLatest, rFatigue].forEach(function (fn) {
+    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rTaylor, rProba, rLatest, rFatigue].forEach(function (fn) {
+      var n = L.length;
       L.push('');
       fn(ctx, L);
+      if (L.length === n + 1) L.pop();   // an empty section leaves no blank gap
     });
     return L.join('\n');
   }
@@ -202,6 +206,14 @@
     var weak = Object.keys(fs.tpl).filter(function (k) { return fs.tpl[k].n >= 2 && fs.tpl[k].acc < 1; })
       .sort(function (a, b) { return fs.tpl[a].acc - fs.tpl[b].acc || fs.tpl[b].n - fs.tpl[a].n; }).slice(0, 8);
     if (weak.length) L.push('Weakest templates: ' + weak.map(function (k) { var e = fs.tpl[k]; return k + ' ' + pct(e.acc) + ' of ' + e.n; }).join('; '));
+  }
+
+  // Learn › Probability (midterm prep): proba.js writes the lines. Nothing when no card was ever answered.
+  function rProba(ctx, L) {
+    var PB = AT.Proba || (node ? require('./proba.js') : null);
+    if (!PB) return;
+    var b = ctx.proba || PB.bank(), lines = PB.report(b.cards, b.meta, (ctx.settings || {}).proba, ctx.all, S.dayKey);
+    if (lines.length) { lines.forEach(function (x) { L.push(x); }); }
   }
 
   // Learn › Taylor expansions: mastered and weak per tier, accuracy per question type, sprint scores per day.
