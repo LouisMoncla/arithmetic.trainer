@@ -37,7 +37,7 @@
   var AT = typeof window !== 'undefined' ? (window.AT = window.AT || {}) : {};
 
 AT.PROBA_META = {
-  version: "2026-11-12-L1L4",
+  version: "2026-11-12-L1L6",
   lectures: {
     1: "Countable sets, Fubini, what a probability is",
     2: "Probability spaces, conditioning, independence",
@@ -482,7 +482,7 @@ AT.PROBA_CARDS = [
   { id: "L2-union-indep-c", lecture: 2, game: "truefalse", topic: "independence",
     prompt: "If $A$, $B$, $C$ are independent, then $A \\cup B$ is independent of $C$.",
     answer: true,
-    explain: "$\\mathbb{P}[(A \\cup B) \\cap C] = \\mathbb{P}[AC] + \\mathbb{P}[BC] - \\mathbb{P}[ABC] = \\mathbb{P}[C](\\mathbb{P}[A] + \\mathbb{P}[B] - \\mathbb{P}[A]\\mathbb{P}[B])$.",
+    explain: "$\\mathbb{P}[(A \\cup B) \\cap C]$ $= \\mathbb{P}[AC] + \\mathbb{P}[BC] - \\mathbb{P}[ABC]$ $= \\mathbb{P}[C]\\,(\\mathbb{P}[A] + \\mathbb{P}[B] - \\mathbb{P}[A]\\mathbb{P}[B])$ $= \\mathbb{P}[C]\\,\\mathbb{P}[A \\cup B]$.",
     source: "TD2 Ex2" },
 
   { id: "L2-dice-s7", lecture: 2, game: "truefalse", topic: "independence",
@@ -511,7 +511,7 @@ AT.PROBA_CARDS = [
     source: "TD2 Ex11" },
 
   { id: "L2-bins", lecture: 2, game: "compute", topic: "counting",
-    prompt: "Urn with 3 blue and 3 red balls. Draw them two by two into 3 bins. $\\mathbb{P}[\\text{each bin gets one blue and one red}]$? (fraction or decimal)",
+    prompt: "Urn with 3 blue and 3 red balls. Draw them two by two into 3 bins. Probability that each bin gets one blue and one red ball? (fraction or decimal)",
     answer: 0.4,
     hint: "Chain rule: $\\prod_{j=1}^{3} \\frac{j}{2j-1}$",
     explain: "$1 \\cdot \\frac{2}{3} \\cdot \\frac{3}{5} = \\frac{2}{5}$. With $j$ of each colour left, the next pair is mixed w.p. $\\frac{j}{2j-1}$.",
@@ -1218,7 +1218,7 @@ AT.PROBA_CARDS = [
     prompt: "$X$ with values in $\\mathbb{N}$ and $p_X$ nonincreasing. For $n \\ge 1$, $p_X(n) \\le$ ?",
     answer: "$\\frac{2\\,\\mathbb{E}[X]}{n(n+1)}$",
     distractors: ["$\\frac{\\mathbb{E}[X]}{n}$", "$\\frac{\\mathbb{E}[X]}{n(n+1)}$", "$\\frac{2\\,\\mathbb{E}[X]}{n^2}$"],
-    explain: "$\\mathbb{E}[X] \\ge \\sum_{k \\le n} k\\,p_X(k) \\ge p_X(n)\\sum_{k \\le n} k = p_X(n)\\frac{n(n+1)}{2}$.",
+    explain: "$\\mathbb{E}[X] \\ge \\sum_{k \\le n} k\\,p_X(k)$ and, since $p_X(k) \\ge p_X(n)$ for $k \\le n$, this is $\\ge p_X(n)\\sum_{k \\le n} k$ $= p_X(n)\\frac{n(n+1)}{2}$.",
     source: "TD4 Ex2" },
 
   // ---- MGF ----
@@ -1586,9 +1586,131 @@ AT.PROBA_CARDS = [
     source: "TD6 Ex3" },
 
   // ================================================================
-  // LECTURES 5–6 — sample cards only (batch to come)
+  // LECTURE 5 — Coupon collector, Gaussian & Beta laws, order statistics
   // ================================================================
 
+  { id: "L5-coupon-increments", lecture: 5, game: "laws", topic: "coupon collector",
+    prompt: "Coupon collector, $N$ stickers. $Y_k = T_k - T_{k-1}$ (purchases to go from $k-1$ to $k$ distinct stickers). Law of $Y_k$?",
+    answer: "$\\mathrm{Geo}\\left(1 - \\frac{k-1}{N}\\right)$, and $Y_1, \\ldots, Y_N$ are independent",
+    distractors: ["$\\mathrm{Geo}\\left(\\frac{k}{N}\\right)$, independent", "$\\mathrm{Geo}\\left(1 - \\frac{k-1}{N}\\right)$, but not independent", "$\\mathrm{Bin}\\left(N, \\frac{k-1}{N}\\right)$"],
+    explain: "With $k-1$ stickers owned, each purchase is new w.p. $\\frac{N-k+1}{N}$, independently of the past.",
+    source: "L5 slides" },
+
+  { id: "L5-coupon-mean", lecture: 5, game: "formulas", topic: "coupon collector",
+    prompt: "Coupon collector: $\\mathbb{E}[T_N] =$ ? (exact)",
+    answer: "$N \\sum_{k=1}^{N} \\frac{1}{k}$",
+    distractors: ["$\\sum_{k=1}^{N} \\frac{1}{k}$", "$N^2$", "$N \\sum_{k=1}^{N} \\frac{1}{k^2}$"],
+    explain: "Linearity: $\\sum_k \\frac{N}{N-k+1} = N H_N$. No independence needed for the mean.",
+    source: "L5 board" },
+
+  { id: "L5-coupon-asymptotic", lecture: 5, game: "formulas", topic: "coupon collector",
+    prompt: "As $N \\to \\infty$, $\\mathbb{E}[T_N] =$ ?",
+    answer: "$N \\log N + \\gamma N + \\frac12 + o(1)$",
+    distractors: ["$N \\log N + o(N)$ only, with no constant term", "$N^2/2 + o(N^2)$", "$\\frac{\\pi^2}{6}N^2 + o(N^2)$"],
+    explain: "$N H_N$ with $H_N = \\log N + \\gamma + \\frac{1}{2N} + o(1/N)$, $\\gamma \\approx 0.577$.",
+    source: "L5 slides" },
+
+  { id: "L5-coupon-var-trap", lecture: 5, game: "truefalse", topic: "coupon collector",
+    prompt: "$\\mathrm{V}(T_N) = \\frac{\\pi^2}{6}N^2 - N\\log N - \\gamma N + o(1)$ (as written on the slide).",
+    answer: false,
+    explain: "Correct: $-(\\gamma + 1)N$. $\\sum_{j \\le N} j^{-2} = \\frac{\\pi^2}{6} - \\frac1N + \\ldots$: the slide forgot the $-\\frac1N$ (textbook A.2).",
+    source: "L5 slides; textbook A.2" },
+
+  { id: "L5-coupon-var-tool", lecture: 5, game: "tool", topic: "coupon collector",
+    prompt: "Goal: $\\mathrm{V}(T_N)$ for the coupon collector. Key fact?",
+    answer: "$T_N = Y_1 + \\cdots + Y_N$ with independent $Y_k$, so the variances add",
+    distractors: ["Linearity of the variance", "Chebyshev's inequality", "$\\mathrm{V}(T_N) = \\mathbb{E}[T_N]^2$"],
+    explain: "$\\sum_k \\frac{1-p_k}{p_k^2} = N^2\\sum_j \\frac{1}{j^2} - N\\sum_j \\frac1j$. Variance is not linear: independence is what makes it add.",
+    source: "L5 board" },
+
+  { id: "L5-harmonic", lecture: 5, game: "formulas", topic: "series",
+    prompt: "$\\sum_{k=1}^N \\frac1k =$ ?",
+    answer: "$\\log N + \\gamma + \\frac{1}{2N} + o\\left(\\frac1N\\right)$",
+    distractors: ["$\\log N + o(1)$, with no constant", "$\\frac{\\pi^2}{6} + o(1)$", "$\\log N - \\gamma + o(1)$"],
+    explain: "$\\gamma \\approx 0.577$ (Euler–Mascheroni). The divergence is only logarithmic.",
+    source: "L5 slides" },
+
+  { id: "L5-basel", lecture: 5, game: "formulas", topic: "series",
+    prompt: "$\\sum_{k \\ge 1} \\frac{1}{k^2} =$ ?",
+    answer: "$\\frac{\\pi^2}{6}$",
+    distractors: ["$\\frac{\\pi}{4}$", "$2$", "$\\frac{\\pi^2}{12}$"],
+    explain: "Euler. Also gives the constant $\\frac{6}{\\pi^2}$ in the L6 example $\\mathbb{P}[X = k] = \\frac{6}{\\pi^2 k^2}$.",
+    source: "L5; L6 slides" },
+
+  { id: "L5-coupon-6", lecture: 5, game: "compute", topic: "coupon collector",
+    prompt: "Fair die: expected number of rolls to see all 6 faces? (1 decimal)",
+    answer: 14.7, tol: 0.05,
+    explain: "$6\\left(1 + \\frac12 + \\cdots + \\frac16\\right) = 14.7$.",
+    source: "L5" },
+
+  { id: "L5-coupon-concentration", lecture: 5, game: "truefalse", topic: "coupon collector", complement: true,
+    prompt: "$\\frac{T_N}{N \\log N} \\to 1$ in probability as $N \\to \\infty$.",
+    answer: true,
+    explain: "Chebyshev: $\\mathrm{V}(T_N) = O(N^2)$ while the scale is $(N\\log N)^2$.",
+    source: "Textbook Cor 5.5 (complement)" },
+
+  { id: "L5-gauss-density", lecture: 5, game: "formulas", topic: "Gaussian",
+    prompt: "Density of $\\mathcal{N}(\\mu, \\sigma^2)$:",
+    answer: "$\\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}$",
+    distractors: ["$\\frac{1}{\\sigma^2\\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}$", "$\\frac{1}{\\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma}}$", "$\\frac{1}{\\sigma\\sqrt{\\pi}} e^{-\\frac{(x-\\mu)^2}{\\sigma^2}}$"],
+    explain: "Second parameter = variance (course convention). The $\\frac1\\sigma$ comes from the change of variable $x = \\mu + \\sigma z$.",
+    source: "L5 slides" },
+
+  { id: "L5-gauss-integral", lecture: 5, game: "formulas", topic: "Gaussian",
+    prompt: "$\\int_{-\\infty}^{+\\infty} e^{-x^2/2}\\,dx =$ ?",
+    answer: "$\\sqrt{2\\pi}$",
+    distractors: ["$\\sqrt{\\pi}$", "$2\\pi$", "$1$"],
+    explain: "Gauss integral. $\\int e^{-x^2}dx = \\sqrt{\\pi}$ is the other normalisation.",
+    source: "L5 slides" },
+
+  { id: "L5-std-normal-proof", lecture: 5, game: "proof", topic: "Gaussian",
+    prompt: "$Z \\sim \\mathcal{N}(0,1)$. How does the board prove $\\mathbb{E}[Z] = 0$ and $\\mathrm{V}(Z) = 1$?",
+    answer: "$x e^{-x^2/2}$ is odd and integrable; for $\\mathbb{E}[Z^2]$ integrate $x \\cdot x e^{-x^2/2}$ by parts and use the Gauss integral",
+    distractors: ["Use the MGF $e^{t^2/2}$ only", "Use the CLT", "Chebyshev's inequality"],
+    explain: "$\\int x^2 e^{-x^2/2} = [-x e^{-x^2/2}] + \\int e^{-x^2/2} = \\sqrt{2\\pi}$. The MGF route also works (TD6).",
+    source: "L5 board" },
+
+  { id: "L5-standardise", lecture: 5, game: "laws", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(\\mu, \\sigma^2)$. Law of $\\frac{X - \\mu}{\\sigma}$?",
+    answer: "$\\mathcal{N}(0, 1)$",
+    distractors: ["$\\mathcal{N}(0, \\sigma)$", "$\\mathcal{N}(\\mu, 1)$", "$\\mathcal{N}(0, 1/\\sigma^2)$"],
+    explain: "$F_Z(x) = F_X(\\sigma x + \\mu)$ is $C^1$; differentiate: $\\sigma f_X(\\sigma x + \\mu)$ is the $\\mathcal{N}(0,1)$ density.",
+    source: "L5 slides" },
+
+  { id: "L5-gauss-cdf", lecture: 5, game: "formulas", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(\\mu, \\sigma^2)$, $\\Phi$ = CDF of $\\mathcal{N}(0,1)$. $\\mathbb{P}[X \\le x] =$ ?",
+    answer: "$\\Phi\\left(\\frac{x - \\mu}{\\sigma}\\right)$",
+    distractors: ["$\\Phi\\left(\\frac{x - \\mu}{\\sigma^2}\\right)$", "$\\Phi(x - \\mu)$", "$\\sigma\\,\\Phi(x) + \\mu$"],
+    explain: "Standardise. Divide by $\\sigma$ (the standard deviation), not by the variance.",
+    source: "L5; textbook Rem 5.12" },
+
+  { id: "L5-2sigma", lecture: 5, game: "compute", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(\\mu, \\sigma^2)$. $\\mathbb{P}[|X - \\mu| \\le 2\\sigma] \\approx$ ? (2 decimals)",
+    answer: 0.954, tol: 0.006,
+    explain: "68–95–99.7 rule. Chebyshev only guarantees $\\ge 0.75$: Gaussian tails are very light.",
+    source: "Textbook Rem 5.12" },
+
+  { id: "L5-gauss-sum", lecture: 5, game: "laws", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(\\mu_1, \\sigma_1^2)$, $Y \\sim \\mathcal{N}(\\mu_2, \\sigma_2^2)$ independent. Law of $X + Y$?",
+    answer: "$\\mathcal{N}(\\mu_1 + \\mu_2,\\ \\sigma_1^2 + \\sigma_2^2)$",
+    distractors: ["$\\mathcal{N}(\\mu_1 + \\mu_2,\\ (\\sigma_1 + \\sigma_2)^2)$", "$\\mathcal{N}(\\mu_1 + \\mu_2,\\ \\sigma_1\\sigma_2)$", "Not Gaussian in general"],
+    explain: "Variances add (independence), standard deviations do not.",
+    source: "L5 slides" },
+
+  { id: "L5-gauss-sum-proof", lecture: 5, game: "proof", topic: "Gaussian",
+    prompt: "Shortest proof that the sum of independent Gaussians is Gaussian?",
+    answer: "$M_{X+Y} = M_X M_Y = e^{(\\mu_1+\\mu_2)t + (\\sigma_1^2+\\sigma_2^2)t^2/2}$, and the MGF characterises the law",
+    distractors: ["Chebyshev on $X + Y$", "$\\mathbb{E}[X+Y]$ and $\\mathrm{V}(X+Y)$ determine any law", "The law of large numbers"],
+    explain: "Mean and variance alone do NOT determine a law; you need the MGF (or the convolution).",
+    source: "L5 board" },
+
+  { id: "L5-gauss-diff", lecture: 5, game: "compute", topic: "Gaussian",
+    prompt: "$X, Y$ i.i.d. $\\mathcal{N}(0, 1)$. $\\mathrm{V}(X - Y) =$ ?",
+    answer: 2,
+    explain: "$X - Y = X + (-Y)$, $-Y \\sim \\mathcal{N}(0,1)$: $X - Y \\sim \\mathcal{N}(0, 2)$.",
+    source: "L5; TD6 Ex8" },
+
+  // sample card (kept id)
   { id: "L5-normal-mgf", lecture: 5, game: "laws", topic: "Gaussian",
     prompt: "$X \\sim \\mathcal{N}(\\mu, \\sigma^2)$. $M_X(t) =$ ?",
     answer: "$e^{\\mu t + \\sigma^2 t^2 / 2}$",
@@ -1596,6 +1718,79 @@ AT.PROBA_CARDS = [
     explain: "Complete the square in the Gaussian integral. Finite for every $t$.",
     source: "TD6 Ex2" },
 
+  { id: "L5-gauss-moments", lecture: 5, game: "compute", topic: "Gaussian",
+    prompt: "$Z \\sim \\mathcal{N}(0, 1)$. $\\mathbb{E}[Z^4] =$ ?",
+    answer: 3,
+    explain: "$\\mathbb{E}[Z^{2k}] = (2k-1)!! = 1 \\cdot 3 \\cdots (2k-1)$; odd moments vanish. For $\\mathcal{N}(0,\\sigma^2)$: $3\\sigma^4$.",
+    source: "TD6 Ex8" },
+
+  { id: "L5-gauss-chernoff", lecture: 5, game: "formulas", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(0, \\sigma^2)$, $x \\ge 0$. Chernoff bound on $\\mathbb{P}[X \\ge x]$?",
+    answer: "$e^{-x^2/(2\\sigma^2)}$",
+    distractors: ["$e^{-x/(2\\sigma^2)}$", "$\\frac{\\sigma^2}{x^2}$", "$e^{-x^2/\\sigma^2}$"],
+    explain: "$\\inf_{t > 0} e^{\\sigma^2t^2/2 - tx}$, attained at $t = x/\\sigma^2$.",
+    source: "TD6 Ex2" },
+
+  { id: "L5-gauss-symmetric", lecture: 5, game: "truefalse", topic: "Gaussian",
+    prompt: "If $X \\sim \\mathcal{N}(0, \\sigma^2)$, then $-X \\sim \\mathcal{N}(0, \\sigma^2)$ and $\\alpha X \\sim \\mathcal{N}(0, \\alpha^2\\sigma^2)$ for $\\alpha \\ne 0$.",
+    answer: true,
+    explain: "The density is even; scaling: $F_{\\alpha X}(x) = F_X(x/\\alpha)$ for $\\alpha > 0$.",
+    source: "TD6 Ex8" },
+
+  { id: "L5-random-sign", lecture: 5, game: "truefalse", topic: "Gaussian",
+    prompt: "$X \\sim \\mathcal{N}(0,1)$, $Y = \\pm 1$ fair and independent of $X$, $Z = XY$. Then $\\mathrm{Cov}(X, Z) = 0$, so $X$ and $Z$ are independent.",
+    answer: false,
+    explain: "$Z \\sim \\mathcal{N}(0,1)$ and $\\mathrm{Cov} = \\mathbb{E}[Y]\\mathbb{E}[X^2] = 0$, but $|Z| = |X|$: $\\mathbb{P}[Z \\ge 1 \\mid X \\ge 1] = \\frac12 \\ne \\mathbb{P}[Z \\ge 1]$.",
+    source: "TD5 Ex8" },
+
+  { id: "L5-chi-square", lecture: 5, game: "laws", topic: "Gaussian",
+    prompt: "$Z \\sim \\mathcal{N}(0,1)$. Density of $Z^2$ at $y > 0$?",
+    answer: "$\\frac{1}{\\sqrt{2\\pi y}} e^{-y/2}$",
+    distractors: ["$\\frac{1}{\\sqrt{2\\pi}} e^{-y^2/2}$", "$\\frac{1}{2\\sqrt{2\\pi y}} e^{-y/2}$", "$\\frac12 e^{-y/2}$"],
+    explain: "$F(y) = \\mathbb{P}[-\\sqrt y \\le Z \\le \\sqrt y]$; differentiate: $\\frac{\\varphi(\\sqrt y) + \\varphi(-\\sqrt y)}{2\\sqrt y}$. Chi-square with 1 degree of freedom.",
+    source: "Textbook Ex 5.4" },
+
+  { id: "L5-beta-density", lecture: 5, game: "formulas", topic: "Beta",
+    prompt: "Density of $\\mathrm{Beta}(a, b)$ on $(0,1)$:",
+    answer: "$\\frac{x^{a-1}(1-x)^{b-1}}{\\beta(a,b)}$ with $\\beta(a,b) = \\int_0^1 x^{a-1}(1-x)^{b-1}dx$",
+    distractors: ["$x^{a}(1-x)^{b}$", "$\\frac{x^{a-1}(1-x)^{b-1}}{a + b}$", "$\\frac{x^{b-1}(1-x)^{a-1}}{\\beta(a,b)}$"],
+    explain: "The exponents are $a-1$ and $b-1$; $\\beta(a,b)$ normalises.",
+    source: "L5 slides" },
+
+  { id: "L5-beta-mean-var", lecture: 5, game: "laws", topic: "Beta",
+    prompt: "$X \\sim \\mathrm{Beta}(a, b)$. $(\\mathbb{E}[X], \\mathrm{V}(X)) =$ ?",
+    answer: "$\\left(\\frac{a}{a+b},\\ \\frac{ab}{(a+b)^2(a+b+1)}\\right)$",
+    distractors: ["$\\left(\\frac{b}{a+b},\\ \\frac{ab}{(a+b)^2(a+b+1)}\\right)$", "$\\left(\\frac{a}{a+b},\\ \\frac{ab}{(a+b)^2}\\right)$", "$\\left(\\frac{a-1}{a+b-2},\\ \\frac{ab}{(a+b)^2(a+b+1)}\\right)$"],
+    explain: "$\\mathbb{E}[X] = \\frac{\\beta(a+1,b)}{\\beta(a,b)}$ with $\\beta(a+1,b) = \\frac{a}{a+b}\\beta(a,b)$. $\\frac{a-1}{a+b-2}$ is the mode.",
+    source: "L5 slides; TD6 Ex5" },
+
+  { id: "L5-beta-recursion", lecture: 5, game: "formulas", topic: "Beta",
+    prompt: "Key relation (TD6) to get the Beta moments: $\\beta(a+1, b) =$ ?",
+    answer: "$\\frac{a}{a+b}\\,\\beta(a,b)$",
+    distractors: ["$\\frac{b}{a+b}\\,\\beta(a,b)$", "$a\\,\\beta(a,b)$", "$\\beta(a,b) + \\beta(a, b+1)$"],
+    explain: "From $a\\beta(a, b+1) = b\\beta(a+1, b)$ (integration by parts) and $\\beta(a,b) = \\beta(a+1,b) + \\beta(a,b+1)$.",
+    source: "TD6 Ex5" },
+
+  { id: "L5-beta-11", lecture: 5, game: "truefalse", topic: "Beta",
+    prompt: "$\\mathrm{Beta}(1, 1)$ is the uniform law on $[0, 1]$.",
+    answer: true,
+    explain: "$x^0(1-x)^0 = 1$ and $\\beta(1,1) = 1$.",
+    source: "Textbook Ex 5.5" },
+
+  { id: "L5-beta-symmetry", lecture: 5, game: "laws", topic: "Beta",
+    prompt: "$X \\sim \\mathrm{Beta}(a, b)$. Law of $1 - X$?",
+    answer: "$\\mathrm{Beta}(b, a)$",
+    distractors: ["$\\mathrm{Beta}(a, b)$", "$\\mathrm{Beta}(1-a, 1-b)$", "$\\mathrm{Beta}(a+1, b+1)$"],
+    explain: "Swap the roles of $x$ and $1-x$ in the density; $\\beta(a,b) = \\beta(b,a)$.",
+    source: "Textbook Ex 5.5" },
+
+  { id: "L5-beta-mean-compute", lecture: 5, game: "compute", topic: "Beta",
+    prompt: "$X \\sim \\mathrm{Beta}(2, 3)$. $\\mathbb{E}[X] =$ ?",
+    answer: 0.4,
+    explain: "$\\frac{a}{a+b} = \\frac25$. (And $\\mathrm{V} = \\frac{6}{25 \\cdot 6} = 0.04$.)",
+    source: "L5" },
+
+  // sample card (kept id)
   { id: "L5-order-stat", lecture: 5, game: "laws", topic: "order statistics",
     prompt: "$U_1, \\ldots, U_n$ i.i.d. $\\mathcal{U}([0,1])$, $Y_k$ = the $k$-th smallest. Law of $Y_k$?",
     answer: "$\\mathrm{Beta}(k, n-k+1)$",
@@ -1603,6 +1798,152 @@ AT.PROBA_CARDS = [
     explain: "$\\{Y_k \\le x\\} = \\{Z_x \\ge k\\}$ with $Z_x \\sim \\mathrm{Bin}(n, x)$; differentiating gives density $k\\binom{n}{k} x^{k-1}(1-x)^{n-k}$.",
     source: "L5 slides" },
 
+  { id: "L5-order-lemma", lecture: 5, game: "laws", topic: "order statistics",
+    prompt: "$U_1, \\ldots, U_n$ i.i.d. $\\mathcal{U}([0,1])$, $Z_x = \\mathrm{Card}\\{i : U_i \\le x\\}$. Law of $Z_x$?",
+    answer: "$\\mathrm{Bin}(n, x)$",
+    distractors: ["$\\mathrm{Poi}(nx)$", "$\\mathcal{U}(\\{0, \\ldots, n\\})$", "$\\mathrm{Beta}(n, x)$"],
+    explain: "Sum of $n$ independent indicators $\\mathbf{1}_{\\{U_i \\le x\\}} \\sim \\mathrm{Be}(x)$.",
+    source: "L5 slides" },
+
+  { id: "L5-order-event", lecture: 5, game: "proof", topic: "order statistics",
+    prompt: "Key identity to get the CDF of the $k$-th smallest $Y_k$?",
+    answer: "$\\{Y_k \\le x\\} = \\{Z_x \\ge k\\}$: at least $k$ of the $U_i$ are $\\le x$",
+    distractors: ["$\\{Y_k \\le x\\} = \\{Z_x = k\\}$", "$\\{Y_k \\le x\\} = \\{U_k \\le x\\}$", "$\\{Y_k \\le x\\} = \\{Z_x \\le k\\}$"],
+    explain: "So $F_{Y_k}(x) = \\sum_{j \\ge k}\\binom{n}{j}x^j(1-x)^{n-j}$; differentiating telescopes to $k\\binom{n}{k}x^{k-1}(1-x)^{n-k}$.",
+    source: "L5 board" },
+
+  { id: "L5-order-density-trap", lecture: 5, game: "truefalse", topic: "order statistics",
+    prompt: "$f_{Y_k}(x) = k\\binom{n}{k}x^{k-1}(1-x)^{n-k}$ on $(0,1)$, with equality (not just proportional).",
+    answer: true,
+    explain: "$k\\binom{n}{k} = \\frac{n!}{(k-1)!(n-k)!} = \\frac{1}{\\beta(k, n-k+1)}$. The slide writes \"$\\sim$\": it is an equality (textbook A.2).",
+    source: "L5 slides; textbook A.2" },
+
+  { id: "L5-order-mean", lecture: 5, game: "formulas", topic: "order statistics",
+    prompt: "$\\mathbb{E}[Y_k]$ for the $k$-th smallest of $n$ i.i.d. $\\mathcal{U}([0,1])$?",
+    answer: "$\\frac{k}{n+1}$",
+    distractors: ["$\\frac{k}{n}$", "$\\frac{k-1}{n}$", "$\\frac{k}{n-1}$"],
+    explain: "Beta mean $\\frac{a}{a+b}$ with $a = k$, $a + b = n + 1$: the $n$ points cut $[0,1]$ into $n+1$ gaps of equal mean.",
+    source: "Textbook Cor 5.21" },
+
+  { id: "L5-max-uniform", lecture: 5, game: "laws", topic: "order statistics",
+    prompt: "$U_1, \\ldots, U_n$ i.i.d. $\\mathcal{U}([0,1])$. Density of $\\max_i U_i$?",
+    answer: "$n x^{n-1}$ on $(0,1)$",
+    distractors: ["$x^n$ on $(0,1)$", "$n(1-x)^{n-1}$ on $(0,1)$", "$1$ on $(0,1)$"],
+    explain: "$F(x) = x^n$, so $f = nx^{n-1}$: $\\mathrm{Beta}(n, 1)$. $n(1-x)^{n-1}$ is the min.",
+    source: "L5; TD5 Ex4" },
+
+  { id: "L5-range", lecture: 5, game: "compute", topic: "order statistics",
+    prompt: "$4$ i.i.d. $\\mathcal{U}([0,1])$. $\\mathbb{E}[\\max - \\min] =$ ? (fraction or decimal)",
+    answer: 0.6,
+    explain: "$\\frac{n}{n+1} - \\frac{1}{n+1} = \\frac{n-1}{n+1} = \\frac35$.",
+    source: "Textbook Ex 5.6" },
+
+  // ================================================================
+  // LECTURE 6 — Convergence, LLN, Monte Carlo
+  // ================================================================
+
+  { id: "L6-quadratic-def", lecture: 6, game: "formulas", topic: "convergence",
+    prompt: "$X_n \\to X$ quadratically (in $L^2$) means",
+    answer: "all in $L^2$ and $\\mathbb{E}[|X_n - X|^2] \\to 0$",
+    distractors: ["$\\mathbb{E}[X_n^2] \\to \\mathbb{E}[X^2]$", "$\\mathrm{V}(X_n) \\to \\mathrm{V}(X)$", "$\\mathbb{P}[|X_n - X|^2 \\ge \\varepsilon] \\to 0$"],
+    explain: "$\\|X_n - X\\|_2 \\to 0$. Convergence of the second moments is much weaker.",
+    source: "L6 slides" },
+
+  { id: "L6-mean-def", lecture: 6, game: "formulas", topic: "convergence",
+    prompt: "$X_n \\to X$ in mean (in $L^1$) means",
+    answer: "all in $L^1$ and $\\mathbb{E}|X_n - X| \\to 0$",
+    distractors: ["$\\mathbb{E}[X_n] \\to \\mathbb{E}[X]$", "$|\\mathbb{E}[X_n - X]| \\to 0$", "$\\mathbb{E}|X_n| \\to \\mathbb{E}|X|$"],
+    explain: "The absolute value is INSIDE. $\\mathbb{E}[X_n] \\to \\mathbb{E}[X]$ is a consequence, not the definition.",
+    source: "L6 slides" },
+
+  { id: "L6-prob-def", lecture: 6, game: "formulas", topic: "convergence",
+    prompt: "$X_n \\to X$ in probability means",
+    answer: "for every $\\varepsilon > 0$, $\\mathbb{P}[|X_n - X| \\ge \\varepsilon] \\to 0$",
+    distractors: ["$\\mathbb{P}[X_n = X] \\to 1$", "for some $\\varepsilon > 0$, $\\mathbb{P}[|X_n - X| \\ge \\varepsilon] \\to 0$", "$\\mathbb{P}[\\lim X_n = X] = 1$"],
+    explain: "For EVERY $\\varepsilon$. The last option is almost sure convergence.",
+    source: "L6 slides" },
+
+  { id: "L6-as-def", lecture: 6, game: "formulas", topic: "convergence",
+    prompt: "$X_n \\to X$ almost surely means",
+    answer: "$\\mathbb{P}[\\{\\omega : X_n(\\omega) \\to X(\\omega)\\}] = 1$",
+    distractors: ["$\\mathbb{P}[X_n = X] \\to 1$", "$X_n(\\omega) \\to X(\\omega)$ for every $\\omega$", "$\\mathbb{E}|X_n - X| \\to 0$"],
+    explain: "Pointwise convergence outside a null set. \"For every $\\omega$\" is too strong.",
+    source: "L6 slides" },
+
+  { id: "L6-implications", lecture: 6, game: "statements", topic: "convergence",
+    prompt: "Which implication is FALSE in general?",
+    answer: "almost sure ⇒ in mean",
+    distractors: ["quadratic ⇒ in mean", "in mean ⇒ in probability", "almost sure ⇒ in probability"],
+    explain: "Course diagram: $L^2 \\Rightarrow L^1 \\Rightarrow$ probability $\\Leftarrow$ a.s. There is no implication between a.s. and $L^1$/$L^2$.",
+    source: "L6 slides" },
+
+  { id: "L6-l2-l1-proof", lecture: 6, game: "proof", topic: "convergence",
+    prompt: "Key step: quadratic convergence ⇒ convergence in mean?",
+    answer: "$\\mathbb{E}|X_n - X| \\le \\sqrt{\\mathbb{E}[|X_n - X|^2]}$ (Cauchy–Schwarz or Jensen)",
+    distractors: ["Markov's inequality", "$|x| \\le x^2$ for all $x$", "Borel–Cantelli"],
+    explain: "$\\|Y\\|_1 \\le \\|Y\\|_2$ on a probability space. $|x| \\le x^2$ fails for $|x| < 1$.",
+    source: "L6 slides" },
+
+  { id: "L6-l1-prob-proof", lecture: 6, game: "proof", topic: "convergence",
+    prompt: "Key step: convergence in mean ⇒ convergence in probability?",
+    answer: "Markov: $\\mathbb{P}[|X_n - X| \\ge \\varepsilon] \\le \\frac{\\mathbb{E}|X_n - X|}{\\varepsilon}$",
+    distractors: ["Chebyshev with the variance of $X_n$", "Cauchy–Schwarz", "Continuity from above"],
+    explain: "Apply Markov to the nonnegative $|X_n - X|$.",
+    source: "L6 slides" },
+
+  // sample card (kept id)
+  { id: "L6-prob-to-mean", lecture: 6, game: "truefalse", topic: "convergence",
+    prompt: "Convergence in probability implies convergence in mean.",
+    answer: false,
+    explain: "Slide example: $X_n = \\alpha_n X$ with $\\alpha_n \\to 1$ and $\\mathbb{E}|X| = \\infty$ converges in probability, not in mean. The implications go $L^2 \\Rightarrow L^1 \\Rightarrow$ probability, and a.s. $\\Rightarrow$ probability.",
+    source: "L6 slides" },
+
+  { id: "L6-as-not-mean", lecture: 6, game: "truefalse", topic: "convergence",
+    prompt: "$U \\sim \\mathcal{U}([0,1])$, $X_n = n\\mathbf{1}_{\\{U \\le 1/n\\}}$. Then $X_n \\to 0$ almost surely AND in mean.",
+    answer: false,
+    explain: "A.s. yes ($X_n(\\omega) = 0$ once $n > 1/U(\\omega)$), but $\\mathbb{E}|X_n| = n \\cdot \\frac1n = 1$ for all $n$.",
+    source: "Textbook Ex 6.11" },
+
+  { id: "L6-l2-not-as", lecture: 6, game: "truefalse", topic: "convergence",
+    prompt: "Quadratic convergence implies almost sure convergence.",
+    answer: false,
+    explain: "\"Typewriter\": indicators of shrinking dyadic intervals sweeping $[0,1]$ over and over. $\\mathbb{E}[X_n^2] \\to 0$ but $X_n(\\omega)$ converges for no $\\omega$.",
+    source: "Textbook Ex 6.11" },
+
+  { id: "L6-truncation-proof", lecture: 6, game: "proof", topic: "convergence",
+    prompt: "$\\mathbb{E}|X|^4 < \\infty$, $X_n = X\\mathbf{1}_{\\{|X| \\le n\\}}$. Key step to show $X_n \\to X$ quadratically?",
+    answer: "Cauchy–Schwarz: $\\mathbb{E}[X^2\\mathbf{1}_{\\{|X| > n\\}}] \\le \\sqrt{\\mathbb{E}|X|^4\\,\\mathbb{P}[|X| > n]}$, and $\\mathbb{P}[|X| > n] \\to 0$",
+    distractors: ["Markov on $X^2$", "The weak law of large numbers", "$|X_n| \\le |X|$ is enough"],
+    explain: "$\\mathbb{P}[|X| > n] \\to 0$ by continuity from above. The slide example of quadratic convergence.",
+    source: "L6 slides" },
+
+  { id: "L6-wlln", lecture: 6, game: "statements", topic: "LLN",
+    prompt: "Weak law of large numbers (course version):",
+    answer: "$(X_n)$ i.i.d. with $\\mathrm{V}(X_1) < \\infty$ ⇒ $\\bar X_n \\to \\mathbb{E}[X_1]$ quadratically, hence in probability",
+    distractors: ["$(X_n)$ i.i.d. with $\\mathbb{E}|X_1| < \\infty$ ⇒ $\\bar X_n \\to \\mathbb{E}[X_1]$ almost surely", "$(X_n)$ i.i.d. with $\\mathrm{V}(X_1) < \\infty$ ⇒ $\\bar X_n \\to \\mathbb{E}[X_1]$ almost surely", "$(X_n)$ independent ⇒ $\\bar X_n \\to 0$ in probability"],
+    explain: "$L^2$ version. The slide hypothesis \"$(X_1) < +\\infty$\" is missing the $\\mathrm{V}$ (textbook A.2).",
+    source: "L6 slides" },
+
+  { id: "L6-wlln-proof", lecture: 6, game: "proof", topic: "LLN",
+    prompt: "Key step in the proof of the weak law?",
+    answer: "$\\mathbb{E}[(\\bar X_n - \\mu)^2] = \\mathrm{V}(\\bar X_n) = \\frac{\\sigma^2}{n} \\to 0$, then Chebyshev for probability",
+    distractors: ["Borel–Cantelli", "Fourth-moment bound $\\mathbb{E}[S_n^4] \\le Cn^2$", "Jensen on $\\bar X_n$"],
+    explain: "Independence (or no correlation) makes $\\mathrm{V}(\\sum X_i) = n\\sigma^2$. The fourth-moment bound is the strong law.",
+    source: "L6 slides" },
+
+  { id: "L6-wlln-uncorrelated", lecture: 6, game: "truefalse", topic: "LLN",
+    prompt: "The weak law still holds if \"independent\" is replaced by \"uncorrelated\" (same law, finite variance).",
+    answer: true,
+    explain: "The proof only uses $\\mathrm{V}(\\sum X_i) = \\sum \\mathrm{V}(X_i)$, which needs zero covariances.",
+    source: "L6 slides" },
+
+  { id: "L6-xbar-var", lecture: 6, game: "compute", topic: "LLN",
+    prompt: "$X_i$ i.i.d. with $\\mathrm{V}(X_1) = 4$. $\\mathrm{V}(\\bar X_{100}) =$ ?",
+    answer: 0.04,
+    explain: "$\\frac{\\sigma^2}{n} = \\frac{4}{100}$. Standard deviation $0.2$: error shrinks like $1/\\sqrt n$.",
+    source: "L6" },
+
+  // sample card (kept id)
   { id: "L6-slln-hyp", lecture: 6, game: "statements", topic: "LLN",
     prompt: "The strong law of large numbers, as proved in the course, assumes",
     answer: "$(X_n)$ i.i.d. with $\\mathbb{E}[X_1^4] < \\infty$",
@@ -1610,11 +1951,45 @@ AT.PROBA_CARDS = [
     explain: "The fourth moment makes $\\sum_n \\mathbb{P}[|\\bar X_n - m| \\ge \\varepsilon]$ summable. Finite variance is the weak law's hypothesis.",
     source: "L6 slides" },
 
-  { id: "L6-prob-to-mean", lecture: 6, game: "truefalse", topic: "convergence",
-    prompt: "Convergence in probability implies convergence in mean.",
-    answer: false,
-    explain: "Slide example: $X_n = \\alpha_n X$ with $\\alpha_n \\to 1$ and $\\mathbb{E}|X| = \\infty$ converges in probability, not in mean. The implications go $L^2 \\Rightarrow L^1 \\Rightarrow$ probability, and a.s. $\\Rightarrow$ probability.",
-    source: "L6 slides" }
+  { id: "L6-slln-proof", lecture: 6, game: "proof", topic: "LLN",
+    prompt: "Key steps of the strong law proof ($\\mathbb{E}[X_1^4] < \\infty$)?",
+    answer: "$\\mathbb{E}[S_n^4] \\le Cn^2$, so Markov gives $\\mathbb{P}[|\\bar X_n - \\mu| \\ge \\varepsilon] \\le \\frac{C}{\\varepsilon^4 n^2}$, summable; then Borel–Cantelli",
+    distractors: ["Chebyshev gives $\\frac{\\sigma^2}{n\\varepsilon^2}$, then Borel–Cantelli", "Quadratic convergence implies almost sure convergence", "Jensen on $S_n^4$"],
+    explain: "$\\frac{1}{n}$ (Chebyshev) is NOT summable: that is why the fourth moment is needed. In $\\mathbb{E}[S_n^4]$ only the $n$ terms $Y_i^4$ and the $3n(n-1)$ pairs survive.",
+    source: "L6; textbook Thm 6.15" },
+
+  { id: "L6-borel-cantelli", lecture: 6, game: "statements", topic: "LLN", complement: true,
+    prompt: "Borel–Cantelli: if $\\sum_n \\mathbb{P}[A_n] < \\infty$, then",
+    answer: "almost surely, only finitely many $A_n$ occur",
+    distractors: ["$\\mathbb{P}[A_n] \\to 1$", "the $A_n$ are independent", "almost surely, infinitely many $A_n$ occur"],
+    explain: "$\\mathbb{P}[\\bigcup_{n \\ge N}A_n] \\le \\sum_{n \\ge N}\\mathbb{P}[A_n] \\to 0$, then continuity from above.",
+    source: "Textbook Lem 6.14 (complement)" },
+
+  { id: "L6-coins", lecture: 6, game: "truefalse", topic: "LLN",
+    prompt: "Tossing a fair coin forever, the proportion of heads converges to $\\frac12$ almost surely.",
+    answer: true,
+    explain: "Strong law with $X_n = \\mathbf{1}_{\\{\\text{head}\\}}$, bounded so $\\mathbb{E}[X_1^4] < \\infty$. This justifies the frequentist view.",
+    source: "L6 slides" },
+
+  { id: "L6-mc-rate", lecture: 6, game: "statements", topic: "Monte Carlo",
+    prompt: "Monte Carlo estimate of $\\int_{[0,1]^d} f$ with $N$ uniform samples: typical error and cost?",
+    answer: "Error of order $\\sigma_f/\\sqrt{N}$, cost of order $N$, whatever the dimension $d$",
+    distractors: ["Error of order $1/N$, cost of order $N^d$", "Error of order $1/N^d$, cost of order $N$", "Error of order $\\sigma_f/N$, cost of order $N$"],
+    explain: "$\\mathrm{V}(I_N^{MC}) = \\sigma_f^2/N$. The grid method has error $1/N$ but cost $N^d$: cursed in high dimension.",
+    source: "L6 slides" },
+
+  { id: "L6-mc-chebyshev", lecture: 6, game: "compute", topic: "Monte Carlo",
+    prompt: "Monte Carlo with $\\sigma_f^2 = 1$. Smallest $N$ for which Chebyshev guarantees $\\mathbb{P}[|I_N^{MC} - I| \\ge 0.1] \\le 0.05$?",
+    answer: 2000,
+    explain: "$\\frac{\\sigma_f^2}{N\\varepsilon^2} = \\frac{1}{0.01N} \\le 0.05 \\iff N \\ge 2000$.",
+    source: "Textbook Ex 6.5" },
+
+  { id: "L6-mc-pi", lecture: 6, game: "statements", topic: "Monte Carlo",
+    prompt: "Points uniform in $[0,1]^2$. Which quantity converges a.s. to $\\pi$?",
+    answer: "$4 \\times$ the proportion of points with $x^2 + y^2 \\le 1$",
+    distractors: ["The proportion of points with $x^2 + y^2 \\le 1$", "$2 \\times$ the proportion of points with $x^2 + y^2 \\le 1$", "The mean of $x^2 + y^2$ over the points"],
+    explain: "The quarter disc has area $\\pi/4$; strong law on $\\mathbf{1}_{\\{x^2+y^2 \\le 1\\}} \\sim \\mathrm{Be}(\\pi/4)$.",
+    source: "Textbook Ex 6.21" },
 ];
 
   if (typeof module !== 'undefined') module.exports = { PROBA_META: AT.PROBA_META, PROBA_CARDS: AT.PROBA_CARDS };
