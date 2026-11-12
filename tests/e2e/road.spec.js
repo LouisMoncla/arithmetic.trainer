@@ -151,6 +151,7 @@ test('milestones, the 60 gate message (once) and the 7th session as a test day',
   await expect(page.locator('.hero-why')).toContainText('session 7. Test day');
   await expect(page.getByTestId('road-plan').locator('li')).toHaveText([/Warm-up/, /Warm-up/, /Test day benchmark: Normal 120 s.*0 \/ 4/]);
   await page.keyboard.press('p');
+  await expect(page.getByTestId('play-modes')).toBeVisible();   // really away, then back
   await page.keyboard.press('c');
   await expect(page.getByTestId('road-title')).toBeVisible();
   await expect(page.getByTestId('road-gate-message')).toHaveCount(0);   // shown once

@@ -1,7 +1,7 @@
 // Learn › Taylor expansions: the lesson page, a Learn session (1–6, H, Enter, Esc), a sprint (timer, penalty, Tab),
 // the settings changing the pool, the maths drawn offline, and the layout at 1366 and 390.
 const { test, expect } = require('@playwright/test');
-const { openApp, tick, rounds } = require('./helpers');
+const { openApp, rounds, jump, endRound } = require('./helpers');
 
 const keyOf = (page) => page.getByTestId('taylor-question').getAttribute('data-key');
 
@@ -56,9 +56,9 @@ test('Sprint: a 60 s clock, +1 / −1, Tab skips with no cost, no feedback, the 
     await expect(page.getByTestId('taylor-result')).toHaveCount(0);   // no feedback in a sprint
   }
   await page.keyboard.press('Tab');
-  await tick(page, 20000);
+  await jump(page, 20000);   // one step: the sprint's 100 ms timer fires once, not 200 times
   await expect(page.getByTestId('taylor-timer')).toHaveText(/^4\d$/);
-  await tick(page, 41000);
+  await endRound(page, 41000);
   await expect(page.getByTestId('end-score')).toBeVisible();
   const r = (await rounds(page)).filter((x) => x.mode === 'LEARN')[0];
   expect(r.settings).toMatchObject({ lesson: 'taylor-sprint-60', duration: 60, penalty: 1 });
@@ -91,9 +91,17 @@ test('settings are remembered and change the pool: basics only never asks a comp
   await page.locator('[data-ty-nota="en"]').click();
   await expect(page.getByTestId('taylor-grid-1')).toContainText('cosh');
 
+  // 50 draws the way a sprint makes them (pickSet over the pool of the saved settings), checked in the page, then a
+  // few through the screen itself. Drawing all 50 through the screen re-rendered 50 questions and timed out under load.
+  const draws = await page.evaluate(() => {
+    const T = window.AT.Taylor, s = T.settings(window.AT.data.settings.taylor);
+    return T.pickSet(T.pool(s), [], [], window.AT.Stats.dayKey, window.AT.Generator.mulberry32(7), 50).map((x) => T.BY[x.key].tier);
+  });
+  expect(draws).toHaveLength(50);
+  expect(new Set(draws)).toEqual(new Set([1]));
   const tier1 = await page.evaluate(() => window.AT.Taylor.LIB.filter((e) => e.tier === 1).map((e) => e.key));
   await page.keyboard.press('f');
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 10; i++) {
     expect(tier1).toContain(await keyOf(page));
     await page.keyboard.press('Tab');
   }

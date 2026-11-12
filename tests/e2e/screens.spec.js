@@ -1,6 +1,6 @@
 // Home, Review, Stats (its sections and old links) and keyboard navigation.
 const { test, expect } = require('@playwright/test');
-const { NOW, openApp, tick, startSelected, answerCurrent, dayKey, endRound } = require('./helpers');
+const { NOW, openApp, tick, startSelected, answerCurrent, dayKey, endRound, jump, statsLevel } = require('./helpers');
 
 test('the site is 103 and opens on Play, Interview-ready first; Road to 60 is second and explains itself to a new user', async ({ page }) => {
   await openApp(page, null);
@@ -46,7 +46,7 @@ test('play: only the modes, no recommendation; number keys and arrows choose, En
 
   await startSelected(page);
   await expect(page.getByTestId('game-timer')).toHaveText('2:00');   // a 120-second round
-  await tick(page, 10000);
+  await jump(page, 10000);
   await expect(page.getByTestId('game-timer')).toHaveText('1:50');
   await page.keyboard.press('Escape');
 });
@@ -207,6 +207,7 @@ test('stats: one mode at a time, remembered; a calendar day opens that day, Esc 
   await expect(page).toHaveURL(/#stats\/mode\/P3$/);
   await expect(page.locator('svg[aria-label="Speed day averages"]')).toHaveCount(1);
   await page.goto(page.url().replace(/#.*$/, '#stats'));
+  await expect(page.getByTestId('overview-more')).toBeVisible();   // D means the detail only once the overview is drawn (before, it is the drill)
   await page.keyboard.press('d');
   await expect(modes.getByRole('button', { name: 'Speed', pressed: true })).toBeVisible();   // remembered in this browser
 
@@ -222,6 +223,7 @@ test('stats: one mode at a time, remembered; a calendar day opens that day, Esc 
   await expect(page.getByTestId('day-scores')).toContainText('34');
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/#stats\/mode\/P3$/);
+  await statsLevel(page, 'mode');   // drawn, so the next Esc reaches the mode level
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/#stats$/);
   await expect(page.getByTestId('overview-headline')).toBeVisible();

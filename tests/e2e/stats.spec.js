@@ -1,6 +1,6 @@
 // Stats in three levels: the overview (readable in 5 seconds), one mode, one day or round. Esc goes back up.
 const { test, expect } = require('@playwright/test');
-const { NOW, openApp, dayKey } = require('./helpers');
+const { NOW, openApp, dayKey, statsLevel } = require('./helpers');
 const { richHistory } = require('./stats-history');
 
 const BLOCKS = ['overview-headline', 'overview-milestones', 'overview-tiles', 'overview-costs', 'overview-activity', 'overview-more'];
@@ -45,6 +45,7 @@ test('D opens the detail; groups are collapsed; Benchmark only filters Interview
   // one Interview-ready round outside Road to 60, today, far above the rest
   rounds.push({ id: 'outside', startedAt: new Date(NOW.getTime() - 3600000).toISOString(), mode: 'NORMAL120', score: 99, settings: { duration: 120 }, questions: [] });
   await openApp(page, 'stats', { rounds });
+  await expect(page.getByTestId('overview-more')).toBeVisible();   // D means the detail only once the overview is drawn (before, it is the drill)
   await page.keyboard.press('d');
   await expect(page).toHaveURL(/#stats\/mode\/NORMAL120$/);
   const modes = page.getByTestId('stats-modes');
@@ -83,6 +84,7 @@ test('a day from the chart or the calendar, a round from its score; Esc climbs b
   await expect(page.getByTestId('stats-day')).toContainText('First-try accuracy');
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/#stats\/mode\/P3$/);
+  await statsLevel(page, 'mode');
 
   // the calendar, then a score: the round as its end screen read then
   await page.getByTestId('stats-calendar').locator('.cal-d.on').last().click();
@@ -96,10 +98,13 @@ test('a day from the chart or the calendar, a round from its score; Esc climbs b
   await expect(page.getByRole('button', { name: 'Play again' })).toHaveCount(0);   // read-only: no end-screen actions
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(new RegExp('#stats/day/' + dayKey(yesterday) + '$'));
+  await statsLevel(page, 'day');   // drawn, so the next Esc reaches the day level
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/#stats\/mode\/P3$/);
+  await statsLevel(page, 'mode');
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/#stats$/);
+  await statsLevel(page, 'overview');
 });
 
 test('Road to 60 drills have their own modes in Stats, × ÷ mixes grouped under one entry', async ({ page }) => {

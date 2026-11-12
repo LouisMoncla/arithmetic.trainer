@@ -127,6 +127,7 @@ test('timed round: F plays 60 s of one trick, saved as LEARN and named after the
   await expect(page.getByRole('heading', { name: 'Your numbers' })).toBeVisible();
   await expect(page.locator('.facts')).toContainText('Timed rounds');
   await page.goto(page.url().replace(/#.*/, '#stats'));
+  await expect(page.getByTestId('overview-more')).toBeVisible();   // D means the detail only once the overview is drawn (before, it is the drill)
   await page.keyboard.press('d');
   await expect(page.getByTestId('stats-modes').getByRole('button', { name: 'Learn: × 25' })).toBeVisible();   // its own mode on Stats
 });

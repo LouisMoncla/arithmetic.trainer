@@ -2,7 +2,10 @@
 // https://test.supabase.co, and every request to it is answered from an in-memory table.
 const fs = require('fs');
 const path = require('path');
-const { test, expect } = require('@playwright/test');
+const { test, expect: baseExpect } = require('@playwright/test');
+// Sync runs on the real clock (a 1 s push debounce, the Supabase client, routed requests), not the fake one, so its
+// waits need room: alone a test takes up to 5 s, which is the default limit, and it failed under parallel load.
+const expect = baseExpect.configure({ timeout: 15000 });
 const { zetamacSession } = require('../fixtures');
 
 const BASE = 'http://localhost:4173/';
@@ -115,12 +118,12 @@ test('rounds saved here are pushed, deletions become tombstones', async ({ page 
 
   await page.getByLabel('Scores, separated by commas').fill('17, 19');
   await page.getByRole('button', { name: 'Save rounds' }).click();
-  await expect.poll(() => db.rounds.size).toBe(2);
+  await expect.poll(() => db.rounds.size, { intervals: [100] }).toBe(2);   // check often: the push lands ~1 s after the save
 
   await page.getByTestId('stats-calendar').locator('.cal-d.on').click();   // the day page lists the rounds
   page.once('dialog', d => d.accept());
   await page.getByRole('button', { name: 'Delete round with score 19' }).click();
-  await expect.poll(() => [...db.rounds.values()].filter(r => r.deleted).length).toBe(1);
+  await expect.poll(() => [...db.rounds.values()].filter(r => r.deleted).length, { intervals: [100] }).toBe(1);
   await expect(status(page)).toHaveText('Synced');
 });
 
