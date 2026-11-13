@@ -142,7 +142,7 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
   statements, 15 s tools and proofs, 40 s computations). "Copy cheat-sheet list" puts the cards you miss on the
   clipboard as Markdown. Saved as `LEARN` rounds (`proba-learn`, `proba-sprint-60`, `proba-sprint-120`), which Stats
   ignores: they count as revision, not as mental-math practice.
-  **More decks** (Learn › Analysis: Series & limits, Trigonometry, and the next ones): the same lesson on another subject.
+  **More decks** (Learn › Analysis: Series & limits, Trigonometry, Calculus, and Differential equations): the same lesson on another subject.
   Each deck is one data file in `js/decks/` (format and how to add one: `docs/decks.md`), with its own chapters, progress
   table, Learn, Sprint, mastery, cheat sheet and report section. Cards can show **graphs**: under the prompt, as the
   choices (press 1–4 to pick a graph), and after the answer; a deck can have a **Graph sheet** (`G`) of reference graphs to

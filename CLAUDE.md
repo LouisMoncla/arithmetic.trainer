@@ -494,6 +494,8 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       keys 1–6, H, the right one inverted, the wrong pick bordered). Saved `given`/`answer` are the label or "graph of y = …".
     - **tex.js** gained `arcsin arccos arctan sec csc cot sinh cosh tanh coth arg gcd deg dim ker` (new names only; the
       byte-identical check over every Taylor, Finance and tex-test string still passes).
+    - Shipped decks (written by the course coach, replaced as whole files): series (71 cards), trig (59), calculus (55), ode (38);
+      223 cards and 21 reference graphs in all, in script order Series, Trigonometry, Calculus, ODE under "Analysis".
     - Test hooks: `window.AT_PROBA_FIXTURE` (Probability cards) and `window.AT_DECK_FIXTURES = { <id>: <deck definition> }`
       (replaces the shipped deck of that id); `tests/decks-fixture.js` is a frozen copy of the two sample decks.
     - Departures from the spec, on the owner's simplicity rule: Probability keeps its names (adapter, not a conversion);

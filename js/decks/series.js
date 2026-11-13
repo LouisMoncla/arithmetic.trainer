@@ -104,7 +104,7 @@ AT.registerDeck({
       prompt: "$\\lim_{x \\to 0^+} x \\ln x =$ ?",
       plot: { fns: [ { f: "x*ln(x)" } ], x: [0, 1.5], y: [-0.5, 0.7], xticks: [[1,"1"]], yticks: [[-0.3679,"−1/e"]] },
       answer: "$0$", distractors: ["$-\\infty$", "$-1$", "$-\\frac{1}{e}$"],
-      explain: "Powers beat logarithms at $0^+$ too: $x^a |\\ln x|^b \\to 0$ for $a > 0$. $-\\frac1e$ is the minimum (at $x = 1/e$), not the limit.",
+      explain: "Powers beat logarithms at $0^+$ too: $x^a \\left| \\ln x \\right|^b \\to 0$ for $a > 0$. $-\\frac1e$ is the minimum (at $x = 1/e$), not the limit.",
       source: "Pacard 11.3" },
 
     { id: "S1-poly-exp", chapter: 1, game: "truefalse", topic: "comparative growth",
@@ -121,7 +121,7 @@ AT.registerDeck({
       source: "Pacard ch. 7" },
 
     { id: "S1-sqrt-diff", chapter: 1, game: "compute", topic: "usual limits",
-      prompt: "$\\lim_{n \\to \\infty} \\left(\\sqrt{n^2 - 4n + 5} - \\sqrt{n^2 + n + 2}\\right) =$ ?",
+      prompt: "$u_n = \\sqrt{n^2 - 4n + 5} - \\sqrt{n^2 + n + 2}$. $\\lim u_n =$ ?",
       answer: -2.5,
       hint: "Multiply by the conjugate.",
       explain: "$\\frac{(n^2 - 4n + 5) - (n^2 + n + 2)}{\\sqrt{\\cdots} + \\sqrt{\\cdots}} = \\frac{-5n + 3}{\\sim 2n} \\to -\\frac52$.",
@@ -147,16 +147,16 @@ AT.registerDeck({
 
     // sample card (kept id)
     { id: "S2-geometric", chapter: 2, game: "formulas", topic: "usual series",
-      prompt: "For $|q| < 1$, $\\sum_{n \\ge 0} q^n =$ ?",
+      prompt: "For $\\left| q \\right| < 1$, $\\sum_{n \\ge 0} q^n =$ ?",
       answer: "$\\frac{1}{1-q}$", distractors: ["$\\frac{q}{1-q}$", "$\\frac{1}{1+q}$", "$\\frac{1}{(1-q)^2}$"],
       explain: "Partial sums $\\frac{1 - q^{N+1}}{1-q}$ and $q^{N+1} \\to 0$. Starting at $n = 1$ gives $\\frac{q}{1-q}$.",
       source: "Analysis" },
 
     { id: "S2-geometric-diverges", chapter: 2, game: "statements", topic: "usual series",
       prompt: "$\\sum_{n \\ge 0} q^n$ ($q \\in \\mathbb{C}$) converges iff",
-      answer: "$|q| < 1$",
-      distractors: ["$|q| \\le 1$", "$q < 1$", "$q \\ne 1$"],
-      explain: "If $|q| \\ge 1$ the terms do not tend to $0$ (zero test). $q = -1$ oscillates; $q = -2$ blows up.",
+      answer: "$\\left| q \\right| < 1$",
+      distractors: ["$\\left| q \\right| \\le 1$", "$q < 1$", "$q \\ne 1$"],
+      explain: "If $\\left| q \\right| \\ge 1$ the terms do not tend to $0$ (zero test). $q = -1$ oscillates; $q = -2$ blows up.",
       source: "Pacard Ex 8.5" },
 
     { id: "S2-sum-half", chapter: 2, game: "compute", topic: "usual series",
@@ -166,7 +166,7 @@ AT.registerDeck({
       source: "Analysis" },
 
     { id: "S2-sum-n-q-n", chapter: 2, game: "formulas", topic: "usual series",
-      prompt: "For $|q| < 1$, $\\sum_{n \\ge 1} n q^n =$ ?",
+      prompt: "For $\\left| q \\right| < 1$, $\\sum_{n \\ge 1} n q^n =$ ?",
       answer: "$\\frac{q}{(1-q)^2}$",
       distractors: ["$\\frac{1}{(1-q)^2}$", "$\\frac{q}{1-q}$", "$\\frac{q^2}{(1-q)^2}$"],
       explain: "$q \\cdot \\frac{d}{dq}\\frac{1}{1-q}$. For $q = 1/2$: $\\sum \\frac{n}{2^n} = 2$.",
@@ -181,7 +181,7 @@ AT.registerDeck({
     { id: "S2-exp-series", chapter: 2, game: "formulas", topic: "usual series",
       prompt: "For $x \\in \\mathbb{R}$, $\\sum_{n \\ge 0} \\frac{x^n}{n!} =$ ?",
       answer: "$e^x$", distractors: ["$\\frac{1}{1-x}$", "$e^x - 1$", "$\\operatorname{cosh} x$"],
-      explain: "Converges for every $x$ (ratio $\\frac{|x|}{n+1} \\to 0$). Poisson normalisation in probability.",
+      explain: "Converges for every $x$ (ratio $\\frac{\\left| x \\right|}{n+1} \\to 0$). Poisson normalisation in probability.",
       source: "Pacard 12.2" },
 
     { id: "S2-telescoping", chapter: 2, game: "compute", topic: "usual series",
@@ -298,12 +298,12 @@ AT.registerDeck({
     { id: "S2-alternating", chapter: 2, game: "statements", topic: "convergence tests",
       prompt: "Alternating series test: $\\sum (-1)^n a_n$ converges if",
       answer: "$a_n \\ge 0$, $(a_n)$ nonincreasing, and $a_n \\to 0$",
-      distractors: ["$a_n \\to 0$ only", "$a_n \\ge 0$ and $\\sum a_n$ diverges", "$|a_{n+1}/a_n| \\to 1$"],
+      distractors: ["$a_n \\to 0$ only", "$a_n \\ge 0$ and $\\sum a_n$ diverges", "$\\left| a_{n+1}/a_n \\right| \\to 1$"],
       explain: "Monotonicity matters. Bonus: the error after $N$ terms is at most $a_{N+1}$.",
       source: "Analysis" },
 
     { id: "S2-abs-implies", chapter: 2, game: "truefalse", topic: "convergence tests",
-      prompt: "If $\\sum |u_n|$ converges, then $\\sum u_n$ converges.",
+      prompt: "If $\\sum \\left| u_n \\right|$ converges, then $\\sum u_n$ converges.",
       answer: true,
       explain: "Absolute convergence implies convergence (Cauchy criterion, or split $u_n^+$ and $u_n^-$). The converse is false.",
       source: "Pacard 8.5" },
@@ -485,15 +485,15 @@ AT.registerDeck({
       source: "Bettinelli Prop 1.107" },
 
     { id: "S4-abs-integrable", chapter: 4, game: "truefalse", topic: "improper integrals",
-      prompt: "If $\\int |f|$ converges then $\\int f$ converges, and the converse is also true.",
+      prompt: "If $\\int \\left| f \\right|$ converges then $\\int f$ converges, and the converse is also true.",
       answer: false,
-      explain: "Absolute ⇒ convergence, not the converse: $\\int_1^\\infty \\frac{\\sin t}{t}\\,dt$ converges (Abel) but $\\int_1^\\infty \\frac{|\\sin t|}{t}\\,dt = \\infty$.",
+      explain: "Absolute ⇒ convergence, not the converse: $\\int_1^\\infty \\frac{\\sin t}{t}\\,dt$ converges (Abel) but $\\int_1^\\infty \\frac{\\left| \\sin t \\right|}{t}\\,dt = \\infty$.",
       source: "Bettinelli Thm 1.111, Ex 1.114" },
 
     { id: "S4-abel", chapter: 4, game: "tool", topic: "improper integrals",
       prompt: "Oscillating integrand, e.g. $\\int_1^\\infty \\frac{\\sin t}{t}\\,dt$. Tool to prove convergence?",
       answer: "Integration by parts (Abel): $\\frac{1}{t}$ decreases to $0$ and $\\int \\sin$ is bounded",
-      distractors: ["Comparison with $\\frac1t$", "Bound $|\\sin t| \\le 1$ and compare", "Equivalent at $+\\infty$"],
+      distractors: ["Comparison with $\\frac1t$", "Bound $\\left| \\sin t \\right| \\le 1$ and compare", "Equivalent at $+\\infty$"],
       explain: "Comparisons need nonnegative integrands; here the sign changes. IBP turns $\\frac{\\sin t}{t}$ into $\\frac{\\cos t}{t^2}$, absolutely integrable.",
       source: "Bettinelli Thm 1.115" },
 

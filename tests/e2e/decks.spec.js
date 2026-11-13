@@ -38,7 +38,10 @@ test('the Learn menu shows Probability as before and an Analysis section with th
   await expect(page.getByTestId('learn-lesson-proba')).toContainText('lectures 1–4');
   await expect(page.getByTestId('learn-lesson-proba')).toContainText('Not started');
   const analysis = page.locator('section.sec', { has: page.locator('h2.sec-h', { hasText: 'Analysis' }) });
-  await expect(analysis.locator('a.lesson .nm')).toHaveText(['Series & limits', 'Trigonometry']);
+  // the two fixture decks, in this order, among whatever other decks are shipped (Calculus, ODE…)
+  const names = await analysis.locator('a.lesson .nm').allTextContents();
+  expect(names.indexOf('Series & limits')).toBeGreaterThanOrEqual(0);
+  expect(names.indexOf('Trigonometry')).toBeGreaterThan(names.indexOf('Series & limits'));
   await expect(page.getByTestId('learn-lesson-series')).toContainText('5 cards');
   await expect(page.getByTestId('learn-lesson-trig')).toContainText('2 cards');
   await page.getByTestId('learn-lesson-trig').click();
@@ -205,6 +208,10 @@ test('a deck with no valid card is hidden from the menu and its page says so; a 
   page.on('console', (m) => { if (m.type() === 'warning') warns.push(m.text()); });
   const broken = JSON.parse(JSON.stringify(DEFS));
   broken.series.cards = [{ id: 'nope' }];
+  // the shipped decks of the same section are blanked too, so the section can disappear below
+  const blank = (id, title, prefix) => ({ id, title, section: 'Analysis', idPrefix: prefix, version: 'v', chapters: { 1: 'x' }, scopes: null, cards: [] });
+  broken.calculus = blank('calculus', 'Calculus', 'D');
+  broken.ode = blank('ode', 'ODE', 'E');
   await open(page, 'learn', undefined, broken);
   await expect(page.getByTestId('learn-lesson-series')).toHaveCount(0);
   await expect(page.getByTestId('learn-lesson-trig')).toBeVisible();
@@ -279,7 +286,7 @@ for (const [scheme, width] of [['light', 1100], ['dark', 1100], ['light', 390], 
           if (/NaN|undefined|Infinity/.test(s.outerHTML)) res.push(id + ': a graph in ' + where + ' has NaN');
         });
       };
-      Decks.list().forEach((d) => {
+      Decks.list().filter((d) => d.id === 'series' || d.id === 'trig').forEach((d) => {   // the fixture decks; the shipped ones are scanned apart
         const D = Decks.api(d), b = D.bank();
         b.cards.forEach((c) => {
           const k = D.kind(c), choices = k === 'mcq' ? [c.answer].concat(c.distractors) : [], wrap = document.createElement('div');
