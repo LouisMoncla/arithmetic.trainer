@@ -1054,7 +1054,7 @@
   }
   function renderLearn() {
     if (ui.lesson === 'taylor' && AT.TaylorUI) return AT.TaylorUI.render();
-    if (ui.lesson === 'proba' && AT.ProbaUI) return AT.ProbaUI.render();
+    if (ui.lesson && AT.Decks && AT.Decks.get(ui.lesson) && AT.DeckUI) return AT.DeckUI.render();   // a Learn deck: Probability, Series, Trigonometry…
     if (ui.lesson === 'fractions') return renderFractions();
     if (ui.lesson && AT.Lessons.LESSONS[ui.lesson]) return renderLesson(ui.lesson);
     var names = G.trickNames(), tf = trickFacts();
@@ -1078,12 +1078,17 @@
     h.push(section('Calculus', '<ol class="modes"><li><a class="mode lesson" href="#learn/taylor" data-testid="learn-lesson-taylor">' +
       '<span class="nm">Taylor expansions</span><span class="ds">sin x = x − x³/6 + o(x⁴): ' + tyN + ' expansions, 6 choices each</span>' +
       '<span class="tag">' + (tySeen ? tyM + ' of ' + tyN + ' mastered' : 'Not started') + '</span></a></li></ol>'));
-    // Probability: the midterm cards (proba.js, proba-ui.js); the count follows the scope chosen on its page
-    var PBk = AT.Proba, pbB = PBk.bank(), pbSt = PBk.stats(pbB.cards, data.rounds, S.dayKey), pbIn = PBk.inScope(pbB.cards, PBk.settings(data.settings.proba));
-    var pbM = pbIn.filter(function (c) { return pbSt[c.id].state === 'mastered'; }).length, pbSeen = pbIn.filter(function (c) { return pbSt[c.id].n > 0; }).length;
-    h.push(section('Probability', '<ol class="modes"><li><a class="mode lesson" href="#learn/proba" data-testid="learn-lesson-proba">' +
-      '<span class="nm">Probability</span><span class="ds">Laws, hypotheses, tools, formulas and quick computations: ' + pbIn.length + ' cards, lectures 1–' + PBk.settings(data.settings.proba).scope + '</span>' +
-      '<span class="tag">' + (pbSeen ? pbM + ' of ' + pbIn.length + ' mastered' : 'Not started') + '</span></a></li></ol>'));
+    // The Learn decks (decks.js, deck-ui.js), one section each, in registration order: Probability, then Analysis…
+    // A deck with no valid card is hidden; the count follows the scope chosen on the deck's page.
+    AT.Decks.sections().forEach(function (sec) {
+      h.push(section(sec.name, '<ol class="modes">' + sec.decks.map(function (d) {
+        var D = AT.Decks.api(d), b = D.bank(), s = D.settings(AT.Decks.getSettings(data, d)), stt = D.stats(b.cards, data.rounds, S.dayKey), inS = D.inScope(b.cards, s);
+        var m = inS.filter(function (c) { return stt[c.id].state === 'mastered'; }).length, seen = inS.filter(function (c) { return stt[c.id].n > 0; }).length;
+        var ds = (d.blurb ? d.blurb + ': ' : '') + inS.length + ' cards' + (d.scopes ? ', ' + d.noun.toLowerCase() + 's 1–' + s.scope : '');
+        return '<li><a class="mode lesson" href="#learn/' + d.id + '" data-testid="learn-lesson-' + d.id + '"><span class="nm">' + esc(d.title) + '</span><span class="ds">' + esc(ds) + '</span>' +
+          '<span class="tag">' + (seen ? m + ' of ' + inS.length + ' mastered' : 'Not started') + '</span></a></li>';
+      }).join('') + '</ol>'));
+    });
     h.push(keys([['↑ ↓', 'move'], ['Enter', 'open a lesson'], ['N', 'back here from a lesson']]));
     main.innerHTML = h.join('');
     screenKeys = function (e) {

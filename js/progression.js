@@ -130,14 +130,14 @@
    * before the numbers. Each list is capped so the whole stays at a few hundred lines.
    */
   // opts.proba = { cards, meta } replaces the Probability bank (tests). Probability rounds are left out of every section
-  // but their own (rProba): they are revision, not mental-math practice (S.isProba).
+  // but their own (rDecks): they are revision, not mental-math practice (S.isProba).
   function summary(data, nowMs, opts) {
     nowMs = nowMs || Date.now();
     var rounds = data.rounds.filter(function (r) { return !S.isProba(r); }), L = [];
     var today = S.dayKey(new Date(nowMs).toISOString());
     var ctx = { rounds: rounds, all: data.rounds, settings: data.settings, proba: opts && opts.proba, nowMs: nowMs, today: today, info: current(rounds, data.settings.stepOverride) };
     L.push('# 103 report (' + today + ')');
-    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rTaylor, rProba, rLatest, rFatigue].forEach(function (fn) {
+    [rAbout, rOverview, rSteps, rCoach, rSessions, rRoundIndex, rOps, rFacts, rGrid, rFinance, rTaylor, rDecks, rLatest, rFatigue].forEach(function (fn) {
       var n = L.length;
       L.push('');
       fn(ctx, L);
@@ -208,12 +208,21 @@
     if (weak.length) L.push('Weakest templates: ' + weak.map(function (k) { var e = fs.tpl[k]; return k + ' ' + pct(e.acc) + ' of ' + e.n; }).join('; '));
   }
 
-  // Learn › Probability (midterm prep): proba.js writes the lines. Nothing when no card was ever answered.
-  function rProba(ctx, L) {
-    var PB = AT.Proba || (node ? require('./proba.js') : null);
-    if (!PB) return;
-    var b = ctx.proba || PB.bank(), lines = PB.report(b.cards, b.meta, (ctx.settings || {}).proba, ctx.all, S.dayKey);
-    if (lines.length) { lines.forEach(function (x) { L.push(x); }); }
+  // Learn decks: one section per deck with answers, Probability first and exactly as before ("## Probability (midterm
+  // prep)"), the others "## <title> (Learn deck)". decks.js writes the lines. Nothing when no card was ever answered.
+  function rDecks(ctx, L) {
+    if (node) require('./proba.js');   // makes sure Probability is registered
+    var Dk = AT.Decks || (node ? require('./decks.js') : null);
+    if (!Dk) return;
+    var first = true;
+    Dk.list().forEach(function (deck) {
+      var D = Dk.api(deck), b = deck.id === 'proba' && ctx.proba ? ctx.proba : D.bank();
+      var lines = D.report(b.cards, b.meta, Dk.getSettings({ settings: ctx.settings }, deck), ctx.all, S.dayKey);
+      if (!lines.length) return;
+      if (!first) L.push('');
+      first = false;
+      lines.forEach(function (x) { L.push(x); });
+    });
   }
 
   // Learn › Taylor expansions: mastered and weak per tier, accuracy per question type, sprint scores per day.

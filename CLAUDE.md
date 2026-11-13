@@ -48,9 +48,13 @@ js/taylor.js            Taylor lesson logic: the library (exact rational coeffic
                         wrong choices, estimation, settings, picking, mastery; pure, node-testable
 js/taylor-ui.js         Learn › Taylor expansions (#learn/taylor) on AT.UI.kit: lesson page, Learn and Sprint sessions
 js/proba-cards.js       the Probability bank: data only (AT.PROBA_META, AT.PROBA_CARDS), written by the course coach; format in its header
-js/proba.js             Probability engine: card validation, filters, answer parsing and checking, Learn queue, Sprint picking,
-                        mastery, progress, cheat sheet, report section; pure, node-testable
-js/proba-ui.js          Learn › Probability (#learn/proba) on AT.UI.kit: hub with filters and progress table, Learn, Sprint, end screen
+js/expr.js              expression language (no eval): typed answers like pi/3, sqrt(3)/2, e^6 and the curves of plots
+js/plot.js              function graphs for cards: validation, sampling (branches, clipping), SVG string; DOM-free
+js/decks.js             Learn decks: the registry (AT.registerDeck) and the engine for every deck: validation, filters, answers,
+                        Learn queue, Sprint, mastery, progress, cheat sheet, report; Decks.api(deck) binds it to one deck
+js/proba.js             Probability as a deck: registers it with its own names (lecture, lessons proba-…, settings.proba); AT.Proba
+js/deck-ui.js           Learn › any deck (#learn/<id>) on AT.UI.kit: hub, progress table, Learn, Sprint, end screen, graphs, Graph sheet
+js/decks/<id>.js        one data file per further deck (AT.registerDeck({...}), format in docs/decks.md), plus a script tag in index.html
 js/lessons.js     Learn tab texts: GROUPS (page order) and LESSONS (short, rule, why) per trick type; plain data
 js/coach.js       Road to 60: category stats (windowed medians), Normal frequencies, estimated score + lost time,
                   today's session plan, focus picks, mastery, milestones/gate, time of day; snapshot (one
@@ -76,7 +80,7 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → tex → taylor → proba-cards → proba → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → proba-ui → app.
+Script order matters: generator → tex → expr → plot → taylor → decks → proba-cards → proba → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → deck-ui → decks/*.js → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
@@ -404,7 +408,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       parameters, no "extra term" wrong choice (a higher term under o(xⁿ) is still true), rounds saved as LEARN.
 
 28. Learn › Probability (owner's spec, 11-12; the cards are written separately), `js/proba.js` + `js/proba-cards.js` +
-    `js/proba-ui.js`, route `#learn/proba`.
+    `js/deck-ui.js` (it was proba-ui.js until item 29), route `#learn/proba`.
     - The bank is data (`AT.PROBA_META`, `AT.PROBA_CARDS`; format in the header of `proba-cards.js`). The engine must work
       unchanged when the file is replaced by a few hundred cards: `P.validateCards` (ids unique and `L<1-6>-…`, lecture,
       game, 3 to 5 distinct distractors, true/false answer, finite compute answer, balanced `$` and maths that tex.js draws)
@@ -437,7 +441,7 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       answer never counts toward mastery. The compute box handles H, Esc and (sprint) Tab itself, since the page's key
       handler leaves inputs alone.
     - Cheat sheet (`P.cheatSheet`, hub button) and the report section `## Probability (midterm prep)` (`P.report`, via
-      `rProba`) are in the formats of the spec; `summary` drops a section that wrote nothing, so no blank gap.
+      `rDecks`) are in the formats of the spec; `summary` drops a section that wrote nothing, so no blank gap.
     - tex.js grew for this (existing output byte-identical, checked over every Taylor, Finance and tex-test string): \frac12
       style one-digit arguments, \dfrac \binom \bar \overline, \mathbb \mathcal \mathbf (Unicode letters), \| as ‖,
       more Greek, relations, set symbols, big operators and function names. `tests/tex-proba.test.js` renders the whole
@@ -449,3 +453,49 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
       schema bump, sync and export work as they are); the Sprint penalty is Taylor's setting, with no control of its own;
       UI strings use commas, not " · " (project rule), only the cheat sheet and report keep the spec's "·"; "Can't read that
       number" has a short hint after it.
+
+29. Learn decks, graphs and exact answers (owner's spec, 11-13), `js/decks.js`, `js/deck-ui.js`, `js/expr.js`, `js/plot.js`,
+    `js/decks/*.js`; guide for the deck writer in `docs/decks.md`.
+    - **One engine for every deck.** `Decks.api(deck)` is item 28's engine bound to a deck object; `js/proba.js` shrank to an
+      adapter that registers Probability with its own names, so nothing stored or shown changed (all item 28 tests and the
+      whole Probability e2e spec run unchanged). A deck is `AT.registerDeck({ id, title, section, idPrefix, version, chapters,
+      scopes, reference, cards })`; Probability adds `noun` ("Lecture"), `chapterField` ('lecture'), `lessonPrefix`
+      ('proba-'), `settingsKey` ('proba'), `reportTitle`, `blurb`, `scopeNote` and lazy `meta`/`cards` (the fixture hook).
+      Other decks: field `chapter`, ids `<idPrefix><chapter>-…`, lessons `deck-<id>-learn|sprint-60|sprint-120`, settings in
+      `settings.decks[id]` (`decks: null` in the defaults, no schema bump). A bad definition, a repeated id or idPrefix is
+      skipped with a console warning; a deck with no valid card is hidden from the menu (its page says so).
+    - **Adding a deck = one file `js/decks/<id>.js` (named after the id) + one `<script>` line in index.html** (between
+      deck-ui.js and app.js; no build step). `tests/decks.test.js` validates every file in js/decks, and fails if the tag is
+      missing or the id shadows a Learn route.
+    - **Rounds and isolation.** Every deck's rounds are LEARN rounds with questions `{ op: 'pb', id, game, <chapter field>,
+      … }`; `S.isProba` is `/^(proba|deck)-/`, so all of them stay out of sessionDays, activity, streak and every report
+      section but their own (`rDecks`: Probability exactly as before, then one `## <title> (Learn deck)` per deck with
+      answers). Each deck reads only the rounds of its own lesson prefix. `tests/decks.test.js` and `decks.spec.js` assert the
+      Road to 60 headline, trend, milestones, weak facts, overview and report are identical with rounds of three decks present.
+    - **Learn menu.** `Decks.sections()` groups visible decks by `section` in registration order (script order): Probability
+      first (its own section, as before), then "Analysis" with Series & limits, Trigonometry… The menu loop in `ui.js` and the
+      `#learn/<id>` hook replace the hard-coded Probability code. `#learn/<id>/graphs` is the Graph sheet.
+    - **Expressions (`expr.js`).** Tokenizer → recursive descent → AST → closure; numbers (0.375, 0,375, .5, 2e-3), + - * / ^
+      (right-associative, binds tighter than unary minus), implicit products (2pi, 3sqrt(2), 2(x+1)), constants pi π e,
+      functions sqrt exp ln log sin cos tan asin acos atan (arc… too) sinh cosh tanh abs floor with parentheses, variable x
+      (plots only). Typed answers (`PB.parseNumber` → `Expr.evalNumber`) reject x, NaN, infinity, domain errors. To keep the
+      old parser tests: no implicit product between two numbers ("3 8"), one "/" per chain ("1/2/3"), one sign ("--2"), and a
+      digit followed by an "e" that is not an exponent ("2e": write 2*e). Cards: `answer` stays a number, `answerExpr` /
+      `answerTex` (compute cards) are what the feedback shows; the validator checks `answerExpr` equals `answer` within the
+      tolerance. The typed-answer error mentions exact values only for decks that have `answerExpr` cards.
+    - **Plots (`plot.js`).** `plot = { fns: [{ f, dash? }], x, y, xticks, yticks, points, vlines, hlines, caption }`;
+      `validatePlot` names every mistake (unknown field, bad expression, window, tick outside the window, TeX in a label);
+      `sample` gives polylines clipped to the window in JS (Liang–Barsky on y), broken on NaN/∞ and where neighbours differ
+      by more than half the y-range, so tan has separate branches and a constant is one segment; `svg` draws axes (arrowheads,
+      through 0 or on the edge), ticks, curves 2 px in currentColor, dashed guides, dots, caption, `<title>`; colours come
+      from CSS classes on currentColor, so a graph inverts with its row and follows the theme.
+    - **Cards:** `plot` under the prompt, `explainPlot` with the explanation (and in the end screen's missed cards), graph
+      choices (`answer` and `distractors` as `{ plot, label? }`, all graphs or all text; a 2-column grid, 1 column under 420 px;
+      keys 1–6, H, the right one inverted, the wrong pick bordered). Saved `given`/`answer` are the label or "graph of y = …".
+    - **tex.js** gained `arcsin arccos arctan sec csc cot sinh cosh tanh coth arg gcd deg dim ker` (new names only; the
+      byte-identical check over every Taylor, Finance and tex-test string still passes).
+    - Test hooks: `window.AT_PROBA_FIXTURE` (Probability cards) and `window.AT_DECK_FIXTURES = { <id>: <deck definition> }`
+      (replaces the shipped deck of that id); `tests/decks-fixture.js` is a frozen copy of the two sample decks.
+    - Departures from the spec, on the owner's simplicity rule: Probability keeps its names (adapter, not a conversion);
+      the shared UI keeps the `proba-…` test ids; the parser rules above; `learn.spec.js` counts deck links from the page
+      instead of a fixed number; no automatic discovery of deck files.

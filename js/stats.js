@@ -123,9 +123,10 @@ ef = my median time per
     return 'MATRIX-' + n(r.lo) + '_' + n(r.hi) + '-' + ((s && s.duration) || 60);
   }
 
-  // Learn › Probability rounds (lesson 'proba-…') are course revision, not mental-math practice: they stay out of the day
-  // count, the activity and streak, so the trend's session numbers, the weak-fact windows and the overview do not move.
-  function isProba(r) { return !!r && r.mode === 'LEARN' && !!r.settings && /^proba-/.test(r.settings.lesson || ''); }
+  // Learn deck rounds (Probability 'proba-…', every other deck 'deck-<id>-…') are course revision, not mental-math
+  // practice: they stay out of the day count, the activity and streak, so the trend's session numbers, the weak-fact
+  // windows and the overview do not move.
+  function isProba(r) { return !!r && r.mode === 'LEARN' && !!r.settings && /^(proba|deck)-/.test(r.settings.lesson || ''); }
   function sessionDays(rounds) {
     var seen = {}, days = [];
     rounds.forEach(function (r) { if (isProba(r)) return; var k = dayKey(r.startedAt); if (!seen[k]) { seen[k] = 1; days.push(k); } });

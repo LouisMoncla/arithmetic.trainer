@@ -33,7 +33,8 @@
     equiv: '≡', propto: '∝', ll: '≪', gg: '≫', circ: '∘', ast: '∗', langle: '⟨', rangle: '⟩', lvert: '|', rvert: '|',
     Vert: '‖', vert: '|'
   };
-  var FUNCS = { ln: 1, log: 1, exp: 1, lim: 1, limsup: 1, liminf: 1, sup: 1, inf: 1, max: 1, min: 1, sin: 1, cos: 1, tan: 1, det: 1 };
+  var FUNCS = { ln: 1, log: 1, exp: 1, lim: 1, limsup: 1, liminf: 1, sup: 1, inf: 1, max: 1, min: 1, sin: 1, cos: 1, tan: 1, det: 1,
+    arcsin: 1, arccos: 1, arctan: 1, sec: 1, csc: 1, cot: 1, sinh: 1, cosh: 1, tanh: 1, coth: 1, arg: 1, gcd: 1, deg: 1, dim: 1, ker: 1 };   // the last two rows: for the analysis decks
   var SPACES = { ',': '0.17em', ';': '0.28em', ' ': '0.25em', quad: '1em', qquad: '2em', '!': '-0.17em' };
   // \mathbb, \mathcal, \mathbf: Unicode letters (Chrome's MathML ignores every mathvariant but normal).
   function alpha(base, holes) {

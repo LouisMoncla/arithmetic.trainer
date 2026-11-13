@@ -1,43 +1,75 @@
 /*
- * proba-ui.js — Learn › Probability (#learn/proba). Loaded after ui.js, which lends its layout kit; the logic is in
- * proba.js and the cards in proba-cards.js. Everything runs on the page, drawn with tex.js (MathML, offline).
+ * deck-ui.js — Learn › any deck (#learn/<deck id>, e.g. #learn/proba, #learn/trig). Loaded after ui.js, which lends its
+ * layout kit; the logic is in decks.js and the cards in the deck files. Everything runs on the page, drawn with tex.js
+ * (MathML) and plot.js (SVG graphs), offline.
  *
- *   Hub       scope (lectures 1–4 or 1–6), complements, game and lecture filters, the buttons, the progress table
- *             (a click on a cell starts Learn on that lecture and game), the cheat-sheet list for the clipboard.
- *   Learn     untimed: 1–6 choose (T/F or 1/2 for true/false, a typed number for Quick compute), H hint, Enter next.
- *             A miss or a hinted answer comes back once, 3 to 5 cards later. A checkpoint every 25 cards.
+ *   Hub       scope (when the deck has scopes), complements, game and chapter filters, the buttons, the progress table
+ *             (a click on a cell starts Learn on that chapter and game), the cheat-sheet list for the clipboard, and
+ *             the Graph sheet (#learn/<id>/graphs, key G) when the deck has reference graphs.
+ *   Learn     untimed: 1–6 choose (T/F or 1/2 for true or false, a typed number or exact expression for Quick compute),
+ *             H hint, Enter next. A miss or a hinted answer comes back once, 3 to 5 cards later. A stop every 25 cards.
  *   Sprint    60 or 120 s: no feedback, +1 right, the Taylor penalty for a wrong answer (settings.taylor.penalty), Tab skips.
- * A session is saved as one LEARN round (settings.lesson 'proba-learn', 'proba-sprint-60' or 'proba-sprint-120'),
- * questions { op: 'pb', id, game, lecture, correct, wrongAttempts, timeMs, hinted, t, shown, answer, given, skipped?, again? }.
- * Stats treats these rounds as outside the mental-math practice (S.isProba).
+ * A card can show a graph under its prompt (plot), have graphs as its choices, and show a graph with its explanation
+ * (explainPlot). A session is saved as one LEARN round (settings.lesson = the deck's lessonPrefix + 'learn' or
+ * 'sprint-60'/'sprint-120'), questions { op: 'pb', id, game, <chapter field>, correct, wrongAttempts, timeMs, hinted, t,
+ * shown, answer, given, skipped?, again? }. Stats treats these rounds as outside the mental-math practice (S.isProba).
+ * The inner test ids keep their original "proba-" names, for every deck.
  */
 (function () {
   'use strict';
-  var AT = window.AT, PB = AT.Proba, S = AT.Stats, G = AT.Generator, TeX = AT.TeX;
+  var AT = window.AT, Decks = AT.Decks, Plot = AT.Plot, S = AT.Stats, G = AT.Generator, TeX = AT.TeX;
   var K = AT.UI.kit, esc = K.esc, $ = K.$, $$ = K.$$;
-  var sess = null;
+  var sess = null, deck = null, PB = null;   // PB = the engine bound to the deck on screen
 
-  function st() { return PB.settings(K.data().settings.proba); }
-  function store(s) { K.data().settings.proba = PB.settings(s); K.save(); }
+  function use(d) { deck = d; PB = d ? Decks.api(d) : null; }
+  function st() { return PB.settings(Decks.getSettings(K.data(), deck)); }
+  function store(s) { Decks.setSettings(K.data(), deck, PB.settings(s)); K.save(); }
   function now() { return Date.now(); }
   function rich(str) { return TeX.rich(str); }
   function penalty() { return AT.Taylor ? AT.Taylor.settings(K.data().settings.taylor).penalty : 1; }   // "as in Taylor"
   function fmtScore(x) { return x % 1 ? x.toFixed(1).replace('-', '−') : String(x).replace('-', '−'); }
-  function lessonOf(kind, duration) { return kind === 'learn' ? 'proba-learn' : 'proba-sprint-' + duration; }
+  function noun() { return deck.noun.toLowerCase(); }
+  function short(n) { return deck.idPrefix + n; }   // L3, S1, T2
+
+  // ---------- graphs ----------
+
+  function plotHtml(plot) { return plot ? '<div class="pl-wrap" data-testid="deck-plot">' + Plot.svg(plot) + '</div>' : ''; }
+  // One choice: text drawn as maths, or a small graph with its optional label.
+  function choiceHtml(ch) {
+    if (!PB.isGraph(ch)) return rich(ch);
+    return '<span class="pl-choice">' + Plot.svg(ch.plot, { size: 'choice' }) + (ch.label ? '<span class="pl-label">' + rich(ch.label) + '</span>' : '') + '</span>';
+  }
 
   // ---------- the hub ----------
 
+  // The route: #learn/<id> is the hub, #learn/<id>/graphs the Graph sheet.
   function render() {
     stopTimer();
     sess = null;
-    var b = PB.bank(), cards = b.cards, s = st(), rounds = K.data().rounds;
+    var parts = K.parts(), d = Decks.get(parts[1]);
+    use(d);
+    if (!d || !PB.bank().cards.length) { renderEmpty(d); return; }
+    if (parts[2] === 'graphs' && PB.bank().reference.length) { renderGraphs(); return; }
+    renderHub();
+  }
+
+  function renderEmpty(d) {
+    K.main().innerHTML = K.pageHead(d ? d.title : 'Learn', '<a href="#learn">Learn</a>.') +
+      '<div class="notices"><p class="notice" data-testid="proba-empty" role="status">' + (d ? 'This deck has no valid cards yet.' : 'There is no such deck.') + '</p></div>' +
+      K.keys([['N', 'all lessons']]);
+    K.setKeys(null);
+  }
+
+  function renderHub() {
+    var b = PB.bank(), cards = b.cards, s = st(), rounds = K.data().rounds, ref = b.reference;
     var stt = PB.stats(cards, rounds, S.dayKey), prog = PB.progress(cards, s, stt), pool = PB.pool(cards, s), empty = !pool.length;
-    var h = [K.pageHead('Probability', '<a href="#learn">Learn</a>, ' + cards.length + ' cards, bank ' + esc(b.meta.version) +
+    var h = [K.pageHead(deck.title, '<a href="#learn">Learn</a>, ' + cards.length + ' cards, bank ' + esc(b.meta.version) +
       (b.errors.length ? ', ' + b.errors.length + ' invalid skipped (see the console)' : '') + '.',
       '<button type="button" id="pb-learn" class="primary" data-testid="proba-learn"' + (empty ? ' disabled' : '') + '>Learn <kbd>L</kbd></button>' +
       '<button type="button" id="pb-s60" data-testid="proba-sprint-60"' + (empty ? ' disabled' : '') + '>Sprint 60 s <kbd>S</kbd></button>' +
-      '<button type="button" id="pb-s120" data-testid="proba-sprint-120"' + (empty ? ' disabled' : '') + '>Sprint 120 s <kbd>Shift S</kbd></button>', 'proba-title')];
-    if (empty) h.push('<div class="notices"><p class="notice" data-testid="proba-empty" role="status">No card matches these filters. Widen the scope, show the complements, or pick another game or lecture.</p></div>');
+      '<button type="button" id="pb-s120" data-testid="proba-sprint-120"' + (empty ? ' disabled' : '') + '>Sprint 120 s <kbd>Shift S</kbd></button>' +
+      (ref.length ? '<button type="button" id="pb-graphs" data-testid="deck-graphs">Graph sheet <kbd>G</kbd></button>' : ''), 'proba-title')];
+    if (empty) h.push('<div class="notices"><p class="notice" data-testid="proba-empty" role="status">No card matches these filters. Widen the scope, show the complements, or pick another game or ' + noun() + '.</p></div>');
 
     function seg(name, key, list, isOn) {
       return '<div class="seg" role="group" aria-label="' + name + '">' + list.map(function (o) {
@@ -45,45 +77,47 @@
         return '<button type="button" data-pb-' + key + '="' + o[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + (o[2] ? ' title="' + esc(o[2]) + '"' : '') + '>' + esc(o[1]) + '</button>';
       }).join('') + '</div>';
     }
-    var lecs = PB.scopeLectures(s);
-    h.push('<form class="panel" id="pb-form" data-testid="proba-settings" onsubmit="return false"><div class="form">' +
-      K.frow('Scope', seg('Scope', 'scope', [[4, 'Lectures 1–4'], [6, 'Lectures 1–6']], function (v) { return s.scope === +v; }) + ' ' +
-        '<div class="seg" role="group" aria-label="Complements"><button type="button" id="pb-comp" data-testid="proba-complements" aria-pressed="' + s.complements + '"' + (s.complements ? ' class="on"' : '') + '>Show complements</button></div>',
-        'Lectures 1–4 are the midterm. Complements are extra cards from the textbook.') +
+    var lecs = PB.scopeLectures(s), showComp = !!deck.scopes || cards.some(function (c) { return c.complement; });
+    var scopeRow = !deck.scopes && !showComp ? '' : K.frow('Scope',
+      (deck.scopes ? seg('Scope', 'scope', deck.scopes.map(function (x) { return [x.maxChapter, x.label]; }), function (v) { return s.scope === +v; }) + ' ' : '') +
+      (showComp ? '<div class="seg" role="group" aria-label="Complements"><button type="button" id="pb-comp" data-testid="proba-complements" aria-pressed="' + s.complements + '"' + (s.complements ? ' class="on"' : '') + '>Show complements</button></div>' : ''),
+      esc(deck.scopeNote || (showComp ? 'Complements are extra cards.' : '')));
+    h.push('<form class="panel" id="pb-form" data-testid="proba-settings" onsubmit="return false"><div class="form">' + scopeRow +
       K.frow('Game', seg('Game', 'game', [['all', 'All']].concat(PB.GAMES.map(function (g) { return [g.id, g.label]; })), function (v) { return s.game === v; })) +
-      K.frow('Lectures', seg('Lectures', 'lec', lecs.map(function (l) { return [l, 'L' + l, b.meta.lectures[l]]; }), function (v) { return s.lectures.indexOf(+v) >= 0; }),
-        'The lectures a Learn or Sprint draws from.') +
+      K.frow(deck.noun + 's', seg(deck.noun + 's', 'lec', lecs.map(function (l) { return [l, short(l), b.meta.lectures[l]]; }), function (v) { return s.lectures.indexOf(+v) >= 0; }),
+        'The ' + noun() + 's a Learn or Sprint draws from.') +
       '</div></form>');
 
-    // the progress table: mastered / total per lecture and game; a cell starts Learn on those cards
+    // the progress table: mastered / total per chapter and game; a cell starts Learn on those cards
     var rows = prog.lectures.map(function (l) {
-      return '<tr data-lecture="' + l + '"><th scope="row"><b>L' + l + '</b> <span class="pb-lt">' + esc(b.meta.lectures[l] || '') + '</span></th>' +
+      return '<tr data-lecture="' + l + '"><th scope="row"><b>' + short(l) + '</b> <span class="pb-lt">' + esc(b.meta.lectures[l] || '') + '</span></th>' +
         PB.GAMES.map(function (g) { return '<td class="pb-td">' + cell(l, g, prog.cells[l][g.id]) + '</td>'; }).join('') +
-        '<td class="pb-c" data-testid="proba-total-L' + l + '">' + frac(prog.rows[l]) + '</td></tr>';
+        '<td class="pb-c" data-testid="proba-total-' + short(l) + '">' + frac(prog.rows[l]) + '</td></tr>';
     }).join('');
     function frac(x) { return x.t ? x.m + ' / ' + x.t : '—'; }
     function cell(l, g, x) {
-      if (!x.t) return '<span class="pb-none" aria-label="Lecture ' + l + ', ' + esc(g.label) + ': no cards">—</span>';
-      return '<button type="button" class="pb-cell" data-lec="' + l + '" data-game="' + g.id + '" data-testid="proba-cell-' + l + '-' + g.id + '" aria-label="Lecture ' + l + ', ' + esc(g.label) + ': ' +
+      if (!x.t) return '<span class="pb-none" aria-label="' + deck.noun + ' ' + l + ', ' + esc(g.label) + ': no cards">—</span>';
+      return '<button type="button" class="pb-cell" data-lec="' + l + '" data-game="' + g.id + '" data-testid="proba-cell-' + l + '-' + g.id + '" aria-label="' + deck.noun + ' ' + l + ', ' + esc(g.label) + ': ' +
         x.m + ' of ' + x.t + ' mastered. Learn these cards."><span class="pb-fill" style="width:' + Math.round(100 * x.m / x.t) + '%"></span><span class="pb-n">' + x.m + ' / ' + x.t + '</span></button>';
     }
-    h.push(K.section('Your cards', '<p class="sec-intro">Mastered over total, per lecture and game. A card is mastered when at least 2 of your answers in your last 3 days of practice are all right, without a hint, ' +
+    h.push(K.section('Your cards', '<p class="sec-intro">Mastered over total, per ' + noun() + ' and game. A card is mastered when at least 2 of your answers in your last 3 days of practice are all right, without a hint, ' +
       'with a median time under the target below each game. Click a cell to learn those cards.</p>' +
-      '<div class="tbl-scroll"><table class="compact pb-prog" data-testid="proba-progress"><thead><tr><th scope="col">Lecture</th>' +
+      '<div class="tbl-scroll"><table class="compact pb-prog" data-testid="proba-progress"><thead><tr><th scope="col">' + deck.noun + '</th>' +
       PB.GAMES.map(function (g) { return '<th scope="col" class="pb-gh">' + esc(g.label) + '<span class="pb-tgt">' + g.target + ' s</span></th>'; }).join('') + '<th scope="col" class="pb-gh">Total</th></tr></thead><tbody>' + rows +
       '<tr class="pb-tot"><th scope="row">Total</th>' + PB.GAMES.map(function (g) { return '<td class="pb-c" data-testid="proba-total-' + g.id + '">' + frac(prog.cols[g.id]) + '</td>'; }).join('') +
       '<td class="pb-c" data-testid="proba-total">' + frac(prog.total) + '</td></tr></tbody></table></div>'));
     h.push(K.section('Cheat sheet', '<p class="sec-intro">The cards in scope you missed or used a hint on (under 80% right, at most 40), as a Markdown list to paste into your notes.</p>' +
       '<div class="row"><button type="button" id="pb-copy" data-testid="proba-copy">Copy cheat-sheet list</button><span class="hint" id="pb-copy-st" role="status" data-testid="proba-copy-status"></span></div>'));
-    h.push(K.keys([['L', 'learn'], ['S', 'sprint 60 s'], ['Shift S', 'sprint 120 s'], ['N', 'all lessons']]));
+    h.push(K.keys([['L', 'learn'], ['S', 'sprint 60 s'], ['Shift S', 'sprint 120 s']].concat(ref.length ? [['G', 'graph sheet']] : []).concat([['N', 'all lessons']])));
     K.main().innerHTML = h.join('');
-    bindHub(cards, stt);
+    bindHub(cards, stt, ref.length > 0);
   }
 
-  function bindHub(cards, stt) {
-    function upd(fn, focusSel) { var s = st(); fn(s); store(s); render(); var el = focusSel && $(focusSel); if (el) el.focus(); }
+  function bindHub(cards, stt, hasRef) {
+    function upd(fn, focusSel) { var s = st(); fn(s); store(s); renderHub(); var el = focusSel && $(focusSel); if (el) el.focus(); }
     $$('[data-pb-scope]').forEach(function (b) { b.addEventListener('click', function () { var v = +b.getAttribute('data-pb-scope'); upd(function (s) { s.scope = v; }, '[data-pb-scope="' + v + '"]'); }); });
-    $('#pb-comp').addEventListener('click', function () { upd(function (s) { s.complements = !s.complements; }, '#pb-comp'); });
+    var comp = $('#pb-comp');
+    if (comp) comp.addEventListener('click', function () { upd(function (s) { s.complements = !s.complements; }, '#pb-comp'); });
     $$('[data-pb-game]').forEach(function (b) { b.addEventListener('click', function () { var v = b.getAttribute('data-pb-game'); upd(function (s) { s.game = v; }, '[data-pb-game="' + v + '"]'); }); });
     $$('[data-pb-lec]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -91,7 +125,7 @@
         upd(function (s) {
           var i = s.lectures.indexOf(n);
           if (i >= 0) { if (s.lectures.filter(function (l) { return l <= s.scope; }).length > 1) s.lectures.splice(i, 1); } else s.lectures.push(n);
-          s.lectures.sort();
+          s.lectures.sort(function (a, c) { return a - c; });
         }, '[data-pb-lec="' + n + '"]');
       });
     });
@@ -99,6 +133,8 @@
     $('#pb-learn').addEventListener('click', function () { start('learn'); });
     $('#pb-s60').addEventListener('click', function () { start('sprint', 60); });
     $('#pb-s120').addEventListener('click', function () { start('sprint', 120); });
+    var gb = $('#pb-graphs');
+    if (gb) gb.addEventListener('click', function () { K.go('learn', deck.id + '/graphs'); });
     $('#pb-copy').addEventListener('click', function () {
       var text = PB.cheatSheet(cards, st(), stt), el = $('#pb-copy-st');
       if (!text) { el.textContent = 'Nothing to list yet: no card in scope has under 80% right or a hinted answer.'; return; }
@@ -116,12 +152,27 @@
     K.setKeys(function (e) {
       var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
+      if (k === 'g' && hasRef) { K.go('learn', deck.id + '/graphs'); return true; }
       if (!PB.pool(PB.bank().cards, st()).length) return false;
       if (k === 'l') { start('learn'); return true; }
       if (k === 's') { start('sprint', e.shiftKey ? 120 : 60); return true; }
       if (k === 'Enter') { start('learn'); return true; }
       return false;
     });
+  }
+
+  // ---------- the Graph sheet: every reference graph, for revision ----------
+
+  function renderGraphs() {
+    var ref = PB.bank().reference;
+    K.main().innerHTML = K.pageHead(deck.title + ': graph sheet', '<a href="#learn/' + deck.id + '">' + esc(deck.title) + '</a>, ' + K.plural(ref.length, 'graph') + '.',
+      '<button type="button" id="pb-back" data-testid="deck-graphs-back">Back <kbd>Esc</kbd></button>', 'proba-title') +
+      '<div class="pl-sheet" data-testid="deck-sheet">' + ref.map(function (r, i) {
+        return '<figure class="pl-fig" data-testid="deck-sheet-item"><figcaption>' + esc(r.title) + '</figcaption>' + Plot.svg(r.plot) + '</figure>';
+      }).join('') + '</div>' + K.keys([['Esc', 'back']]);
+    function back() { K.go('learn', deck.id); }
+    $('#pb-back').addEventListener('click', back);
+    K.setKeys(function (e) { if (e.key === 'Escape') { back(); return true; } return false; });
   }
 
   // ---------- sessions ----------
@@ -139,7 +190,7 @@
 
   // The stats the picker reads: history plus this session so far (a card answered right now is no longer new).
   function refresh() {
-    var virtual = { id: 'session', mode: 'LEARN', startedAt: sess.startedAt, settings: { lesson: lessonOf(sess.kind, sess.duration) }, questions: sess.questions };
+    var virtual = { id: 'session', mode: 'LEARN', startedAt: sess.startedAt, settings: { lesson: PB.lessonOf(sess.kind, sess.duration) }, questions: sess.questions };
     sess.st = PB.stats(sess.cards, K.data().rounds.concat([virtual]), S.dayKey);
   }
   function rightCount() { return sess.questions.filter(function (q) { return q.correct; }).length; }
@@ -156,8 +207,8 @@
   }
 
   function sessionTitle() {
-    var t = sess.kind === 'learn' ? 'Probability: learn' : 'Probability sprint, ' + sess.duration + ' s';
-    return sess.cell ? t + ', L' + sess.cell.lecture + ', ' + PB.GAME[sess.cell.game].label : t;
+    var t = sess.kind === 'learn' ? deck.title + ': learn' : deck.title + ' sprint, ' + sess.duration + ' s';
+    return sess.cell ? t + ', ' + short(sess.cell.lecture) + ', ' + PB.GAME[sess.cell.game].label : t;
   }
 
   function draw() {
@@ -166,14 +217,16 @@
       : 'Score <b class="num" data-testid="proba-score">' + fmtScore(sess.score) + '</b>, <span class="num" data-testid="proba-timer">' + secondsLeft() + '</span> s left';
     h.push(K.pageHead(sessionTitle(), head, '<button type="button" id="pb-done" data-testid="proba-done">' + (learn ? 'Done' : 'Stop') + ' <kbd>Esc</kbd></button>'));
     h.push('<div class="fq pb-q" data-testid="proba-question" data-id="' + esc(c.id) + '" data-game="' + c.game + '">');
-    h.push('<p class="fq-meta" data-testid="proba-meta">' + (sess.again ? '<b data-testid="proba-again">Again</b>, ' : '') + 'L' + c.lecture + ', ' + esc(PB.GAME[c.game].label) + ', ' + esc(c.topic || '') + '</p>');
+    h.push('<p class="fq-meta" data-testid="proba-meta">' + (sess.again ? '<b data-testid="proba-again">Again</b>, ' : '') + short(PB.chapterOf(c)) + ', ' + esc(PB.GAME[c.game].label) + ', ' + esc(c.topic || '') + '</p>');
     h.push('<p class="fq-prompt" id="pb-prompt" data-testid="proba-prompt">' + rich(c.prompt) + '</p>');
+    h.push(plotHtml(c.plot));
     if (k === 'mcq') {
-      h.push('<ol class="fq-opts pb-opts" aria-labelledby="pb-prompt">' + sess.choices.map(function (ch, i) {
+      var graphs = sess.choices.length && PB.isGraph(sess.choices[0]);
+      h.push('<ol class="fq-opts pb-opts' + (graphs ? ' pb-graphs' : '') + '" aria-labelledby="pb-prompt">' + sess.choices.map(function (ch, i) {
         var right = r && ch === c.answer, chosen = r && !r.ok && ch === r.given;
         var tag = right ? '<span class="sr-only"> (right answer)</span>' : chosen ? '<span class="sr-only"> (your answer, wrong)</span>' : '';
         return '<li><button type="button" class="opt' + (right ? ' right' : chosen ? ' chosen' : '') + '" data-opt="' + i + '" data-testid="proba-option-' + (i + 1) + '"' + (r ? ' disabled' : '') + '>' +
-          '<kbd>' + (i + 1) + '</kbd><span class="ot">' + rich(ch) + '</span>' + tag + '</button></li>';
+          '<kbd>' + (i + 1) + '</kbd><span class="ot">' + choiceHtml(ch) + '</span>' + tag + '</button></li>';
       }).join('') + '</ol>');
     } else if (k === 'tf') {
       h.push('<ol class="fq-opts pb-opts pb-tf" aria-labelledby="pb-prompt">' + [[true, 'True', 'T'], [false, 'False', 'F']].map(function (o, i) {
@@ -201,10 +254,17 @@
     if (!r && k === 'num') { var inp = $('#pb-input'); if (inp) inp.focus(); }
   }
 
+  // The exact answer of a compute card: its expression drawn as maths when it has one, with the number beside it.
+  function exactHtml(c) {
+    if (!c.answerExpr) return '<b class="num">' + esc(PB.answerText(c)) + '</b>';
+    return '<b>' + (c.answerTex ? rich(c.answerTex) : '<span class="num">' + esc(c.answerExpr) + '</span>') + '</b>, about <span class="num">' + esc(String(+c.answer.toPrecision(6))) + '</span>';
+  }
+
   function resultHtml(c, r) {
     var k = PB.kind(c), h = ['<div class="fq-result" data-testid="proba-result"><p class="verdict" role="status">' +
-      (r.ok ? '<b>Right.</b>' : '<b>Not quite.</b> ' + (k === 'num' ? 'The answer is <b class="num">' + esc(PB.answerText(c)) + '</b>' + (r.raw ? ' (you typed ' + esc(r.raw) + ')' : '') + '.' : 'The right answer is highlighted.')) + '</p>'];
+      (r.ok ? '<b>Right.</b>' : '<b>Not quite.</b> ' + (k === 'num' ? 'The answer is ' + exactHtml(c) + (r.raw ? ' (you typed ' + esc(r.raw) + ')' : '') + '.' : 'The right answer is highlighted.')) + '</p>'];
     h.push('<p class="' + (r.ok ? 'fq-ask' : 'fq-why') + '" data-testid="proba-explain">' + (r.ok ? '' : '<b>Why.</b> ') + rich(c.explain) + '</p>');
+    if (c.explainPlot) h.push('<div class="pl-wrap" data-testid="deck-explain-plot">' + Plot.svg(c.explainPlot) + '</div>');
     if (c.source) h.push('<p class="fq-ask" data-testid="proba-source">Source: ' + esc(c.source) + '</p>');
     h.push('<div class="row"><button type="button" class="primary" id="pb-next" data-testid="proba-next">Next <kbd>Enter</kbd></button></div></div>');
     return h.join('');
@@ -276,7 +336,7 @@
   function submitNumber() {
     var inp = $('#pb-input'), v = PB.parseNumber(inp.value);
     if (v === null) {   // not an attempt: nothing is recorded, the clock keeps running, retype
-      sess.err = 'Can’t read that number. Use digits, a decimal point or comma, a fraction like 3/8, or 2e-3.';
+      sess.err = 'Can’t read that number. Use digits, a decimal point or comma, a fraction like 3/8, or 2e-3' + (PB.hasExpr() ? ', or an exact value like pi/3, sqrt(3)/2 or e^6.' : '.');
       $('#pb-err').textContent = sess.err; inp.focus(); inp.select();
       return;
     }
@@ -285,9 +345,10 @@
 
   function record(given, ok, raw) {
     var c = sess.card, k = PB.kind(c), t = now();
-    var text = given === null ? '' : k === 'num' ? raw : k === 'tf' ? (given ? 'True' : 'False') : PB.plainText(given);
-    var rec = { op: 'pb', id: c.id, game: c.game, lecture: c.lecture, correct: ok, wrongAttempts: ok ? 0 : 1, timeMs: Math.max(1, t - sess.t0), hinted: sess.hinted,
+    var text = given === null ? '' : k === 'num' ? raw : k === 'tf' ? (given ? 'True' : 'False') : PB.choiceText(given);
+    var rec = { op: 'pb', id: c.id, game: c.game, correct: ok, wrongAttempts: ok ? 0 : 1, timeMs: Math.max(1, t - sess.t0), hinted: sess.hinted,
       t: t, shown: PB.plainText(c.prompt), answer: PB.plainText(PB.answerText(c)), given: text };
+    rec[deck.chapterField] = PB.chapterOf(c);
     if (given === null) { rec.skipped = true; rec.wrongAttempts = 0; }
     if (sess.again) rec.again = true;   // a relearning comeback
     sess.questions.push(rec);
@@ -332,7 +393,7 @@
     if (!sess || sess.saved || !sess.questions.length) return null;
     sess.saved = true;
     var round = { id: AT.Storage.uuid(), startedAt: sess.startedAt, mode: 'LEARN',
-      settings: { lesson: lessonOf(sess.kind, sess.duration), duration: sess.duration || undefined, scope: sess.s.scope, complements: sess.s.complements,
+      settings: { lesson: PB.lessonOf(sess.kind, sess.duration), duration: sess.duration || undefined, scope: sess.s.scope, complements: sess.s.complements,
         cell: sess.cell || undefined, penalty: sess.kind === 'sprint' ? penalty() : undefined },
       score: sess.kind === 'learn' ? rightCount() : sess.score, questions: sess.questions };
     K.data().rounds.push(round);
@@ -348,12 +409,12 @@
     var round = save(), kind = sess.kind, duration = sess.duration, cell = sess.cell, byId = sess.byId, title = sessionTitle(), qs = sess.questions;
     K.onLeave(null);
     sess = null;
-    if (!round) { render(); return; }
+    if (!round) { renderHub(); return; }
     var right = qs.filter(function (q) { return q.correct; }).length, hinted = qs.filter(function (q) { return q.hinted; }).length;
     var skipped = qs.filter(function (q) { return q.skipped; }).length, acc = Math.round(100 * right / qs.length);
     var h = ['<div class="end">', '<h1 class="sr-only">' + esc(title) + ' finished</h1>'];
     h.push(K.endHead(fmtScore(round.score), title, right + ' of ' + qs.length + ' right, ' + acc + '%' + (hinted ? ', ' + hinted + ' with a hint' : '') + (skipped ? ', ' + skipped + ' skipped' : '')));
-    h.push(K.endButtons([['again', 'Back to Probability', 'Enter'], [kind === 'learn' ? 'l' : 's', kind === 'learn' ? 'Learn again' : 'Sprint again', kind === 'learn' ? 'L' : 'S']]));
+    h.push(K.endButtons([['again', 'Back to ' + deck.title, 'Enter'], [kind === 'learn' ? 'l' : 's', kind === 'learn' ? 'Learn again' : 'Sprint again', kind === 'learn' ? 'L' : 'S']]));
     // every card missed, skipped or hinted, once, worst result first
     var seen = {}, list = [];
     qs.forEach(function (q) {
@@ -367,15 +428,15 @@
     h.push(K.section(kind === 'learn' ? 'Missed or hinted cards' : 'Missed cards',
       list.length ? '<ol class="pb-review" data-testid="proba-review">' + list.map(function (x) {
         var c = byId[x.q.id];
-        return '<li data-id="' + esc(c.id) + '"><p class="fq-r">' + esc(NAME[x.rank]) + ', L' + c.lecture + ', ' + esc(PB.GAME[c.game].label) + '</p>' +
-          '<p class="fq-prompt">' + rich(c.prompt) + '</p>' +
-          '<p><b>Answer.</b> ' + (PB.kind(c) === 'mcq' ? rich(c.answer) : esc(PB.answerText(c))) + '</p>' +
-          '<p class="fq-why"><b>Why.</b> ' + rich(c.explain) + '</p>' + (c.source ? '<p class="fq-ask">Source: ' + esc(c.source) + '</p>' : '') + '</li>';
+        return '<li data-id="' + esc(c.id) + '"><p class="fq-r">' + esc(NAME[x.rank]) + ', ' + short(PB.chapterOf(c)) + ', ' + esc(PB.GAME[c.game].label) + '</p>' +
+          '<p class="fq-prompt">' + rich(c.prompt) + '</p>' + plotHtml(c.plot) +
+          '<p><b>Answer.</b> ' + (PB.kind(c) === 'mcq' ? choiceHtml(c.answer) : PB.kind(c) === 'num' ? exactHtml(c) : esc(PB.answerText(c))) + '</p>' +
+          '<p class="fq-why"><b>Why.</b> ' + rich(c.explain) + '</p>' + (c.explainPlot ? plotHtml(c.explainPlot) : '') + (c.source ? '<p class="fq-ask">Source: ' + esc(c.source) + '</p>' : '') + '</li>';
       }).join('') + '</ol>' : '<p class="sec-intro" data-testid="proba-no-misses">Nothing missed or hinted.</p>'));
     h.push('</div>');
     K.main().innerHTML = h.join('');
     var actions = {
-      again: function () { render(); },
+      again: function () { renderHub(); },
       l: function () { start('learn', null, cell); },
       s: function () { start('sprint', duration, cell); }
     };
@@ -383,5 +444,5 @@
     K.endKeys(actions);
   }
 
-  AT.ProbaUI = { render: render };
+  AT.DeckUI = { render: render };
 })();

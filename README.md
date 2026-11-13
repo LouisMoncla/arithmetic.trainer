@@ -142,6 +142,11 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
   statements, 15 s tools and proofs, 40 s computations). "Copy cheat-sheet list" puts the cards you miss on the
   clipboard as Markdown. Saved as `LEARN` rounds (`proba-learn`, `proba-sprint-60`, `proba-sprint-120`), which Stats
   ignores: they count as revision, not as mental-math practice.
+  **More decks** (Learn › Analysis: Series & limits, Trigonometry, and the next ones): the same lesson on another subject.
+  Each deck is one data file in `js/decks/` (format and how to add one: `docs/decks.md`), with its own chapters, progress
+  table, Learn, Sprint, mastery, cheat sheet and report section. Cards can show **graphs**: under the prompt, as the
+  choices (press 1–4 to pick a graph), and after the answer; a deck can have a **Graph sheet** (`G`) of reference graphs to
+  revise. In Quick compute you can type an **exact value** instead of a decimal: `pi/3`, `sqrt(3)/2`, `e^6`, `2pi`.
   **Fractions by heart** (`#learn/fractions`): all 49 fractions with a denominator up to 12, plus 1/16, 3/16, 1/20 and 1/25,
   both ways: 3/7 → type the decimal; 0.429… → type 3/7 in the two boxes. Repeating decimals take 3 places, rounded
   or cut off (2/3: 0.667 or 0.666); a decimal with … repeats. A grid shows every pair: grey = not seen yet,

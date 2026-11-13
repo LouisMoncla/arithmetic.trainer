@@ -637,6 +637,28 @@ svg.chart[data-picks] { cursor: pointer; }
 .pb-review li { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .pb-review p { margin: 6px 0 0; overflow-x: auto; overflow-y: hidden; }
 .pb-copy-box { display: block; width: 100%; max-width: 46em; margin-top: 10px; }
+/* Graphs in cards (plot.js): drawn in currentColor, so black on light, white on dark, and inverted with the right answer */
+.pl-wrap { margin: 14px 0 0; }
+.plot { display: block; width: 100%; height: auto; color: inherit; }
+.plot-prompt { max-width: 420px; }
+.plot-choice { max-width: 220px; margin: 0 auto; }
+.pl-axis { stroke: currentColor; stroke-width: 1; fill: none; opacity: .55; }
+.pl-arrow { fill: currentColor; stroke: none; opacity: .55; }
+.pl-guide { stroke: currentColor; stroke-width: 1; stroke-dasharray: 4 4; fill: none; opacity: .4; }
+.pl-curve { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.pl-dash { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .6; }
+.pl-pt { fill: currentColor; stroke: currentColor; stroke-width: 1.5; }
+.pl-pt.pl-open { fill: none; }
+.pl-txt { fill: currentColor; stroke: none; font: 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif; opacity: .8; }
+.pl-cap { font-size: 12px; opacity: .9; }
+.pb-graphs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pb-graphs .opt { align-items: flex-start; }
+.pl-choice { display: block; }
+.pl-label { display: block; margin-top: 4px; text-align: center; font-size: var(--t-xs); }
+.pl-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; margin: 18px 0 0; }
+.pl-fig { margin: 0; padding: 12px 14px 8px; border-radius: var(--r-m); background: var(--surface); }
+.pl-fig figcaption { margin: 0 0 6px; font-weight: 600; }
+@media (max-width: 420px) { .pb-graphs { grid-template-columns: minmax(0, 1fr); } .pl-sheet { grid-template-columns: minmax(0, 1fr); } }
 .ty-display { margin: 14px 0 0; font-size: 26px; overflow-x: auto; overflow-y: hidden; }
 .ty-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ty-opts .ot { font-size: 18px; }
