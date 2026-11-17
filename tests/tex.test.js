@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const T = require('../js/tex.js');
 const F = require('../js/finance-templates.js');
+require('../js/finance-sd1.js'); require('../js/finance-sd2.js'); require('../js/finance-meta.js');   // the Superday templates and the legends are covered too
 
 // The MathML inside <math><mrow>…</mrow></math> (and the row of a multi-part formula).
 const m = (tex) => {
@@ -120,7 +121,7 @@ test('every prompt, step, why, option and explanation: maths inside $…$, and i
   for (const t of FB.list()) {
     for (let seed = 1; seed <= 50; seed++) {
       const q = FB.make(t.id, seed);
-      const texts = [['prompt', q.prompt], ['why', q.why]].concat(q.steps.map((s, i) => ['step ' + (i + 1), s]));
+      const texts = [['prompt', q.prompt], ['why', q.why], ['shortcut', t.shortcut]].concat(q.steps.map((s, i) => ['step ' + (i + 1), s]));
       if (t.kind === 'choice') q.options.forEach((o, i) => texts.push(['option ' + (i + 1), o]));
       for (const [where, s] of texts) {
         if (!s) continue;

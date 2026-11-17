@@ -14,12 +14,13 @@
   'use strict';
   var AT = window.AT, F = AT.Finance, S = AT.Stats, G = AT.Generator, C = AT.Charts, Game = AT.Game;
   var K = AT.UI.kit, esc = K.esc, $ = K.$, $$ = K.$$;
-  var rich = AT.TeX.rich;   // prose with $…$ maths → HTML with MathML
+  var T = AT.FinanceTags, TE = AT.FinanceTeach;
+  var rich = TE.rich;   // prose with $…$ maths → HTML with MathML; numbers of 10 000 or more get thin spaces
 
   var MODES = [['sprint', 'Sprint'], ['practice', 'Practice'], ['intuition', 'Intuition'], ['mixed', 'Interview mix']];
   var MODE_DESC = {
-    sprint: 'Timed, like Zetamac: type the answer, it is taken as soon as it is exact. Estimates take Enter. Stuck or wrong? Press H to stop the clock and see the formula and the solution.',
-    practice: 'Untimed. After each answer you see the right one, the formula and the steps.',
+    sprint: 'Timed, like Zetamac: type the answer, it is taken as soon as it equals the answer shown. A close estimate takes Enter. Stuck or wrong? Press H to stop the clock and see the formula and the solution.',
+    practice: 'Untimed. After each answer you see the right one, the formula and the steps; after a miss, the full card with what each symbol means and what went wrong.',
     intuition: 'Untimed multiple choice on concepts: direction of effects, definitions, which is bigger.',
     mixed: '20 questions from every family, getting harder, then your score per topic. Untimed.'
   };
@@ -92,6 +93,7 @@
     var p = K.parts();
     if (p[1] === 'q' && F.get(p[2])) { startSession('practice', { first: { tpl: p[2], seed: Number(p[3]) >>> 0 }, only: [p[2]] }); return; }
     if (p[1] === 'practice' || p[1] === 'intuition' || p[1] === 'mixed') { startSession(p[1]); return; }
+    if (p[1] === 'method') { renderMethod(); return; }
     renderHome();
   }
 
@@ -134,8 +136,9 @@
     var startLabel = { sprint: 'Start sprint', practice: 'Start practice', intuition: 'Start intuition', mixed: 'Start interview mix' }[o.mode];
     h.push('<div class="row mx-start"><button type="button" class="primary hero-start" id="fin-start" data-testid="finance-start-button"' + (ids.length ? '' : ' disabled') + '>' +
       startLabel + ' <kbd>Enter</kbd></button></div><p class="err" id="fin-err" aria-live="polite">' + esc(err) + '</p>');
-    h.push(K.keys(o.mode === 'sprint' ? [['H', 'pause and learn'], ['Enter', 'check an estimate'], ['Tab', 'skip'], ['Esc', 'stop']]
-      : [['Enter', 'check, then next'], ['1–4', 'choose an option'], ['S', 'same type, new numbers'], ['Esc', 'finish']]));
+    h.push('<div class="row"><button type="button" id="fin-method" data-testid="finance-method-button">Method sheet <kbd>M</kbd></button></div>');
+    h.push(K.keys(o.mode === 'sprint' ? [['H', 'pause and learn'], ['Enter', 'check a close answer'], ['Tab', 'skip'], ['Esc', 'stop']]
+      : [['Enter', 'check, then next'], ['1–4', 'choose an option'], ['S', 'try a new one'], ['1–7', 'correct the mistake type'], ['M', 'method sheet'], ['Esc', 'finish']]));
     h.push(progressHtml(o, fs));
     var main = K.main();
     main.innerHTML = h.join('');
@@ -168,8 +171,10 @@
       b.addEventListener('click', function () { K.setHash('finance', 'practice'); startSession('practice', { only: [b.getAttribute('data-weak')] }); });
     });
     $('#fin-start').addEventListener('click', start);
+    $('#fin-method').addEventListener('click', function () { K.setHash('finance', 'method'); renderMethod(); });
     K.setKeys(function (e) {
       if (e.key === 'Enter') { start(); return true; }
+      if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) { K.setHash('finance', 'method'); renderMethod(); return true; }
       return false;
     });
     function start() {
@@ -267,14 +272,22 @@
 
   function resultHtml(q, r) {
     var verdict = r.ok ? '<b>Right.</b> ' + (q.kind === 'choice' ? '' : 'The answer is ' + rich(rightText(q)) + '.')
-      : '<b>Not quite.</b> ' + (q.kind === 'choice' ? 'The answer is: ' + rich(rightText(q)) + '.' : 'You answered ' + esc(r.given) + '; the answer is ' + rich(rightText(q)) + '.');
+      : '<b>Not quite.</b> ' + (q.kind === 'choice' ? 'The answer is: ' + rich(rightText(q)) + '.' : 'You answered ' + TE.plain(r.given) + '; the answer is ' + rich(rightText(q)) + '.');
+    var t = F.get(q.tpl), timed = t && t.target && q.kind !== 'choice';
+    if (timed) verdict += ' <span class="mid">Your time</span> ' + TE.timeLine(r.timeMs, t.target);
     var last = sess.plan && sess.i >= sess.plan.length;
+    var card = !r.ok && q.kind !== 'choice' && q.formula && t && t.legend && t.legend.length;
     var acts = '<button type="button" class="primary" id="fq-next" data-testid="finance-next">' + (last ? 'See your score' : 'Next') + ' <kbd>Enter</kbd></button>';
-    if (!sess.plan) acts += '<button type="button" id="fq-same" data-testid="finance-same">Same type, new numbers <kbd>S</kbd></button>';
+    if (!sess.plan) acts += '<button type="button" id="fq-same" data-testid="finance-same">Try a new one <kbd>S</kbd></button>';
     if (q.related && !sess.plan) acts += '<button type="button" id="fq-rel" data-testid="finance-related">Practise the calculation <kbd>C</kbd></button>';
+    var report = '<p class="small mid">Question code <span class="num">' + esc(q.tpl) + ' #' + q.seed + '</span>. ' +
+      '<a href="' + esc(reportUrl(q)) + '" target="_blank" rel="noopener" data-testid="finance-report">Report a mistake in this question</a></p>';
+    if (card) {
+      return '<div class="fq-result" data-testid="finance-result"><p class="verdict" role="status">' + verdict + '</p>' +
+        TE.cardHtml(q, { given: r.given, timeMs: r.timeMs, tag: r.tag, wrong: true, picker: true, buttons: acts }) + report + '</div>';
+    }
     return '<div class="fq-result" data-testid="finance-result"><p class="verdict" role="status">' + verdict + '</p>' + stepsHtml(q) +
-      '<div class="row">' + acts + '</div><p class="small mid">Question code <span class="num">' + esc(q.tpl) + ' #' + q.seed + '</span>. ' +
-      '<a href="' + esc(reportUrl(q)) + '" target="_blank" rel="noopener" data-testid="finance-report">Report a mistake in this question</a></p></div>';
+      '<div class="row">' + acts + '</div>' + report + '</div>';
   }
 
   // A prefilled GitHub issue; the question code lets anyone reopen it at #finance/q/<tpl>/<seed>.
@@ -301,6 +314,7 @@
       $('#fq-next').addEventListener('click', function () { nextQ(false); });
       var same = $('#fq-same'); if (same) same.addEventListener('click', function () { nextQ(true); });
       var rel = $('#fq-rel'); if (rel) rel.addEventListener('click', related);
+      $$('[data-tag]').forEach(function (b) { b.addEventListener('click', function () { setTag(b.getAttribute('data-tag')); }); });
       $('#fq-next').focus();
     }
     K.setKeys(function (e) {
@@ -311,6 +325,7 @@
         return false;
       }
       if (k === 'Enter') { nextQ(false); return true; }
+      if (/^[1-7]$/.test(k) && sess.result.tag && q.kind !== 'choice') { setTag(T.TAGS[Number(k) - 1]); return true; }
       if (k === 's' && !sess.plan) { nextQ(true); return true; }
       if (k === 'c' && q.related && !sess.plan) { related(); return true; }
       return false;
@@ -328,12 +343,26 @@
       if (String(input).trim()) e.textContent = q.kind === 'fraction' ? 'Type a fraction, like 3/8.' : 'Type a number, like 4.5' + (q.unit === '%' ? ' or 4.5%' : q.unit === 'bp' ? ' or 25bp' : '') + '.';
       return;
     }
-    sess.result = { ok: res.ok, value: res.value, given: q.kind === 'choice' ? q.optionsText[input] : String(input).trim() };
+    var ms = Math.round(performance.now() - sess.t0);
+    sess.result = { ok: res.ok, value: res.value, given: q.kind === 'choice' ? q.optionsText[input] : String(input).trim(), timeMs: ms };
     var rec = { op: 'fin', tpl: q.tpl, seed: q.seed, fam: q.family, cat: q.category, shown: q.promptText, answer: rightPlain(q),
-      given: sess.result.given, correct: res.ok, timeMs: Math.round(performance.now() - sess.t0), wrongAttempts: res.ok ? 0 : 1 };
+      given: sess.result.given, correct: res.ok, timeMs: ms, wrongAttempts: res.ok ? 0 : 1 };
     if (q.choiceFrom) rec.mc = true;   // a calculation answered by picking from 4
+    if (!res.ok && q.kind !== 'choice' && res.value !== null) {   // what kind of mistake: detected here, the person can correct it on the card
+      rec.tag = sess.result.tag = T.detect({ tpl: q.tpl, p: q.p, answer: q.answer, target: q.target }, res.value, ms);
+    }
     sess.questions.push(rec);
     draw();
+  }
+
+  // The person's own choice of mistake type replaces the detected one in the question that will be saved.
+  function setTag(tag) {
+    if (!sess || !sess.result || !sess.result.tag || T.TAGS.indexOf(tag) < 0) return;
+    sess.result.tag = tag;
+    var rec = sess.questions[sess.questions.length - 1];
+    rec.tag = tag; rec.tagBy = 'user';
+    draw();
+    K.announce('Mistake type set to ' + T.LABEL[tag] + '.');
   }
 
   // Saved once, when the session ends or you leave the page: one round with every answered question.
@@ -382,10 +411,16 @@
     ].concat(kind === 'sprint' ? [{ label: 'Paused to learn', value: String(qs.filter(function (q) { return q.learned; }).length), note: 'Clock stopped, no point', key: 'fin-learned' }] : [])));
     // Score per topic (the interview-mix result), then every question with its worked answer.
     var cats = {};
-    qs.forEach(function (q) { var c = cats[q.cat] = cats[q.cat] || { n: 0, right: 0, t: [] }; c.n++; if (q.correct && !q.wrongAttempts) c.right++; if (!q.skipped) c.t.push(q.timeMs); });
-    h.push(K.section('By topic', '<div class="tbl-scroll"><table data-testid="finance-by-topic"><tr><th scope="col">Topic</th><th scope="col" class="n">Questions</th><th scope="col" class="n">Right</th><th scope="col" class="n">Median time</th></tr>' +
+    qs.forEach(function (q) {
+      var c = cats[q.cat] = cats[q.cat] || { n: 0, right: 0, t: [], tg: [], timed: 0, within: 0 }, T0 = F.get(q.tpl), tgt = T0 && T0.target ? T0.target * 1000 : 0;
+      c.n++; if (q.correct && !q.wrongAttempts) c.right++; if (!q.skipped) c.t.push(q.timeMs);
+      if (tgt && !q.skipped && q.timeMs > 0) { c.timed++; c.tg.push(tgt); if (q.timeMs <= tgt) c.within++; }
+    });
+    h.push(K.section('By topic', '<div class="tbl-scroll"><table data-testid="finance-by-topic"><tr><th scope="col">Topic</th><th scope="col" class="n">Questions</th><th scope="col" class="n">Right</th><th scope="col" class="n">Median time</th><th scope="col" class="n">Within target</th></tr>' +
       Object.keys(cats).sort().map(function (c) {
-        return '<tr><td>' + esc(c) + '</td><td class="n">' + cats[c].n + '</td><td class="n">' + cats[c].right + '</td><td class="n">' + (cats[c].t.length ? K.sec(S.median(cats[c].t)) : '–') + '</td></tr>';
+        var e = cats[c], med = e.t.length ? S.median(e.t) : null, tgt = e.tg.length ? S.median(e.tg) : 0;
+        return '<tr><td>' + esc(c) + '</td><td class="n">' + e.n + '</td><td class="n">' + e.right + '</td><td class="n">' + (med === null ? '–' : medVsTarget(med, tgt)) +
+          '</td><td class="n">' + (e.timed ? K.pct(e.within / e.timed) : '–') + '</td></tr>';
       }).join('') + '</table></div>'));
     if (qs.length) h.push(K.section('Every question', '<p class="sec-intro">Open one to see the worked answer.</p>' + reviewList(qs), null, 'end-all-questions'));
     h.push('</div>');
@@ -400,14 +435,22 @@
     K.endKeys(actions);
   }
 
+  // "12.4 s / target 15 s", bold when over (a median against the template or topic target, in ms).
+  function medVsTarget(ms, tgt) { return tgt ? TE.timeLine(ms, Math.round(tgt / 100) / 10) : K.sec(ms); }
+
   function reviewList(qs) {
     return '<ol class="fq-review">' + qs.map(function (rec) {
       var q = null;
       try { q = F.get(rec.tpl) ? F.make(rec.tpl, rec.seed) : null; } catch (e) { q = null; }
       var res = rec.learned ? 'Paused to learn' : rec.skipped ? 'Skipped' : rec.correct && !rec.wrongAttempts ? 'Right' : rec.correct ? 'Right after ' + K.plural(rec.wrongAttempts, 'wrong try', 'wrong tries') : 'Wrong';
-      return '<li><details><summary><span class="fq-r">' + res + '</span> ' + (q ? rich(q.prompt) : esc(rec.shown)) + '</summary><div class="fq-rd">' +
-        '<p>' + (rec.given !== null && rec.given !== undefined && !rec.skipped ? 'You answered <b class="num">' + esc(rec.given) + '</b>. ' : '') +
-        'Answer: <b class="num">' + esc(rec.answer) + '</b>. Time ' + K.sec(rec.timeMs) + '.</p>' + (q ? stepsHtml(q) : '') + '</div></details></li>';
+      var t = q && F.get(q.tpl), missed = !(rec.correct && !rec.wrongAttempts && !rec.skipped), tag = missed ? T.tagOfRecord(rec) : null;
+      var typed = rec.wrongGiven !== undefined && rec.wrongGiven !== null ? rec.wrongGiven : rec.given;
+      var body = q && q.formula && t && t.legend && t.legend.length
+        ? TE.cardHtml(q, { given: typed, timeMs: rec.skipped ? null : rec.timeMs, tag: tag, wrong: missed && !!tag })
+        : '<p>' + (rec.given !== null && rec.given !== undefined && !rec.skipped ? 'You answered <b class="num">' + TE.plain(rec.given) + '</b>. ' : '') +
+          'Answer: <b class="num">' + TE.plain(rec.answer) + '</b>. Time ' + K.sec(rec.timeMs) + '.</p>' + (q ? stepsHtml(q) : '');
+      return '<li><details><summary><span class="fq-r">' + res + '</span> ' + (q ? rich(q.prompt) : esc(rec.shown)) + (tag && tag !== 'UNTAGGED' ? ' <span class="small mid">' + esc(T.LABEL[tag]) + '</span>' : '') +
+        '</summary><div class="fq-rd">' + body + '</div></details></li>';
     }).join('') + '</ol>';
   }
 
@@ -429,9 +472,15 @@
         series: [{ ys: sp.map(function (x) { return x.score; }), kind: 'line', name: 'score' }], zero: true
       }) + C.table(['Sprint', 'Score'], sp.map(function (x, i) { return [String(i + 1) + ', ' + K.fmtDate(x.startedAt), String(x.score)]; })));
     }
-    var cats = Object.keys(fs.cat).sort(function (a, b) { return fs.cat[a].acc - fs.cat[b].acc; });
-    h.push('<h3 class="sub-h">Accuracy by topic <span class="mid">weakest first</span></h3><div class="tbl-scroll"><table data-testid="finance-topic-accuracy"><tr><th scope="col">Topic</th><th scope="col" class="n">Answered</th><th scope="col" class="n">Right first try</th><th scope="col" class="n">Median time</th></tr>' +
-      cats.map(function (c) { var e = fs.cat[c]; return '<tr><td>' + esc(c) + '</td><td class="n">' + e.n + '</td><td class="n">' + K.pct(e.acc) + '</td><td class="n">' + (e.med ? K.sec(e.med) : '–') + '</td></tr>'; }).join('') + '</table></div>');
+    var cats = Object.keys(fs.cat).sort(function (a, b) { return fs.cat[a].acc - fs.cat[b].acc || fs.cat[b].over - fs.cat[a].over || a.localeCompare(b); });
+    function tagText(list) { return list.length ? list.map(function (x) { return esc(T.LABEL[x.tag]) + ' ' + x.n; }).join(', ') : '–'; }
+    var topTags = T.top(fs.tags, 3);
+    h.push('<p class="fin-tags" data-testid="finance-top-tags"><span class="mid">Your most common mistakes</span> ' + (topTags.length ? tagText(topTags) : 'none recorded yet') + '</p>');
+    h.push('<h3 class="sub-h">Topics <span class="mid">weakest first: least often right, then slowest against the target</span></h3><div class="tbl-scroll"><table data-testid="finance-topic-accuracy"><tr><th scope="col">Topic</th><th scope="col" class="n">Answered</th><th scope="col" class="n">Right first try</th><th scope="col" class="n">Median time</th><th scope="col">Top mistakes</th></tr>' +
+      cats.map(function (c) {
+        var e = fs.cat[c];
+        return '<tr><td>' + esc(c) + '</td><td class="n">' + e.n + '</td><td class="n">' + K.pct(e.acc) + '</td><td class="n">' + (e.med ? medVsTarget(e.med, e.target) : '–') + '</td><td>' + tagText(T.top(e.tags, 3)) + '</td></tr>';
+      }).join('') + '</table></div>');
     var weak = weakest(Object.keys(fs.tpl).filter(function (id) { return F.get(id); }), fs, 5);
     h.push('<h3 class="sub-h">Your 5 weakest <span class="mid">least often right, then slowest against your usual</span></h3>' + (weak.length ? '<div class="tbl-scroll"><table class="fin-weak" data-testid="finance-weakest">' +
       '<tr><th scope="col">Question type</th><th scope="col" class="n">Right first try</th><th scope="col" class="n">Median time</th><th scope="col"><span class="sr-only">Practise</span></th></tr>' + weak.map(function (w) {
@@ -439,6 +488,28 @@
           (w.st.med ? K.sec(w.st.med) : '–') + '</td><td class="n"><button type="button" data-weak="' + esc(w.id) + '">Practise</button></td></tr>';
       }).join('') + '</table></div>' : '<p class="mid">No weak spots yet: everything you answered was right and quick.</p>'));
     return K.section('Your progress', h.join(''), null, 'finance-progress');
+  }
+
+  // ---------- Method sheet (#finance/method, key M): one card per template of the chosen topic, printable ----------
+
+  function renderMethod() {
+    var o = opts(), cats = [], seen = {};
+    var ids = F.list({ families: ['arith', 'quant', 'fin'] }).filter(function (t) { return t.kind !== 'choice' && t.legend && t.legend.length; });
+    ids.forEach(function (t) { if (!seen[t.category]) { seen[t.category] = 1; cats.push(t.category); } });
+    var cat = cats.indexOf(o.cat) >= 0 ? o.cat : 'all';
+    var shown = ids.filter(function (t) { return cat === 'all' || t.category === cat; }).map(function (t) { return t.id; });
+    var h = [K.pageHead('Method sheet', 'The formula, what every symbol means, the shortcut, the usual mistake and a worked example for each question type. Print it or keep it open.',
+      '<button type="button" id="mt-print" data-testid="method-print">Print</button> <button type="button" id="mt-back" data-testid="method-back">Back <kbd>Esc</kbd></button>')];
+    h.push('<div class="form no-print">' + K.frow('Topic', '<select id="mt-cat" name="topic" data-testid="method-topic"><option value="all">All topics</option>' + cats.map(function (c) {
+      return '<option value="' + esc(c) + '"' + (cat === c ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('') + '</select>', null, 'mt-cat') + '</div>');
+    h.push('<div class="mcards" data-testid="method-sheet">' + TE.methodHtml(shown) + '</div>');
+    K.main().innerHTML = h.join('');
+    function back() { K.setHash('finance'); renderHome(); }
+    $('#mt-back').addEventListener('click', back);
+    $('#mt-print').addEventListener('click', function () { window.print(); });
+    $('#mt-cat').addEventListener('change', function () { var next = opts(); next.cat = $('#mt-cat').value; store(next); renderMethod(); $('#mt-cat').focus(); });
+    K.setKeys(function (e) { if (e.key === 'Escape') { back(); return true; } return false; });
   }
 
   AT.UI.addScreen('finance', render);

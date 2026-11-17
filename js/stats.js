@@ -94,27 +94,41 @@ ef = my median time per
    * family, so slowness compares a template with its own kind (reading a concept question takes longer).
    */
   function financeStats(rounds) {
-    var tpl = {}, cat = {}, fam = {}, sprints = [], n = 0, right = 0;
+    var FN = AT.Finance || (typeof module !== 'undefined' ? require('./finance-templates.js') : null), TG = AT.FinanceTags || (typeof module !== 'undefined' ? require('./finance-tags.js') : null);
+    var tpl = {}, cat = {}, fam = {}, sprints = [], n = 0, right = 0, tags = [], timed = 0, over = 0;
     rounds.forEach(function (r) {
       if (r.mode !== 'FINANCE') return;
       if (!r.settings || !r.settings.kind || r.settings.kind === 'sprint') sprints.push({ startedAt: r.startedAt, score: r.score, duration: (r.settings && r.settings.duration) || 120 });
       (r.questions || []).forEach(function (q) {
         if (q.op !== 'fin' || (q.unanswered && !q.learned)) return;   // cut off by the clock: no answer, unless you paused to learn it
         var ok = !!q.correct && !q.wrongAttempts && !q.skipped;
+        var T = FN && FN.get(q.tpl), tgt = T && T.target ? T.target * 1000 : 0;
+        var isOver = !!tgt && !q.skipped && q.timeMs > 0 && q.timeMs > tgt;
+        var tg = ok || !TG ? null : TG.tagOfRecord(q);
         [[tpl, q.tpl], [cat, q.cat], [fam, q.fam]].forEach(function (p) {
-          var e = p[0][p[1]] = p[0][p[1]] || { n: 0, right: 0, times: [], fam: q.fam, cat: q.cat };
+          var e = p[0][p[1]] = p[0][p[1]] || { n: 0, right: 0, times: [], fam: q.fam, cat: q.cat, timed: 0, overN: 0, targets: [], tags: [], lastMissTag: '' };
           e.n++; if (ok) e.right++;
           if (!q.skipped && q.timeMs > 0) e.times.push(q.timeMs);
+          if (tgt && !q.skipped && q.timeMs > 0) { e.timed++; if (isOver) e.overN++; e.targets.push(tgt); }
+          if (tg) e.tags.push(tg);
+          if (!ok && p[0] === tpl) e.lastMissTag = tg && tg !== 'UNTAGGED' ? tg : '';
         });
+        if (tgt && !q.skipped && q.timeMs > 0) { timed++; if (isOver) over++; }
+        if (tg) tags.push(tg);
         n++; if (ok) right++;
       });
     });
     [tpl, cat, fam].forEach(function (m) {
-      Object.keys(m).forEach(function (k) { var e = m[k]; e.acc = e.right / e.n; e.med = median(e.times); delete e.times; });
+      Object.keys(m).forEach(function (k) {
+        var e = m[k]; e.acc = e.right / e.n; e.med = median(e.times);
+        e.over = e.timed ? e.overN / e.timed : 0;       // share of answers slower than the target
+        e.target = e.targets.length ? median(e.targets) : 0;   // ms
+        delete e.times; delete e.targets;
+      });
     });
     var ref = {};
     Object.keys(fam).forEach(function (k) { ref[k] = fam[k].med; });
-    return { tpl: tpl, cat: cat, fam: fam, ref: ref, sprints: sprints, n: n, right: right, acc: n ? right / n : null };
+    return { tpl: tpl, cat: cat, fam: fam, ref: ref, sprints: sprints, n: n, right: right, acc: n ? right / n : null, tags: tags, timed: timed, over: over };
   }
 
   // A matrix round counts per entry range and length, e.g. "MATRIX-m9_9-60" (−9 to 9, 60 s; "m" = minus).

@@ -203,6 +203,16 @@
     if (sp.length) L.push('Last sprints: ' + sp.map(function (x) { return x.score + ' (' + x.duration + ' s, ' + S.dayKey(x.startedAt) + ')'; }).join(', '));
     L.push('Overall: ' + fs.n + ' answered, ' + pct(fs.acc) + ' right.');
     L.push('Per category: ' + Object.keys(fs.cat).sort().map(function (c) { var e = fs.cat[c]; return c + ' ' + pct(e.acc) + ' of ' + e.n + ', ' + sec(e.med) + ' s'; }).join('; '));
+    var TG = AT.FinanceTags || (node ? require('./finance-tags.js') : null);
+    function tagList(tags) { return TG.top(tags, 3).map(function (x) { return x.tag + ' ' + x.n; }).join(', ') || 'none'; }
+    L.push('Targets: every question type has a target time (5 to 60 s). "Within target" = share of answers at or under it. Mistake tags are detected from the typed answer (UNIT, RATIO_INVERTED, FX_DIRECTION, WRONG_FORMULA, SIGN, ARITHMETIC, TIMEOUT) or set by the person.');
+    L.push('Overall: ' + (fs.timed ? pct(1 - fs.over / fs.timed) + ' within target. ' : '') + 'Top mistakes: ' + tagList(fs.tags) + '.');
+    L.push('Per topic (weakest first), accuracy, median time vs target, within target, mistake tags:');
+    Object.keys(fs.cat).sort(function (a, b) { return fs.cat[a].acc - fs.cat[b].acc || fs.cat[b].over - fs.cat[a].over || (a < b ? -1 : 1); }).forEach(function (c) {
+      var e = fs.cat[c];
+      L.push('- ' + c + ': ' + pct(e.acc) + ' of ' + e.n + ', median ' + sec(e.med) + ' s' + (e.target ? ' vs target ' + sec(e.target) + ' s' : '') +
+        (e.timed ? ', ' + pct(1 - e.over) + ' within target' : '') + ', tags: ' + tagList(e.tags));
+    });
     var weak = Object.keys(fs.tpl).filter(function (k) { return fs.tpl[k].n >= 2 && fs.tpl[k].acc < 1; })
       .sort(function (a, b) { return fs.tpl[a].acc - fs.tpl[b].acc || fs.tpl[b].n - fs.tpl[a].n; }).slice(0, 8);
     if (weak.length) L.push('Weakest templates: ' + weak.map(function (k) { var e = fs.tpl[k]; return k + ' ' + pct(e.acc) + ' of ' + e.n; }).join('; '));

@@ -243,9 +243,11 @@ test('sprint auto-accept fires only on the full displayed answer', () => {
   assert.ok(F.autoOk(q, '0.333'));
   assert.ok(F.autoOk(q, '0,333'));
   const est = F.make('quant.sqrt.approx', 5);
-  assert.equal(est.auto, false, 'estimates need Enter');
-  assert.ok(!F.autoOk(est, F.fmt(est.answer, 2)));
+  assert.equal(est.auto, false, 'an estimate has no single spelling');
+  assert.ok(F.autoOk(est, F.fmt(est.answer, 2)), 'but typing exactly the displayed answer fires, estimate or not');
+  assert.ok(!F.autoOk(est, F.fmt(est.answer * 1.009, 2)), 'a value only within the tolerance needs Enter');
   assert.ok(F.check(est, F.fmt(est.answer * 1.009, 2)).ok);
+  assert.ok(!F.autoOk(est, F.fmt(est.answer, 2).slice(0, -1)), 'a half-typed number never fires');
 });
 
 test('selector: positive weights with a floor, weak templates drawn more often', () => {

@@ -42,6 +42,10 @@ css/style.css     all styles (tokens on :root, dark mode via prefers-color-schem
 js/generator.js   questions per mode, fact keys, families, advice text, interview questions; mulberry32 PRNG
 js/finance-core.js      Finance engine: constants, answer parser, tolerances, registry, F.make(id, seed), selector
 js/finance-templates.js the procedural Finance templates (arith, quant, fin), each with an independent test reference
+js/finance-sd1.js, finance-sd2.js  the 55 Superday templates (F.define: legend, shortcut, target, pitfalls, worked example)
+js/finance-meta.js      the same teaching data for the older templates (F.addMeta); nine overlap with the Superday spec
+js/finance-tags.js      error tags: detect(q, given, ms), tagOfRecord, top; pure
+js/finance-teach.js     the teaching card and Method sheet as HTML strings (Practice, sprint pause, end screen)
 js/finance-bank.js      the curated multiple-choice concept questions (right option first; shuffled by seed)
 js/tex.js               LaTeX subset → MathML (screens) or plain text (storage, alttext); rich() for prose with $…$ maths
 js/taylor.js            Taylor lesson logic: the library (exact rational coefficients), rendering, 6-choice questions and their
@@ -80,7 +84,7 @@ docs/design*.md   design system: tokens, guidelines/accessibility/copy, componen
 vercel.json       headers (CSP etc.), cleanUrls; .vercelignore keeps tests/docs/package.json out of the deploy
 ```
 
-Script order matters: generator → tex → expr → plot → taylor → decks → proba-cards → proba → finance-core → finance-templates → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → deck-ui → decks/*.js → app.
+Script order matters: generator → tex → expr → plot → taylor → decks → proba-cards → proba → finance-core → finance-templates → finance-sd1 → finance-sd2 → finance-meta → finance-tags → finance-teach → finance-bank → lessons → stats → coach → progression → storage → config → sync → charts → game → ui → finance-ui → taylor-ui → deck-ui → decks/*.js → app.
 
 ## Data model (localStorage `arithmeticTrainer.v1`, also the export format)
 
@@ -501,3 +505,25 @@ npm run test:e2e       # Playwright, uses the installed Google Chrome (channel: 
     - Departures from the spec, on the owner's simplicity rule: Probability keeps its names (adapter, not a conversion);
       the shared UI keeps the `proba-…` test ids; the parser rules above; `learn.spec.js` counts deck links from the page
       instead of a fixed number; no automatic discovery of deck files.
+
+30. Finance Superday upgrade (owner's prompt, BofA COO Superday; branch `feat/superday`).
+    - **112 calculation templates** (57 + 55 new from the coach's spec; 9 of the spec's 64 were already there: pct.of,
+      pct.change, rule72, pv.annual, real.rate, bond.price.2y, var.gauss, var.horizon, nii, which took the spec's legend,
+      shortcut, pitfalls and target). New: `js/finance-sd1.js` (units & %, FX, rates, bonds) and `js/finance-sd2.js` (equities,
+      options, derivatives, risk, bank ratios, operations, probability) via `F.define` (core); topics reach the filter by
+      their `category`. Older templates' teaching data: `js/finance-meta.js` (`F.addMeta`).
+    - Every numeric template has `legend`, `shortcut`, `target` (s), `pitfalls` (`{ tag, text, value(p), applies }`), and a worked
+      `example` for the spec ones. `tests/finance-superday.test.js`: examples, 1,000 seeds, pitfalls clear of the answer
+      (twice the tolerance), legend completeness (symbols read from the TeX; acronyms like EL stay whole, products like rT split).
+    - Parser: `k`/`m`/`bn` read in the answer's unit, `a/b` for templates with `fracInput`, a `rel` tolerance may carry an
+      absolute floor (`abs`). **Sprint auto-accept also fires when the typed value equals the displayed answer**, estimates too.
+    - `js/finance-tags.js` (pure): `detect(q, given, ms)` (pitfalls, then generic ×10^k / sign / inverse / within 10%, then
+      TIMEOUT), `tagOfRecord(rec)` (the person's `tag` + `tagBy: 'user'` first), `top`. Practice stores `tag` at answer time and
+      lets the person change it with `1–7` before the round is saved (saved rounds stay immutable); sprint records keep
+      `wrongGiven` (first wrong value) so the end screen can tag them.
+    - `js/finance-teach.js`: `cardHtml` (Practice, the sprint pause panel, the end screen list), `methodHtml`
+      (`#finance/method`, key M, `@media print`), `timeLine` ("12.4 s / target 15 s", bold over). `F.group`/`F.groupRich`:
+      thin spaces (U+202F, `\,` inside maths) for numbers of 10 000 or more in the card, feedback line and Method sheet only.
+    - `S.financeStats` adds per template/topic `over` (share over target), `target`, `tags`, `lastMissTag`; `F.weight` adds
+      over + 0.5 for a tagged latest miss. Report: per topic accuracy, median vs target, within target, tags.
+

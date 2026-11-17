@@ -88,7 +88,7 @@ test('Sprint: exact answers are taken as typed, Tab skips, the end screen explai
   expect(last.questions[4].unanswered).toBe(true);
 });
 
-test('Sprint: an estimate is not taken as typed, Enter checks it within the tolerance', async ({ page }) => {
+test('Sprint: an estimate within the tolerance takes Enter, but typing exactly the displayed answer is taken as typed', async ({ page }) => {
   await openApp(page, 'finance');
   await families(page, ['quant']);
   await page.getByTestId('finance-topic').selectOption('Squares and powers');
@@ -106,6 +106,11 @@ test('Sprint: an estimate is not taken as typed, Enter checks it within the tole
   await expect(page.getByTestId('game-score')).toHaveText('Score: 0');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('game-score')).toHaveText('Score: 1');
+  // the next one: the value the screen would show as the answer is accepted with no Enter
+  await expect.poll(() => questionText(page)).not.toBe(q);
+  const x2 = Number(/^√(\d+) ≈ \?$/.exec(await questionText(page))[1]);
+  await input.pressSequentially(F.fmt(Math.sqrt(x2), 2));
+  await expect(page.getByTestId('game-score')).toHaveText('Score: 2');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Finance');
 });

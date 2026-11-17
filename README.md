@@ -159,25 +159,35 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
   as soon as all four entries are right. `Enter` outlines the wrong entries (until you edit them), `Tab` skips, `Esc` stops.
   Each combination of options counts as its own mode ("Matrices, −9 to 9, 60 s") in Log, Progress and the report,
   so scores are only compared with rounds of the same kind. Saved as mode `MATRIX`, questions as op `mx`.
-- **Finance** (`Q`): mental math and finance intuition for quant-finance interviews. 57 calculation templates
-  (arithmetic, quant mental math such as percentages, squares, roots, logs, compounding and expected value, and
-  finance: rates, bonds, macro, volatility, banks and ALM, VaR and ES, liquidity, statistics) and 78 concept questions.
+- **Finance** (`Q`): mental math and finance intuition for quant-finance interviews. 112 calculation templates
+  (arithmetic, quant mental math such as percentages, squares, roots, logs, compounding, expected value and
+  probability, and finance: units and basis points, FX, rates, bonds, equities, options, derivatives, risk, bank ratios,
+  operations, macro, volatility, banks and ALM, VaR and ES, liquidity, statistics) and 78 concept questions. Every one has a
+  target time (5 to 60 s), a legend for each symbol, a shortcut and its typical mistakes.
   Choose a mode, the families, a topic and a difficulty; the choice is remembered.
-  - **Sprint**: timed (60, 120 or 180 s), typed answers. An exact or rounded answer is taken as soon as you type it;
-    an estimate ("approximately, within 1%") takes `Enter`. The unit is beside the box and how to answer is under it.
-    `%` and `bp` suffixes, commas as decimal points and spaces are all understood. `Tab` skips, `Esc` stops.
-    **Pause and learn** (`H`, or the button under the box): the clock stops and you see the answer, the formula, the steps
-    and why. `Enter` brings the question back; type the answer to go on (no point for that one). After a wrong `Enter`
+  - **Sprint**: timed (60, 120 or 180 s), typed answers. An answer is taken as soon as the typed value equals the
+    answer shown (exact, rounded or estimate); a close estimate ("approximately, within 0.5%") takes `Enter`. The unit is
+    beside the box and how to answer is under it. `%`, `bp`, `k`, `m` and `bn` suffixes (read in the unit of the answer:
+    `2.5bn`, `32.9k` for k€), commas as decimal points, spaces, a leading − and `a/b` fractions (probability) are understood. `Tab` skips, `Esc` stops.
+    **Pause and learn** (`H`, or the button under the box): the clock stops and you see the teaching card (below). `Enter` brings the question back; type the answer to go on (no point for that one). After a wrong `Enter`
     the line under the box reminds you. The end screen counts the questions you paused on.
-  - **Practice**: untimed, on the page. After each answer: right or not, the answer, the formula (drawn as real maths:
-    fractions, roots, exponents, Greek), the steps and why.
-    `Enter` next, `S` same type with new numbers, `C` the related calculation (after a concept question), `Esc` done.
+  - **Practice**: untimed, on the page. After each answer: right or not, the answer, your time against the target
+    (`12.4 s / target 15 s`, bold when over), the formula (drawn as real maths), the steps and why. After a wrong answer, the
+    **teaching card**: the question, the formula large, a legend table (symbol, what it is, its value here), the substitution
+    with the answer highlighted, the shortcut and **Your mistake**: a tag detected from what you typed (Unit or scale, Ratio
+    upside down, Currency direction, Wrong formula, Sign, Arithmetic slip, Too slow) with the usual-mistake text. `1–7` corrects the
+    tag before the round is saved. The card also opens on `H` in a sprint and from every question of an end screen.
+    `Enter` next, `S` try a new one, `C` the related calculation (after a concept question), `Esc` done.
     Answer by typing or by picking from 4 (the wrong options are typical mistakes: forgetting √t, 1.96 for 99%, a sign…).
     "My 5 weakest" draws only your weakest question types.
   - **Intuition**: the concept questions only, keys `1–4`.
   - **Interview mix**: 20 questions from every family, getting harder, then your score per topic.
-  Weaker and slower question types come up more often in Practice and the mix. The page shows your best sprint,
-  accuracy per topic, sprint scores over time and your 5 weakest. Every question can be reopened from its code:
+  Weaker and slower question types come up more often in Practice and the mix (weight = 1 + 2 × wrong rate + slowness + the
+  share over target, + 0.5 when the latest miss carried a tag). The page shows your best sprint, one row per topic (accuracy,
+  median time against target, top mistakes; weakest first), your three most common mistakes, sprint scores over time and your
+  5 weakest. The **Method sheet** (`M`, `#finance/method`) is one printable card per question type of a topic: formula,
+  legend, shortcut, usual mistake, worked example. Numbers of 10 000 or more are shown with thin spaces on the card, in the
+  feedback line and on the Method sheet, never in the answer box or in saved data. Every question can be reopened from its code:
   `#finance/q/<template>/<seed>`. Saved as mode `FINANCE` (`settings.kind` = sprint, practice, intuition or mixed),
   questions as op `fin` with their template and seed; Log and the report show them.
 - **Drill** (mode 5, or `D`): weak-fact list and drill; `M` replays mistakes (wrong, or over 3× your median for that operation and over 1.5 s; last 3 days).
@@ -207,12 +217,23 @@ needed. **Road to 60** is the second tab; with no rounds yet it explains how a d
 Play: `1–9`, `0` or `↑ ↓` select, `Enter`/`Space` start. Lesson: `Enter` practise, `F` timed round; in practice `Tab` shows the method.
 Road to 60: `Enter` start or continue today's session (once done: an extra round), `1–6` drills (6: accuracy round).
 Matrices: `Enter` start; in a round `Space` next entry, arrows move, `Enter` outline wrong entries, `Tab` skip.
-Finance: `Enter` start; sprint `H` pause and learn (`Enter` back), `Enter` checks an estimate, `Tab` skips; practice `Enter` check then next, `1–4` choose, `S` new numbers, `C` related calculation, `Esc` done.
+Finance: `Enter` start; sprint `H` pause and learn (`Enter` back), `Enter` checks a close answer, `Tab` skips; practice `Enter` check then next, `1–4` choose, `S` try a new one, `1–7` correct the mistake type (after a miss), `C` related calculation, `Esc` done; `M` Method sheet.
 
 ## Adding a finance template
 
-Templates live in `js/finance-templates.js` and register with `F.register({...})` (fields documented at the top of
-`js/finance-core.js`):
+Templates live in `js/finance-templates.js` (the first 57), `js/finance-sd1.js` and `js/finance-sd2.js` (the Superday ones,
+with their teaching data in the same call) and register with `F.register({...})` or, with a legend, `F.define({...})`
+(fields documented at the top of `js/finance-core.js`). The older ones' legend, shortcut, target and pitfalls are in
+`js/finance-meta.js`. A new template written like the Superday ones:
+
+- `F.define({ id, family, category, level, target, unit, dp, tol, params, valid, prompt, answer, steps, formula, tex,
+  shortcut, legend: [[symbol (TeX), what it is, here(p)]], pitfalls: [{ tag, text, value(p), applies?(p) }], example: { p, answer } })`.
+  `target` is the seconds a prepared person needs (5 to 60). A pitfall's `value` is the wrong answer that mistake gives; it
+  doubles as a wrong option and as the error-tag detector's pattern, and a draw is rejected when it would fall within twice
+  the tolerance of the right answer. `example` is the worked example from the spec and is a unit test.
+- Tests: `tests/finance-superday.test.js` runs every new template (example, 1,000 seeds finite, pitfalls clear of the
+  answer, legend completeness: every symbol of the formula must have a row); `tests/tex.test.js` checks the maths.
+  The steps below still apply to a template registered with `F.register`.
 
 1. Give it a stable `id` (`fin.bond.price.3y`), a `family` (`arith`, `quant`, `fin`), a `category` (the topic shown
    on the page), a `difficulty` (1 one formula, round numbers; 2 a constant or two steps; 3 multi-step or a trap).
@@ -312,7 +333,7 @@ case, second person and plain; numbers are monospace with tabular figures.
 
 ## Files
 
-`js/generator.js` questions · `js/finance-core.js` `js/finance-templates.js` `js/finance-bank.js` Finance engine, templates, concept questions · `js/finance-ui.js` Finance tab · `js/tex.js` LaTeX-subset formulas to MathML · `tools/finance-samples.js` sample printer (`npm run samples`, not deployed) · `js/lessons.js` Learn texts · `js/stats.js` sessions and weak facts · `js/progression.js` steps and summary ·
+`js/generator.js` questions · `js/finance-core.js` `js/finance-templates.js` `js/finance-sd1.js` `js/finance-sd2.js` `js/finance-meta.js` `js/finance-tags.js` `js/finance-teach.js` `js/finance-bank.js` Finance engine, templates, teaching data, error tags, card and Method sheet, concept questions · `js/finance-ui.js` Finance tab · `js/tex.js` LaTeX-subset formulas to MathML · `tools/finance-samples.js` sample printer (`npm run samples`, not deployed) · `js/lessons.js` Learn texts · `js/stats.js` sessions and weak facts · `js/progression.js` steps and summary ·
 `js/storage.js` save/load/export/import · `js/sync.js` account sync · `js/config.js` Supabase keys · `js/game.js` play loop · `js/charts.js` SVG · `js/ui.js` screens ·
 `js/app.js` bootstrap; `tests/` logic tests, `tests/e2e/` browser tests. Classic `<script>` tags on one global `window.AT` (ES modules fail on `file://`).
 

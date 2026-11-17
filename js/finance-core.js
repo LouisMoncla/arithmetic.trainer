@@ -58,6 +58,24 @@
   }
   function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = a % b; a = b; b = t; } return a; }
 
+  // ---------- display: numbers of 10 000 or more with narrow no-break spaces (U+202F), for the teaching card, the
+  // feedback line and the Method sheet. Never used in the answer box or in what is saved. ----------
+
+  var THIN = ' ';
+  function groupInt(digits) { return digits.replace(/\B(?=(\d{3})+$)/g, THIN); }
+  // Plain text: every run of 5+ digits (its integer part) is grouped; the decimals are left alone.
+  function group(text) {
+    return String(text).replace(/(^|[^\d.,])(\d{5,})(?![\d])/g, function (m, pre, d) { return pre + groupInt(d); });
+  }
+  // Rich text (prose with $…$ maths): the same, with \, inside the maths so MathML still sees separate digits.
+  function groupRich(text) {
+    var parts = TeX.split(String(text));
+    return parts.map(function (part, i) {
+      if (i % 2 === 0) return group(part);
+      return '$' + part.replace(/(^|[^\d.,\\])(\d{5,})(?![\d])/g, function (m, pre, d) { return pre + d.replace(/\B(?=(\d{3})+$)/g, '\\,'); }) + '$';
+    }).join('');
+  }
+
   // ---------- random helpers (all draws go through the seeded rng) ----------
 
   function int(rng, lo, hi) { return G.randInt(rng, lo, hi); }
@@ -79,11 +97,18 @@
   // Parse a typed number. Accepts "90.7", "90,7", "−5.1", "1 000", "1,234.5", "7%", "25bp", "0.07".
   // A % or bp suffix converts into the expected unit ('%', 'bp' or '' = a plain decimal);
   // a bare number is read in the expected unit. Returns null when it is not a number.
-  function parse(input, unit) {
+  // Units whose answer is in thousands or millions of €: "32.9k" is 32.9 in k€, "2m" is 2 in M€.
+  var UNIT_SCALE = { '€': 1, 'k€': 1e3, 'M€': 1e6 };
+  var MULT = { k: 1e3, m: 1e6, bn: 1e9 };
+  function parse(input, unit, fracOk) {
     if (input === null || input === undefined) return null;
     var s = String(input).toLowerCase().replace(/[\s   ]/g, '').replace(/[−–]/g, '-');
     if (!s) return null;
-    var sfx = null;
+    if (fracOk && /^[+-]?\d+\/\d+$/.test(s)) {   // 3/8, for the probability templates: decimal or fraction
+      var fq = s.split('/'), den = parseFloat(fq[1]);
+      return den ? parseFloat(fq[0]) / den : null;
+    }
+    var sfx = null, mult = 1;
     if (/bps?$/.test(s)) { sfx = 'bp'; s = s.replace(/bps?$/, ''); }
     else if (/%$/.test(s)) { sfx = '%'; s = s.slice(0, -1); }
     else if (unit && unit !== '%' && unit !== 'bp') {
@@ -92,12 +117,21 @@
       else if (u === 'years' && /(y|yrs?|years?)$/.test(s)) s = s.replace(/(y|yrs?|years?)$/, '');
       if (s.charAt(0) === '€') s = s.slice(1);
     }
+    if (!sfx) {   // a magnitude suffix: 2.5bn, 40k, 3m (after the unit symbol, which was stripped above)
+      var mm = /^(.*\d|.*\.)(bn|k|m)$/.exec(s);
+      if (mm) { mult = MULT[mm[2]]; s = mm[1]; }
+    }
     if (s.indexOf(',') >= 0 && s.indexOf('.') >= 0) s = s.replace(/,/g, '');           // 1,234.5
     else if ((s.match(/,/g) || []).length > 1) s = s.replace(/,/g, '');                // 1,234,567
     else s = s.replace(',', '.');                                                       // 90,7
     if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return null;
     var v = parseFloat(s);
     if (!isFinite(v)) return null;
+    if (mult !== 1) {
+      var sc = UNIT_SCALE[unit];
+      v = v * mult / (sc || 1);
+      return isFinite(v) ? v : null;
+    }
     if (sfx) {
       var to = unit === '%' ? '%' : unit === 'bp' ? 'bp' : unit ? null : '';
       if (to === null) return null;                     // "7%" makes no sense for an answer in €
@@ -118,7 +152,7 @@
     switch (tol.type) {
       case 'exact': return Math.abs(x - answer) <= eps;
       case 'abs': return Math.abs(x - answer) <= tol.v + eps;
-      case 'rel': return Math.abs(x - answer) <= tol.v * Math.abs(answer) + eps;
+      case 'rel': return Math.abs(x - answer) <= Math.max(tol.v * Math.abs(answer), tol.abs || 0) + eps;   // abs: a floor near 0
       default: return Math.abs(x - answer) <= 0.5 * Math.pow(10, -dp) + eps;   // round: rounded or unrounded
     }
   }
@@ -131,16 +165,18 @@
       if (!f) return { ok: false, value: null };
       return { ok: f[0] === q.frac[0] && f[1] === q.frac[1], value: f[0] + '/' + f[1] };
     }
-    var v = parse(input, q.unit);
+    var v = parse(input, q.unit, q.fracInput);
     if (v === null) return { ok: false, value: null };
     return { ok: within(q.tol, v, q.answer, q.dp), value: v };
   }
-  // Sprint auto-accept: only where the answer has one right spelling (exact or rounded), and only
-  // when the typed value equals the displayed answer, so a half-typed number never fires.
+  // Sprint auto-accept: only when the typed value equals the displayed (rounded) answer, so a half-typed number
+  // never fires. Exact and rounded answers always work this way; estimates (relative or absolute tolerance) fire too
+  // when you type exactly the displayed answer, and otherwise take Enter, checked against the tolerance.
   function autoOk(q, input) {
-    if (!q.auto) return false;
-    if (q.kind === 'fraction') return check(q, input).ok;
-    var v = parse(input, q.unit);
+    if (q.kind === 'choice') return false;
+    if (q.kind === 'fraction') return !!q.auto && check(q, input).ok;
+    if (!q.auto && !(q.tol && (q.tol.type === 'rel' || q.tol.type === 'abs'))) return false;
+    var v = parse(input, q.unit, q.fracInput);
     return v !== null && Math.abs(v - q.shownAnswer) <= 1e-9 * Math.max(1, Math.abs(q.shownAnswer));
   }
 
@@ -154,6 +190,13 @@
     return t;
   }
   function get(id) { return REG[id] || null; }
+  // Teaching data for an already registered template: legend, shortcut, target, pitfalls, example (finance-meta.js).
+  function addMeta(id, meta) {
+    var t = REG[id];
+    if (!t) throw new Error('Unknown template ' + id);
+    for (var k in meta) t[k] = meta[k];
+    return t;
+  }
   function list(filter) {
     return ORDER.map(get).filter(function (t) {
       if (!filter) return true;
@@ -165,6 +208,54 @@
     });
   }
 
+  // ---------- templates with teaching data (finance-sd*.js) ----------
+
+  // How wide the accepted band is around an answer (used to keep pitfalls clear of the right answer).
+  function tolWidth(tol, a, dp) {
+    if (tol.type === 'rel') return Math.max(tol.v * Math.abs(a), tol.abs || 0);
+    if (tol.type === 'abs') return tol.v;
+    if (tol.type === 'round') return 0.5 * Math.pow(10, -dp);
+    return 1e-9 * Math.max(1, Math.abs(a));
+  }
+  // A size as the prompt says it: 2.5bn, 10m, 100k.
+  function big(x) {
+    var a = Math.abs(x);
+    if (a >= 1e9) return round(x / 1e9, 3) + 'bn';
+    if (a >= 1e6) return round(x / 1e6, 3) + 'm';
+    if (a >= 1e3) return round(x / 1e3, 3) + 'k';
+    return String(x);
+  }
+  /*
+   * A template with its teaching data. spec: id, family, category, level (= difficulty), target (seconds), unit, dp, tol(p),
+   * fracInput, params(rng), valid?(p), prompt(p), answer(p), steps(p), formula (plain), tex, shortcut,
+   * legend [[sym (TeX), meaning, here(p) → string]], pitfalls [{ tag, text, value?(p), applies?(p) }], example { p, answer }.
+   * The pitfalls' values are the template's distractors, and a draw is rejected when a pitfall that applies would fall
+   * within twice the tolerance of the right answer, so the error tag can never fire on a correct answer.
+   */
+  function define(spec) {
+    var pits = spec.pitfalls || [];
+    function live(p) { return pits.filter(function (x) { return x.value && (!x.applies || x.applies(p)); }); }
+    var tolOf = spec.tol || function () { return { type: 'round' }; };
+    var t = {
+      id: spec.id, family: spec.family, category: spec.category, difficulty: spec.level, target: spec.target, unit: spec.unit || '',
+      dp: spec.dp || 0, tol: tolOf, positive: spec.positive, fracInput: !!spec.fracInput, kind: spec.kind,
+      params: spec.params,
+      valid: function (p) {
+        if (spec.valid && !spec.valid(p)) return false;
+        var a = spec.answer(p);
+        if (!isFinite(a)) return false;
+        var w = 2 * tolWidth(tolOf(p), a, spec.dp || 0);
+        return live(p).every(function (x) { var v = x.value(p); return isFinite(v) && Math.abs(v - a) > w; });
+      },
+      prompt: spec.prompt, answer: spec.answer, steps: spec.steps,
+      distractors: function (p) { return live(p).map(function (x) { return x.value(p); }); },
+      formula: spec.formula, tex: spec.tex, why: spec.shortcut, shortcut: spec.shortcut,
+      legend: (spec.legend || []).map(function (r) { return { sym: r[0], meaning: r[1], here: r[2] }; }),
+      pitfalls: pits, example: spec.example || null
+    };
+    return register(t);
+  }
+
   // ---------- questions ----------
 
   var DP_WORD = ['rounded to a whole number', 'one decimal', '2 decimals', '3 decimals', '4 decimals'];
@@ -173,7 +264,7 @@
   function askLine(q) {
     if (q.kind === 'choice') return '';
     if (q.kind === 'fraction') return 'As a fraction in lowest terms, like 3/8.';
-    var u = UNIT_WORD[q.unit] || '', how = '';
+    var u = UNIT_WORD[q.unit] || (q.unit ? 'in ' + q.unit : ''), how = '';
     if (q.tol.type === 'rel') how = 'approximately, within ' + fmt(q.tol.v * 100, 1) + '%';
     else if (q.tol.type === 'abs') how = 'within ±' + fmt(q.tol.v, 4);
     else if (q.tol.type === 'round') how = DP_WORD[q.dp] || q.dp + ' decimals';
@@ -225,7 +316,7 @@
     do { p = t.params(rng); tries++; } while (t.valid && !t.valid(p) && tries < 200);
     if (t.valid && !t.valid(p)) throw new Error('No valid parameters for ' + id + ' seed ' + seed);
     var q = { tpl: id, seed: seed, family: t.family, category: t.category, difficulty: t.difficulty, kind: t.kind, p: p,
-      prompt: t.prompt(p), unit: t.unit || '', formula: t.formula || '', tex: t.tex || '' };
+      prompt: t.prompt(p), unit: t.unit || '', formula: t.formula || '', tex: t.tex || '', target: t.target || null, fracInput: !!t.fracInput };
     q.promptText = TeX.richPlain(q.prompt);
     if (t.kind === 'choice') {
       // Curated: shuffle the 4 options with the seed; q.correct is the index after shuffling.
@@ -286,10 +377,11 @@
   // Weight of a template from its stats {n, acc, med} and my overall median time `ref`.
   // Unseen = 3 (try it); otherwise 1 + 2 × wrong rate + slowness (0–2). Never below 1: the floor
   // keeps every selected template in rotation.
+  // + the share of answers over the template's target time (st.over, 0–1), + 0.5 when the latest miss carried an error tag.
   function weight(st, ref) {
     if (!st || !st.n) return 3;
     var slow = ref && st.med ? Math.min(2, Math.max(0, st.med / ref - 1)) : 0;
-    return 1 + 2 * (1 - st.acc) + slow;
+    return 1 + 2 * (1 - st.acc) + slow + (st.over || 0) + (st.lastMissTag ? 0.5 : 0);
   }
   function weightedPick(rng, ids, w) {
     var ws = ids.map(function (id) { return Math.max(0.01, w ? w(id) : 1); }), tot = 0;
@@ -335,7 +427,7 @@
     C: C, round: round, fmt: fmt, withUnit: withUnit, gcd: gcd, decimals: decimals,
     int: int, pick: pick, grid: grid, shuffle: shuffle,
     parse: parse, parseFraction: parseFraction, within: within, check: check, autoOk: autoOk,
-    register: register, get: get, list: list, make: make, newSeed: newSeed, askLine: askLine,
+    register: register, define: define, big: big, tolWidth: tolWidth, get: get, addMeta: addMeta, list: list, group: group, groupRich: groupRich, THIN: THIN, make: make, newSeed: newSeed, askLine: askLine,
     weight: weight, weightedPick: weightedPick, makeSource: makeSource, mixedPlan: mixedPlan,
     families: families, categories: categories
   };

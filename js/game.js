@@ -407,7 +407,7 @@
     st.q = AT.Finance.make(p.tpl, p.seed);
     st.qStart = now();
     st.wrongSeen = {};
-    st.wrong = 0;
+    st.wrong = 0; st.firstWrong = null; st.lastWrong = null;
     st.learned = false; st.pausedMs = 0;
     var m = document.getElementById('g-method'); m.hidden = true; m.textContent = '';
     qEl.innerHTML = AT.TeX.rich(st.q.prompt);   // maths drawn as maths; the plain text is each formula's alttext
@@ -428,7 +428,8 @@
     var v = inEl.value.trim();
     if (!v) return;
     if (AT.Finance.check(st.q, v).ok) { acceptFinance(v); return; }
-    if (!st.wrongSeen[v]) { st.wrongSeen[v] = 1; st.wrong++; }
+    if (!st.wrongSeen[v]) { st.wrongSeen[v] = 1; st.wrong++; if (st.wrong === 1) st.firstWrong = v; }
+    st.lastWrong = v;
     markWrong();
     var m = document.getElementById('g-method');
     m.textContent = 'Not right. Press H to pause and learn.'; m.hidden = false;
@@ -454,13 +455,22 @@
 
   function pauseLearn() {
     if (!st.running || st.paused || !st.q) return;
-    var q = st.q, p = document.getElementById('g-learn');
+    var q = st.q, p = document.getElementById('g-learn'), TE = AT.FinanceTeach, T = AT.FinanceTags;
     st.paused = true; st.pauseAt = now(); st.learned = true;
-    p.innerHTML = '<p class="g-learn-ans" role="status">The answer is <b class="num">' + escHtml(q.answerText) + '</b></p>' +
-      (q.formula ? '<p class="fq-formula"><span class="mid">Formula</span> ' + AT.TeX.render(q.tex, q.formula) + '</p>' : '') +
-      '<ol>' + q.steps.map(function (s) { return '<li>' + AT.TeX.rich(s) + '</li>'; }).join('') + '</ol>' +
-      (q.why ? '<p>' + AT.TeX.rich(q.why) + '</p>' : '') +
-      '<p><button type="button" class="primary" id="g-resume" data-testid="game-resume">Back to the round <kbd>Enter</kbd></button></p>';
+    var resume = '<button type="button" class="primary" id="g-resume" data-testid="game-resume">Back to the round <kbd>Enter</kbd></button>';
+    var typed = inEl.value.trim() || st.lastWrong || st.firstWrong, v = typed ? AT.Finance.parse(typed, q.unit, q.fracInput) : null;
+    var tag = v !== null && !AT.Finance.check(q, typed).ok ? T.detect({ tpl: q.tpl, p: q.p, answer: q.answer, target: q.target }, v, now() - st.qStart) : null;
+    var t = AT.Finance.get(q.tpl), pausedAt = Math.round(now() - st.qStart);
+    if (q.formula && t && t.legend && t.legend.length) {
+      // The same teaching card as Practice and the end screen: recap, formula, legend, substitution, answer, shortcut, your mistake.
+      p.innerHTML = TE.cardHtml(q, { given: typed || null, timeMs: pausedAt, tag: tag, wrong: !!tag, buttons: resume });
+    } else {
+      p.innerHTML = '<p class="g-learn-ans" role="status">The answer is <b class="num">' + TE.rich(q.answerText) + '</b></p>' +
+        (q.formula ? '<p class="fq-formula"><span class="mid">Formula</span> ' + AT.TeX.render(q.tex, q.formula) + '</p>' : '') +
+        '<ol>' + q.steps.map(function (s) { return '<li>' + TE.rich(s) + '</li>'; }).join('') + '</ol>' +
+        (q.why ? '<p>' + TE.rich(q.why) + '</p>' : '') + '<p>' + resume + '</p>';
+    }
+    if (tag) st.pauseTag = tag;
     document.getElementById('g-resume').onclick = resumeLearn;
     p.hidden = false;
     document.getElementById('g-learn-btn').hidden = true;
@@ -491,6 +501,7 @@
   // A question you paused on is saved as learned: no point, a miss for its template.
   function learnedExtra(extra) {
     if (st.learned) { extra.learned = true; extra.pausedMs = Math.round(st.pausedMs); extra.correct = false; }
+    if (st.firstWrong) extra.wrongGiven = st.firstWrong;   // the first wrong value typed, so the end screen can say what kind of mistake it was
     return extra;
   }
 
